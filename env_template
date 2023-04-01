@@ -1,0 +1,41 @@
+# docker services (service names are hard coded inside docker-compose.yml)
+PG_DB_SERVICE = 'postgres'
+MDB_SERVICE = 'mongodb'
+SECURITIES_DATA_SERVICE = 'securities_data_api'
+TET_API_SERVICE = 'tet_api'
+TET_PY_PACKAGES_SERVICE = 'tet_py_packages'
+
+# postgres
+PG_DB_USER = 'postgres'
+PG_DB_PORT = 5432
+PG_DB_PORT_EXP = 5433
+PG_DB_PASSWORD = 'postgrespw'
+PG_DB_NAME = 'securities_db'
+
+# mongo db
+MDB_USER = 'root'
+MDB_PASSWORD = 'rootpassword'
+MDB_PORT = 27017
+MDB_PORT_EXP = 27018
+ATLAS_MONGO_DB_URL = 'mongodb+srv://. . .:. . .@. . ..rfnsm.mongodb.net/?retryWrites=true&w=majority'
+#LOCALHOST_MONGO_DB_URL='mongodb://localhost:27017/'
+#LOCALHOST_MONGO_DB_URL = 'mongodb://root:rootpassword@mongodb:27017/'
+LOCALHOST_MONGO_DB_URL = f'{MDB_SERVICE}://{MDB_USER}:{MDB_PASSWORD}@{MDB_SERVICE}:{MDB_PORT}/'
+SYSTEMS_DB = 'systems_db'
+INSTRUMENTS_DB = 'instruments_db'
+TIME_SERIES_DB = 'time_series_db'
+CLIENT_DB = 'client_db'
+
+# api's
+API_URL = '/api'
+SECURITIES_DATA_API_PORT = 8001
+SECURITIES_DATA_API_PORT_EXP = 8000
+TET_API_PORT = 4001
+TET_API_PORT_EXP = 4000
+TET_API_HOST = 'localhost'
+
+# securities db py dal
+API_HOST = SECURITIES_DATA_SERVICE
+API_PORT = SECURITIES_DATA_API_PORT
+DAL_LOG_FILE_PATH = '/app/securities_db_py_dal/logs/'
+DAL_LOG_FILE_PATH_CRITICAL = '/app/securities_db_py_dal/logs/'
