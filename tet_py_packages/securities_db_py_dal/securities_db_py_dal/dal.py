@@ -156,7 +156,7 @@ def last_date_get_req(instrument_one, instrument_two):
     last_date_res = requests.get(
         f'http://{env.API_HOST}:{env.API_PORT}{env.API_URL}/date/?inst1={instrument_one}&inst2={instrument_two}'
     ).json()
-    return last_date_res['date']
+    return last_date_res.get('date')
 
 
 if __name__ == '__main__':
@@ -200,7 +200,10 @@ if __name__ == '__main__':
     }
 
     last_inserted_date = last_date_get_req('^OMX', '^SPX')
-    last_inserted_date = pd.Timestamp(last_inserted_date)
+    if not last_inserted_date:
+        last_inserted_date = dt.datetime(1995, 1, 1)
+    else:
+        last_inserted_date = pd.Timestamp(last_inserted_date)
     year = last_inserted_date.year
     month = last_inserted_date.month
     day = last_inserted_date.day
