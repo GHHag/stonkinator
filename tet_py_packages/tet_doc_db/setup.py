@@ -11,5 +11,5 @@ setup(
     description=DESCRIPTION,
     packages=find_packages(),
     include_package_data=True,
-    install_requires=['pymongo', 'firebase_admin']#, 'TETrading'],
+    install_requires=['pymongo', 'firebase_admin']
 )
