@@ -1,4 +1,3 @@
-require('dotenv').config('.env');
 const { MongoClient } = require('mongodb');
 
 let _db;

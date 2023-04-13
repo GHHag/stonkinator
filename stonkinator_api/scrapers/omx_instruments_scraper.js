@@ -1,4 +1,3 @@
-require('dotenv').config('.env');
 const puppeteer = require('puppeteer');
 const axios = require('axios').default;
 
