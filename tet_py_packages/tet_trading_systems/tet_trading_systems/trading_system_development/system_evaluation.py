@@ -137,12 +137,12 @@ def evaluate_compare_monte_carlo_simulations(csv_files_dir, sort_on_ticker=True,
 
 
 if __name__ == '__main__':
-    os.chdir(r'C:\Users\gust_\Trading\Stutv\backtests\classifiers_omxs\classifier_backtest_data')
+    os.chdir(r'')
     file_directory = os.getcwd()
 
     # BACKTESTS
     write_csv = False
-    csv_path = r'D:\Trading\Backtest runs\sector_cf_ranking_210323\in_sample_tests\5x6 period exit\strat eval.csv'
+    csv_path = r''
 
     evaluate_systems(file_directory, sort_on_ticker=False, write_to_csv=write_csv, csv_file_path=csv_path)
 

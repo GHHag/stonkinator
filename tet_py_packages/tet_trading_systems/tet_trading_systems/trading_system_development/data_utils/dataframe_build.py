@@ -70,8 +70,8 @@ def get_split_dataframes(
 
 
 def get_crypto_data(symbol, start_dt, end_dt, interval='1h', limit=1000):
-    url = 'https://api.binance.com/api/v3/klines'
-    df = pd.read_csv(r'C:\Users\gust_\Ölmappen\ölsmak.csv')
+    url = ''
+    df = pd.read_csv(r'')
 
     start_dt = str(int(start_dt.timestamp() * 1000))
     end_dt = str(int(end_dt.timestamp() * 1000))
