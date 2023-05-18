@@ -1,4 +1,26 @@
-const pool = require('./db.js');
+const pool = require('../../database/db.js');
+//const mdb = require('../database/mdb');
+
+//const PRICE_DATA_COLLECTION = 'price_data';
+
+/*const insertPriceData = async (req, res) => {
+    if (!req.body.data) {
+        res.status(500).json({ success: false, error: 'Incorrect body' });
+        return;
+    }
+
+    try {
+        let result = await mdb.getMdb()
+            .collection(PRICE_DATA_COLLECTION)
+            .insertOne({ data: req.body.data });
+
+        res.status(200).json({ success: true, acknowledged: result });
+    }
+    catch (err) {
+        res.status(500).json({ success: false, error: err.message });
+    }
+}*/
+
 
 const insertExchange = async (req, res) => {
     if (!req.body.exchangeName || !req.body.currency) {

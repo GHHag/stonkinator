@@ -1,14 +1,13 @@
 const puppeteer = require('puppeteer');
 const axios = require('axios').default;
 
-const OMX_URL = 'http://www.nasdaqomxnordic.com/aktier/listed-companies/stockholm';
-const FIRST_NORTH_URL = 'http://www.nasdaqomxnordic.com/aktier/listed-companies/first-north';
-const NORDIC_LARGE_CAPS_URL = 'http://www.nasdaqomxnordic.com/aktier/listed-companies/nordic-large-cap';
-const NORDIC_MID_CAPS_URL = 'http://www.nasdaqomxnordic.com/aktier/listed-companies/nordic-mid-cap';
-const NORDIC_SMALL_CAPS_URL = 'http://www.nasdaqomxnordic.com/aktier/listed-companies/nordic-small-cap';
-
-const OMXS30_URL = 'http://www.nasdaqomxnordic.com/index/index_info?Instrument=SE0000337842';
-const FIRST_NORTH25_URL = 'http://www.nasdaqomxnordic.com/index/index_info?Instrument=SE0007576558';
+const OMX_URL = process.env.OMX_URL;
+const FIRST_NORTH_URL = process.env.FIRST_NORTH_URL;
+const NORDIC_LARGE_CAPS_URL = process.env.NORDIC_LARGE_CAPS_URL;
+const NORDIC_MID_CAPS_URL = process.env.NORDIC_MID_CAPS_URL;
+const NORDIC_SMALL_CAPS_URL = process.env.NORDIC_SMALL_CAPS_URL;
+const OMXS30_URL = process.env.OMXS30_URL;
+const FIRST_NORTH25_URL = process.env.FIRST_NORTH25_URL;
 
 async function scrapeOmxStockSymbols(url, marketListId, reqEndpoint) {
     const browser = await puppeteer.launch({ headless: false });
@@ -98,12 +97,12 @@ async function scrapeNasdaqStockSymbols(url, marketListId, reqEndpoint) {
 }
 
 const marketListPostReqEndpoint =
-    `http://${process.env.TET_API_HOST}:${process.env.TET_API_PORT}${process.env.API_URL}/market-list`;
+    `http://${process.env.TET_API_SERVICE}:${process.env.TET_API_PORT}${process.env.API_URL}/market-list`;
 
 const marketListIdGetReqEndpoint = marketListPostReqEndpoint;
 
 const instrumentsPostReqEndpoint =
-    `http://${process.env.TET_API_HOST}:${process.env.TET_API_PORT}${process.env.API_URL}/instruments`;
+    `http://${process.env.TET_API_SERVICE}:${process.env.TET_API_PORT}${process.env.API_URL}/instruments`;
 
 let scrapePipelines = [];
 
