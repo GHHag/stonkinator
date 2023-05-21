@@ -11,6 +11,8 @@ router.post('/instrument/:id', priceController.insertInstrument);
 router.get('/instrument/:symbol', priceController.getInstrument);
 router.post('/price-data/:id', priceController.insertPriceData);
 router.get('/price-data/:symbol', priceController.getPriceData);
+router.get('/first-dt/:symbol', priceController.getFirstAvailableDate);
+router.get('/last-dt/:symbol', priceController.getLastAvailableDate);
 router.get('/date', priceController.getLastDate);
 
 router.post('/market-list', instrumentsController.insertMarketList);
