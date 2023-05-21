@@ -315,8 +315,9 @@ if __name__ == '__main__':
                 start_date=start_date, end_date=end_date, 
                 omxs_stock=omxs_stock
             )
-            #for symbol in exchange_data.get('symbols'):
-            #    complete_historic_data(symbol, exchange, omxs_stock=omxs_stock)
+            if dt_now.weekday() == 0 and dt_now.day <= 7:
+                for symbol in exchange_data.get('symbols'):
+                    complete_historic_data(symbol, exchange, omxs_stock=omxs_stock)
 
     base_logger.info('\n------------------------------------------------------------------------\n')
     critical_logger.info('\n------------------------------------------------------------------------\n')
