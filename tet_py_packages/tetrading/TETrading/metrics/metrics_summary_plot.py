@@ -197,7 +197,7 @@ def system_metrics_summary_plot(
     plt.tight_layout()
 
     if save_fig_to_path:
-        plt.savefig(save_fig_to_path + '\\' + symbol + '.jpg')
+        plt.savefig(f'{save_fig_to_path}{symbol}.jpg')
     if plot_fig:
         plt.show()
     else:
