@@ -1,0 +1,13 @@
+# git
+.git
+.gitignore
+.gitattributes
+
+# docker
+docker-compose.yml
+Dockerfile
+.docker
+.dockerignore
+
+# js
+node_modules
