@@ -119,7 +119,7 @@ def preprocess_data(
     return df_dict, None
 
 
-def get_example_system_props(instruments_db: InstrumentsMongoDb):
+def get_props(instruments_db: InstrumentsMongoDb):
     system_name = 'example_system'
     benchmark_symbol = '^OMX'
     entry_args = {
@@ -176,7 +176,7 @@ if __name__ == '__main__':
     start_dt = dt.datetime(1999, 1, 1)
     end_dt = dt.datetime(2011, 1, 1)
 
-    system_props = get_example_system_props(INSTRUMENTS_DB)
+    system_props = get_props(INSTRUMENTS_DB)
 
     df_dict, features = system_props.preprocess_data_function(
         system_props.preprocess_data_args[0], '^OMX',

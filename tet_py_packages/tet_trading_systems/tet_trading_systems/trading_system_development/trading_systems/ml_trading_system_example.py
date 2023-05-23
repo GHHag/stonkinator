@@ -337,7 +337,7 @@ def preprocess_data(
     return df_dict, pred_features_df_dict 
 
 
-def get_example_ml_system_props(instruments_db: InstrumentsMongoDb, target_period=1):
+def get_props(instruments_db: InstrumentsMongoDb, target_period=1):
     system_name = 'example_ml_system'
     symbols_list = ['SKF_B', 'VOLV_B']#, 'NDA_SE', 'SCA_B']
     """ symbols_list = json.loads(
@@ -379,7 +379,7 @@ if __name__ == '__main__':
     end_dt = dt.datetime(2011, 1, 1)
 
     target_period = 1
-    system_props = get_example_ml_system_props(INSTRUMENTS_DB, target_period=target_period)
+    system_props = get_props(INSTRUMENTS_DB, target_period=target_period)
 
     df_dict, pred_features = system_props.preprocess_data_function(
         *system_props.preprocess_data_args, start_dt, end_dt,
