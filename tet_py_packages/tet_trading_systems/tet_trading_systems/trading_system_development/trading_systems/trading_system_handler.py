@@ -192,6 +192,7 @@ if __name__ == '__main__':
 
     # make live systems dir a passable argument?
     LIVE_SYSTEMS_DIR = 'live_systems'
+    file_dir = os.path.dirname(os.path.abspath(__file__))
     __globals = globals()
     sys.path.append(os.path.join(sys.path[0], LIVE_SYSTEMS_DIR))
     trading_system_modules = []
@@ -231,7 +232,12 @@ if __name__ == '__main__':
     #ml_systems_props_list: List[MlTradingSystemProperties] = []
 
     for trading_system in trading_system_modules:
-        systems_props_list.append(__globals[trading_system].get_props(INSTRUMENTS_DB))
+        systems_props_list.append(
+            __globals[trading_system].get_props(
+                INSTRUMENTS_DB, import_instruments=True, 
+                path=f'{file_dir}/{LIVE_SYSTEMS_DIR}/backtests'
+            )
+        )
 
     for system_props in systems_props_list:
         # implementera protocol för system_handler_function?
