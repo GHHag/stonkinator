@@ -197,7 +197,7 @@ if __name__ == '__main__':
     sys.path.append(os.path.join(sys.path[0], LIVE_SYSTEMS_DIR))
     trading_system_modules = []
     for file in os.listdir(f'{sys.path[0]}/{LIVE_SYSTEMS_DIR}'):
-        if file == '__init__.py':
+        if file == '__init__.py' or not file.endswith('.py'):
             continue
         module_name = file[:-3]
         try:

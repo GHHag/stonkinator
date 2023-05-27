@@ -14,6 +14,7 @@ from tet_trading_systems.trading_system_development.trading_systems.run_trading_
 from tet_trading_systems.trading_system_development.trading_systems.trading_system_handler import handle_trading_system
 from tet_trading_systems.trading_system_management.position_sizer.safe_f_position_sizer import SafeFPositionSizer
 from tet_trading_systems.trading_system_state_handler.trad_trading_system_state_handler import TradingSystemStateHandler
+from tet_trading_systems.trading_system_state_handler.instrument_selection.pd_instrument_selector import PdInstrumentSelector
 
 
 def entry_logic_example(df, *args, entry_args=None):
@@ -119,7 +120,7 @@ def preprocess_data(
     return df_dict, None
 
 
-def get_props(instruments_db: InstrumentsMongoDb):
+def get_props(instruments_db: InstrumentsMongoDb, import_instruments=False, path=None):
     system_name = 'example_system'
     benchmark_symbol = '^OMX'
     entry_args = {
@@ -128,18 +129,26 @@ def get_props(instruments_db: InstrumentsMongoDb):
     exit_args = {
         'exit_period_param': 5
     }
-    market_list_ids = [
-        #instruments_db.get_market_list_id('omxs30')
-        instruments_db.get_market_list_id('omxs_large_caps'),
-        instruments_db.get_market_list_id('omxs_mid_caps')
-    ]
-    symbols_list = []
-    for market_list_id in market_list_ids:
-        symbols_list += json.loads(
-            instruments_db.get_market_list_instrument_symbols(
-                market_list_id
+
+    if import_instruments:
+        backtest_df = pd.read_csv(f'{path}/{system_name}.csv') if path else \
+            pd.read_csv(f'./backtests/{system_name}')
+        instrument_selector = PdInstrumentSelector('sharpe_ratio', backtest_df, 0.9)
+        instrument_selector()
+        symbols_list = instrument_selector.selected_instruments
+    else:
+        market_list_ids = [
+            #instruments_db.get_market_list_id('omxs30')
+            instruments_db.get_market_list_id('omxs_large_caps'),
+            instruments_db.get_market_list_id('omxs_mid_caps')
+        ]
+        symbols_list = []
+        for market_list_id in market_list_ids:
+            symbols_list += json.loads(
+                instruments_db.get_market_list_instrument_symbols(
+                    market_list_id
+                )
             )
-        )
 
     return TradingSystemProperties(
         system_name, 2,
@@ -169,14 +178,17 @@ def get_props(instruments_db: InstrumentsMongoDb):
 if __name__ == '__main__':
     import tet_trading_systems.trading_system_development.trading_systems.env as env
     #SYSTEMS_DB = TetSystemsMongoDb('mongodb://localhost:27017/', 'systems_db')
-    SYSTEMS_DB = TetSystemsMongoDb(env.ATLAS_MONGO_DB_URL, 'client_db')
+    #SYSTEMS_DB = TetSystemsMongoDb(env.ATLAS_MONGO_DB_URL, 'client_db')
     #INSTRUMENTS_DB = InstrumentsMongoDb('mongodb://localhost:27017/', 'instruments_db')
-    INSTRUMENTS_DB = InstrumentsMongoDb(env.ATLAS_MONGO_DB_URL, 'client_db')
+    #INSTRUMENTS_DB = InstrumentsMongoDb(env.ATLAS_MONGO_DB_URL, 'client_db')
+    SYSTEMS_DB = TetSystemsMongoDb(env.ATLAS_MONGO_DB_URL, env.CLIENT_DB)
+    INSTRUMENTS_DB = InstrumentsMongoDb(env.ATLAS_MONGO_DB_URL, env.CLIENT_DB)
 
     start_dt = dt.datetime(1999, 1, 1)
     end_dt = dt.datetime(2011, 1, 1)
 
     system_props = get_props(INSTRUMENTS_DB)
+    system_name = 'example_system'
 
     df_dict, features = system_props.preprocess_data_function(
         system_props.preprocess_data_args[0], '^OMX',
@@ -187,13 +199,15 @@ if __name__ == '__main__':
     )
 
     run_trading_system(
-        df_dict, 'example_system',
+        df_dict, system_name,
         entry_logic_example, exit_logic_example,
         system_props.preprocess_data_args[-2], 
         system_props.preprocess_data_args[-1], 
+        SafeFPositionSizer(20, 0.8),
         run_monte_carlo_sims=True,
         plot_fig=True,
         num_of_sims=100,
         plot_monte_carlo=True,
+        #system_analysis_to_csv_path=f'./backtests/{system_name}.csv',
         systems_db=SYSTEMS_DB, client_db=SYSTEMS_DB, insert_into_db=False
     )
