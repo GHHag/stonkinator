@@ -3,15 +3,17 @@ import pickle
 from pymongo.mongo_client import MongoClient
 from pymongo.collection import Collection
 
+from TETrading.data.metadata.trading_system_attributes import TradingSystemAttributes
+
 
 class TetMlModelsDb:
 
-    __ID_FIELD = '_id'
-    __SYSTEM_ID_FIELD = 'system_id'
-    __NAME_FIELD = 'name'
-    __SYSTEM_NAME_FIELD = 'system_name'
-    __ML_MODEL_FIELD = 'model'
-    __INSTRUMENT_FIELD = 'instrument'
+    __ID_FIELD = TradingSystemAttributes.ID
+    __SYSTEM_ID_FIELD = TradingSystemAttributes.SYSTEM_ID
+    __NAME_FIELD = TradingSystemAttributes.NAME
+    __SYSTEM_NAME_FIELD = TradingSystemAttributes.SYSTEM_NAME
+    __ML_MODEL_FIELD = TradingSystemAttributes.ML_MODEL
+    __INSTRUMENT_FIELD = TradingSystemAttributes.INSTRUMENT
 
     def __init__(self, client_uri, client_name):
         mongo_client = MongoClient(client_uri)

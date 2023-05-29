@@ -4,11 +4,12 @@ import datetime as dt
 from pymongo.mongo_client import MongoClient
 
 from tet_doc_db.doc_database_meta_classes.time_series_doc_db import ITimeSeriesDocumentDatabase
+from TETrading.data.metadata.trading_system_attributes import TradingSystemAttributes
 
 
 class TimeSeriesMongoDb(ITimeSeriesDocumentDatabase):
 
-    __ID_FIELD = '_id'
+    __ID_FIELD = TradingSystemAttributes.ID
 
     def __init__(self, client_uri, client_name):
         mongo_client = MongoClient(client_uri)

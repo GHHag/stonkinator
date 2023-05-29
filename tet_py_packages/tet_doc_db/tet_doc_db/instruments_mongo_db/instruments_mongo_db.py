@@ -12,7 +12,7 @@ class InstrumentsMongoDb:
     __MARKET_LISTS_COLLECTION = 'market_lists'
     __INSTRUMENTS_COLLECTION = 'instruments'
 
-    __ID_FIELD = '_id'
+    __ID_FIELD = TradingSystemAttributes.ID
     __MARKET_LIST_FIELD = 'market_list'
     __MARKET_LIST_IDS_FIELD = 'market_list_ids'
     __SYMBOL_FIELD = TradingSystemAttributes.SYMBOL 
