@@ -251,8 +251,9 @@ class TradingSystem:
                     print('ValueError')
 
             # write trading system data and stats to DataFrame
-            self.__metrics_df: pd.DataFrame = self.__metrics_df.append(
-                pos_manager.metrics.summary_data_dict, ignore_index=True
+            self.__metrics_df: pd.DataFrame = pd.concat(
+                [self.__metrics_df, pd.DataFrame([pos_manager.metrics.summary_data_dict])], 
+                ignore_index=True
             )
 
             # run Monte Carlo simulations, plot and write stats to DataFrame
@@ -269,8 +270,9 @@ class TradingSystem:
                 monte_carlo_summary_data_dict = monte_carlo_simulation_summary_data(
                     monte_carlo_sims_data_dicts_list
                 )
-                self.__monte_carlo_simulations_df = self.__monte_carlo_simulations_df.append(
-                    monte_carlo_summary_data_dict, ignore_index=True
+                self.__monte_carlo_simulations_df: pd.DataFrame = pd.concat(
+                    [self.__monte_carlo_simulations_df, pd.DataFrame([monte_carlo_summary_data_dict])], 
+                    ignore_index=True
                 )
 
             # add system evaluation data to the SignalHandler
