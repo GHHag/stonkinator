@@ -117,7 +117,7 @@ def monte_carlo_simulate_returns(
     if print_dataframe:
         sim_data = pd.DataFrame(columns=list(monte_carlo_sims_data[-1].keys()))
         for data_dict in monte_carlo_sims_data:
-            sim_data = sim_data.append(data_dict, ignore_index=True)
+            sim_data = pd.concat([sim_data, pd.DataFrame([data_dict])], ignore_index=True)
         print(sim_data.to_string())
 
     if plot_fig:

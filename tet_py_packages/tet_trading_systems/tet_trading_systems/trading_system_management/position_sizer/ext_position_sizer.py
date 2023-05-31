@@ -65,13 +65,12 @@ class ExtPositionSizer(IPositionSizer):
 
             pos_list = random.sample(positions, len(positions))
             sim_positions.generate_positions(generate_pos_sequence, pos_list)
-            monte_carlo_sims_df = monte_carlo_sims_df.append(
-                sim_positions.metrics.summary_data_dict, ignore_index=True
+            monte_carlo_sims_df: pd.DataFrame = pd.concat(
+                [monte_carlo_sims_df, pd.DataFrame([sim_positions.metrics.summary_data_dict])], 
+                ignore_index=True
             )
             final_equity_list.append(float(sim_positions.metrics.equity_list[-1]))
-
             max_drawdowns_list.append(sim_positions.metrics.max_drawdown)
-
             equity_curves_list.append(sim_positions.metrics.equity_list)
 
         final_equity_list = sorted(final_equity_list)
@@ -87,10 +86,8 @@ class ExtPositionSizer(IPositionSizer):
             sim_positions.metrics.num_testing_periods
         )
 
-        car_series = pd.Series()
-        car_series[self.__CAR25] = car25
-        car_series[self.__CAR75] = car75
-        monte_carlo_sims_df: pd.DataFrame = monte_carlo_sims_df.append(car_series, ignore_index=True)
+        car_df = pd.DataFrame.from_dict({'car25': [car25], 'car75': [car75]})
+        monte_carlo_sims_df = pd.concat([monte_carlo_sims_df, car_df], ignore_index=True)
 
         if print_dataframe:
             print(monte_carlo_sims_df.to_string())
