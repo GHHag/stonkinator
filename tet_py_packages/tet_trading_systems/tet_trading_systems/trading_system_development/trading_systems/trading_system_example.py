@@ -178,17 +178,16 @@ def get_props(instruments_db: InstrumentsMongoDb, import_instruments=False, path
 if __name__ == '__main__':
     import tet_trading_systems.trading_system_development.trading_systems.env as env
     #SYSTEMS_DB = TetSystemsMongoDb('mongodb://localhost:27017/', 'systems_db')
-    #SYSTEMS_DB = TetSystemsMongoDb(env.ATLAS_MONGO_DB_URL, 'client_db')
     #INSTRUMENTS_DB = InstrumentsMongoDb('mongodb://localhost:27017/', 'instruments_db')
+    #SYSTEMS_DB = TetSystemsMongoDb(env.ATLAS_MONGO_DB_URL, 'client_db')
     #INSTRUMENTS_DB = InstrumentsMongoDb(env.ATLAS_MONGO_DB_URL, 'client_db')
-    SYSTEMS_DB = TetSystemsMongoDb(env.ATLAS_MONGO_DB_URL, env.CLIENT_DB)
+    SYSTEMS_DB = TetSystemsMongoDb(env.ATLAS_MONGO_DB_URL, env.SYSTEMS_DB)
     INSTRUMENTS_DB = InstrumentsMongoDb(env.ATLAS_MONGO_DB_URL, env.CLIENT_DB)
 
     start_dt = dt.datetime(1999, 1, 1)
     end_dt = dt.datetime(2011, 1, 1)
 
     system_props = get_props(INSTRUMENTS_DB)
-    system_name = 'example_system'
 
     df_dict, features = system_props.preprocess_data_function(
         system_props.preprocess_data_args[0], '^OMX',
@@ -199,15 +198,15 @@ if __name__ == '__main__':
     )
 
     run_trading_system(
-        df_dict, system_name,
+        df_dict, 
+        system_props.system_name,
         entry_logic_example, exit_logic_example,
         system_props.preprocess_data_args[-2], 
         system_props.preprocess_data_args[-1], 
-        SafeFPositionSizer(20, 0.8),
-        run_monte_carlo_sims=True,
         plot_fig=True,
-        num_of_sims=100,
-        plot_monte_carlo=True,
+        #run_monte_carlo_sims=True,
+        #num_of_sims=100,
+        #plot_monte_carlo=True,
         #system_analysis_to_csv_path=f'./backtests/{system_name}.csv',
         systems_db=SYSTEMS_DB, client_db=SYSTEMS_DB, insert_into_db=False
     )

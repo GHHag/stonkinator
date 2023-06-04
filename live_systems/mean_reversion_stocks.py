@@ -159,14 +159,13 @@ if __name__ == '__main__':
     import tet_trading_systems.trading_system_development.trading_systems.env as env
     #SYSTEMS_DB = TetSystemsMongoDb('mongodb://localhost:27017/', 'systems_db')
     #INSTRUMENTS_DB = InstrumentsMongoDb('mongodb://localhost:27017/', 'instruments_db')
-    SYSTEMS_DB = TetSystemsMongoDb(env.ATLAS_MONGO_DB_URL, env.CLIENT_DB)
+    SYSTEMS_DB = TetSystemsMongoDb(env.ATLAS_MONGO_DB_URL, env.SYSTEMS_DB)
     INSTRUMENTS_DB = InstrumentsMongoDb(env.ATLAS_MONGO_DB_URL, env.CLIENT_DB)
 
     start_dt = dt.datetime(1999, 1, 1)
     end_dt = dt.datetime(2011, 1, 1)
 
     system_props = get_props(INSTRUMENTS_DB, import_instruments=False)
-    system_name = 'mean_reversion_stocks'
 
     df_dict, features = system_props.preprocess_data_function(
         system_props.preprocess_data_args[0], '^OMX', 
@@ -176,16 +175,14 @@ if __name__ == '__main__':
         start_dt, end_dt, 
     )
 
-    #run_ext_pos_sizer_trading_system(
     run_trading_system(
-        df_dict, system_name, 
+        df_dict, 
+        system_props.system_name,
         rsi_divergence_entry, n_period_rw_rsi_target_trail_atr_exit,
         system_props.preprocess_data_args[-2], 
         system_props.preprocess_data_args[-1], 
-        #ExtPositionSizer('sharpe_ratio'),
-        SafeFPositionSizer(20, 0.8),
         plot_fig=False,
         # add check if dir exists before running, create it if not
-        system_analysis_to_csv_path=f'./backtests/{system_name}.csv',
+        system_analysis_to_csv_path=f'./backtests/{system_props.system_name}.csv',
         systems_db=SYSTEMS_DB, client_db=SYSTEMS_DB, insert_into_db=False
     )
