@@ -243,7 +243,8 @@ class MlTradingSystemStateHandler:
     def __call__(
         self, entry_logic_function: Callable, exit_logic_function: Callable, 
         entry_args: Dict[str, object], exit_args: Dict[str, object], 
-        date_format='%Y-%m-%d', capital=10000, plot_fig=False, insert_into_db=False, 
+        date_format='%Y-%m-%d', capital=10000, plot_fig=False,
+        client_db: TetSystemsMongoDb=None, insert_into_db=False, 
         **kwargs
     ):
         instrument_data: MlSystemInstrumentData
@@ -256,7 +257,10 @@ class MlTradingSystemStateHandler:
                 self._handle_entry_signal(instrument_data)
                 latest_data_point = instrument_data.dataframe.iloc[-1].copy()
                 latest_data_point['pred'] = instrument_data.model.predict(instrument_data.pred_data[-1].reshape(1, -1))[0]
-                instrument_data.dataframe = instrument_data.dataframe.iloc[:-1].append(latest_data_point, ignore_index=True)
+                instrument_data.dataframe = pd.concat(
+                    [instrument_data.dataframe.iloc[:-1], pd.DataFrame(latest_data_point).transpose()], 
+                    ignore_index=True
+                )
             
                 if isinstance(instrument_data.position_list[-1], Position) and instrument_data.position_list[-1].active_position:
                     active_pos = self._handle_active_pos_state(instrument_data)
@@ -265,7 +269,7 @@ class MlTradingSystemStateHandler:
                     else:
                         if insert_into_db:
                             # Position objects in json format are inserted into database after being exited
-                            self.__systems_db.insert_single_symbol_position_list(
+                            client_db.insert_single_symbol_position_list(
                                 self.__system_name, instrument_data.symbol, 
                                 instrument_data.position_list, instrument_data.num_testing_periods,
                                 format='json'
@@ -296,3 +300,11 @@ class MlTradingSystemStateHandler:
                     MarketState.EXIT.value: self.__systems_db.insert_market_state_data
                 }, self.__system_name
             )
+            if client_db is not self.__system_db:
+                self.__signal_handler.insert_into_db(
+                    {
+                        MarketState.ENTRY.value: client_db.insert_market_state_data,
+                        MarketState.ACTIVE.value: client_db.insert_market_state_data, 
+                        MarketState.EXIT.value: client_db.insert_market_state_data
+                    }, self.__system_name
+                )
