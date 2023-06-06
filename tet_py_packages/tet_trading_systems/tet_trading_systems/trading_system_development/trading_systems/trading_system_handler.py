@@ -190,8 +190,7 @@ def handle_trading_system_portfolio(
 if __name__ == '__main__':
     import tet_trading_systems.trading_system_development.trading_systems.env as env
 
-    # make live systems dir a passable argument?
-    LIVE_SYSTEMS_DIR = 'live_systems'
+    LIVE_SYSTEMS_DIR = sys.argv[1]
     file_dir = os.path.dirname(os.path.abspath(__file__))
     __globals = globals()
     sys.path.append(os.path.join(sys.path[0], LIVE_SYSTEMS_DIR))
@@ -210,17 +209,12 @@ if __name__ == '__main__':
     TIME_SERIES_DB = TimeSeriesMongoDb(env.LOCALHOST_MONGO_DB_URL, env.TIME_SERIES_DB)
     SYSTEMS_DB = TetSystemsMongoDb(env.LOCALHOST_MONGO_DB_URL, env.SYSTEMS_DB)
     CLIENT_DB = TetSystemsMongoDb(env.LOCALHOST_MONGO_DB_URL, env.CLIENT_DB)
-    #CLIENT_DB = SYSTEMS_DB
 
     INSTRUMENTS_DB = InstrumentsMongoDb(env.ATLAS_MONGO_DB_URL, env.CLIENT_DB)
     #TIME_SERIES_DB = TimeSeriesMongoDb(env.ATLAS_MONGO_DB_URL, env.CLIENT_DB)
     #SYSTEMS_DB = TetSystemsMongoDb(env.ATLAS_MONGO_DB_URL, env.CLIENT_DB)
     #CLIENT_DB = TetSystemsMongoDb(env.ATLAS_MONGO_DB_URL, env.CLIENT_DB)
     
-    #ML_SYSTEMS_DB = TetSystemsMongoDb(env.LOCALHOST_MONGO_DB_URL, env.CLIENT_DB)
-    ML_SYSTEMS_DB = TetSystemsMongoDb(env.LOCALHOST_MONGO_DB_URL, env.SYSTEMS_DB)
-    ML_ORDERS_DB = ML_SYSTEMS_DB 
-
     PORTFOLIOS_DB = TetPortfolioMongoDb(env.LOCALHOST_MONGO_DB_URL, env.CLIENT_DB)
 
     #start_dt = dt.datetime(1999, 1, 1)
@@ -229,7 +223,6 @@ if __name__ == '__main__':
     end_dt = dt.datetime.now()
 
     systems_props_list: List[TradingSystemProperties] = []
-    #ml_systems_props_list: List[MlTradingSystemProperties] = []
 
     for trading_system in trading_system_modules:
         systems_props_list.append(
@@ -252,20 +245,4 @@ if __name__ == '__main__':
         #        system_props, 
         #        CLIENT_DB, PORTFOLIOS_DB, 
         #        insert_into_db=True
-        #    )
-    
-    # ml systems should be runnable from same iteration as traditional systems
-    #for system_props in ml_systems_props_list:
-        #handle_ml_trading_system(
-        #system_props.system_handler_function(
-        #    system_props, start_dt, end_dt, 
-        #    ML_SYSTEMS_DB, ML_ORDERS_DB, 
-        #    time_series_db=TIME_SERIES_DB, 
-        #    insert_into_db=True, plot_fig=False
-        #)
-        #if system_props['portfolio_args']:
-        #    handle_trading_system_portfolio(
-        #        system_props, 
-        #        SYSTEMS_DB, CLIENT_DB, PORTFOLIOS_DB, 
-        #        insert_into_db=False
         #    )

@@ -38,7 +38,7 @@ services:
       - ${TET_API_SERVICE}
     build: ./tet_py_packages
     volumes:
-      - ./tet_py_packages/tet_trading_systems/tet_trading_systems/trading_system_development/trading_systems/live_systems:/app/tet_trading_systems/tet_trading_systems/trading_system_development/trading_systems/live_systems
+      - ./${LIVE_SYSTEMS_DIR}:/${LIVE_SYSTEMS_DIR_TARGET}
 
 volumes:
   securities_data:

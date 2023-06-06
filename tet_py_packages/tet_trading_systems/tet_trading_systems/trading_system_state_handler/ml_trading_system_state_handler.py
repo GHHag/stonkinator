@@ -300,7 +300,7 @@ class MlTradingSystemStateHandler:
                     MarketState.EXIT.value: self.__systems_db.insert_market_state_data
                 }, self.__system_name
             )
-            if client_db is not self.__system_db:
+            if client_db is not self.__systems_db:
                 self.__signal_handler.insert_into_db(
                     {
                         MarketState.ENTRY.value: client_db.insert_market_state_data,
