@@ -257,8 +257,10 @@ class MlTradingSystemStateHandler:
                 self._handle_entry_signal(instrument_data)
                 latest_data_point = instrument_data.dataframe.iloc[-1].copy()
                 latest_data_point['pred'] = instrument_data.model.predict(instrument_data.pred_data[-1].reshape(1, -1))[0]
+                latest_data_point_df = pd.DataFrame(latest_data_point).transpose()
+                latest_data_point_df['pred'] = latest_data_point_df['pred'].astype('boolean')
                 instrument_data.dataframe = pd.concat(
-                    [instrument_data.dataframe.iloc[:-1], pd.DataFrame(latest_data_point).transpose()], 
+                    [instrument_data.dataframe.iloc[:-1], latest_data_point_df], 
                     ignore_index=True
                 )
             
