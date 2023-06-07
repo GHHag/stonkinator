@@ -227,7 +227,7 @@ class TradingSystem:
             )
             trading_session = TradingSession(
                 self.__entry_logic_function, self.__exit_logic_function, data,
-                signal_handler=self.__signal_handler, symbol=instrument
+                self.__signal_handler, symbol=instrument
             )
             pos_manager.generate_positions(
                 trading_session, *args,
