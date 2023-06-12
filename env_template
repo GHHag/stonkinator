@@ -1,7 +1,6 @@
-# docker services (service names are hard coded inside docker-compose.yml)
+# docker services (service names are hard coded in docker-compose.yml)
 PG_DB_SERVICE = 'postgres'
 MDB_SERVICE = 'mongodb'
-SECURITIES_DATA_SERVICE = 'securities_data_api'
 TET_API_SERVICE = 'tet_api'
 TET_PY_PACKAGES_SERVICE = 'tet_py_packages'
 
@@ -28,14 +27,14 @@ CLIENT_DB = 'client_db'
 
 # api's
 API_URL = '/api'
-SECURITIES_DATA_API_PORT = 8001
-SECURITIES_DATA_API_PORT_EXP = 8000
 TET_API_PORT = 4001
 TET_API_PORT_EXP = 4000
-TET_API_HOST = 'localhost'
 
 # securities db py dal
-API_HOST = SECURITIES_DATA_SERVICE
-API_PORT = SECURITIES_DATA_API_PORT
+API_HOST = TET_API_SERVICE
+API_PORT = TET_API_PORT
 DAL_LOG_FILE_PATH = '/app/securities_db_py_dal/logs/'
 DAL_LOG_FILE_PATH_CRITICAL = '/app/securities_db_py_dal/logs/'
+
+LIVE_SYSTEMS_DIR = 'tet_py_packages/tet_trading_systems/tet_trading_systems/trading_system_development/trading_systems/live_systems'
+LIVE_SYSTEMS_DIR_TARGET = 'app/tet_trading_systems/tet_trading_systems/trading_system_development/trading_systems/live_systems'

@@ -1,4 +1,26 @@
-const pool = require('./db.js');
+const pool = require('../../database/db.js');
+//const mdb = require('../database/mdb');
+
+//const PRICE_DATA_COLLECTION = 'price_data';
+
+/*const insertPriceData = async (req, res) => {
+    if (!req.body.data) {
+        res.status(500).json({ success: false, error: 'Incorrect body' });
+        return;
+    }
+
+    try {
+        let result = await mdb.getMdb()
+            .collection(PRICE_DATA_COLLECTION)
+            .insertOne({ data: req.body.data });
+
+        res.status(200).json({ success: true, acknowledged: result });
+    }
+    catch (err) {
+        res.status(500).json({ success: false, error: err.message });
+    }
+}*/
+
 
 const insertExchange = async (req, res) => {
     if (!req.body.exchangeName || !req.body.currency) {
@@ -228,6 +250,54 @@ const getPriceData = async (req, res) => {
     }
 }
 
+const getFirstAvailableDate = async (req, res) => {
+    if (!req.params.symbol) {
+        res.status(500).json({ success: false, error: 'Incorrect params/body' });
+        return;
+    }
+
+    try {
+        let firstDateQuery = await pool.query(
+            `
+            SELECT MIN(price_data.date_time)
+            FROM instruments, price_data
+            WHERE instruments.id = price_data.instrument_id
+            AND instruments.symbol = $1
+            `,
+            [req.params.symbol.toUpperCase()]
+        );
+
+        res.status(200).json({ data: firstDateQuery.rows[0], success: true });
+    }
+    catch (err) {
+        res.status(500).json({ success: false, error: err.message });
+    }
+}
+
+const getLastAvailableDate = async (req, res) => {
+    if (!req.params.symbol) {
+        res.status(500).json({ success: false, error: 'Incorrect params/body' });
+        return;
+    }
+
+    try {
+        let lastDateQuery = await pool.query(
+            `
+            SELECT MAX(price_data.date_time)
+            FROM instruments, price_data
+            WHERE instruments.id = price_data.instrument_id
+            AND instruments.symbol = $1
+            `,
+            [req.params.symbol.toUpperCase()]
+        );
+
+        res.status(200).json({ data: lastDateQuery.rows[0], success: true });
+    }
+    catch (err) {
+        res.status(500).json({ success: false, error: err.message });
+    }
+}
+
 const getLastDate = async (req, res) => {
     if (!req.query.inst1 || !req.query.inst2) {
         res.status(500).json({ success: false, error: 'Incorrect params' });
@@ -278,5 +348,7 @@ module.exports = {
     getInstrument,
     insertPriceData,
     getPriceData,
+    getFirstAvailableDate,
+    getLastAvailableDate,
     getLastDate
 }

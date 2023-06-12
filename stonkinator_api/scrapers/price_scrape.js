@@ -24,7 +24,7 @@ async function scrapePrice(url, props) {
     }
 
     await fetch(
-        `http://localhost:6969/api/insert`,
+        `http://${process.env.TET_API_SERVICE}:${process.env.TET_API_PORT}${process.env.API_URL}/price`,
         {
             method: 'POST',
             headers: {
@@ -45,7 +45,7 @@ async function scrapePrice(url, props) {
 }
 
 scrapePrice(
-    'https://www.google.se/search?q=omxs30&source=hp&ei=nBORY407xYXFzw_qnIqIAQ&iflsig=AJiK0e8AAAAAY5EhrBDpxePm1Io8XlCN62XksxxBFG_x&ved=0ahUKEwiN-dyLx-j7AhXFQvEDHWqOAhEQ4dUDCAc&uact=5&oq=omxs30&gs_lcp=Cgdnd3Mtd2l6EAMyEAgAEIAEELEDEIMBEEYQ-gEyBQgAEIAEMgUIABCABDIFCAAQgAQyBQgAEIAEMgUIABCABDIFCAAQgAQyBQgAEIAEMgUIABCABDIFCAAQgAQ6CwgAEIAEELEDEIMBOggILhCxAxCDAToOCC4QsQMQgwEQxwEQ0QM6BQguEIAEOggIABCABBCxAzoOCC4QgAQQsQMQxwEQ0QM6CAguEIAEELEDOg4ILhCABBDHARDRAxDUAjoOCC4QgAQQsQMQgwEQ1AI6CggAEIAEELEDEAo6BwguEIAEEAo6BwgAEIAEEAo6DQguEIAEEMcBEK8BEApQAFjJHGCjHWgCcAB4AIAByQGIAb8FkgEFNi4xLjGYAQCgAQE&sclient=gws-wiz',
+    process.env.PRICE_SCRAPE_URL,
     {
         '//*[@id="knowledge-finance-wholepage__entity-summary"]/div/g-card-section/div/g-card-section/div[1]/div/div/span': { 'textContent': 'symbol' },
         '//*[@id="knowledge-finance-wholepage__entity-summary"]/div/g-card-section/div/g-card-section/div[2]/div[1]/span[1]/span/span': { 'textContent': 'price' }

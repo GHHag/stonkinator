@@ -1,5 +1,7 @@
 from TETrading.data.metadata.market_state_enum import MarketState
-from TETrading.signal_events.signals.system_signals import SystemSignals
+from TETrading.signal_events.signals.entry_signal import EntrySignals
+from TETrading.signal_events.signals.exit_signal import ExitSignals
+from TETrading.signal_events.signals.active_position import ActivePositions
 
 
 class SignalHandler:
@@ -10,9 +12,9 @@ class SignalHandler:
     """
 
     def __init__(self):
-        self.__entry_signals = SystemSignals()
-        self.__exit_signals = SystemSignals()
-        self.__active_positions = SystemSignals()
+        self.__entry_signals = EntrySignals()
+        self.__exit_signals = ExitSignals()
+        self.__active_positions = ActivePositions()
         self.__entry_signal_given = False
 
     @property

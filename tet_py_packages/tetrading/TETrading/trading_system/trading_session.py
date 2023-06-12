@@ -34,7 +34,7 @@ class TradingSession:
 
     def __init__(
         self, entry_logic_function, exit_logic_function, dataframe: pd.DataFrame,
-        signal_handler: SignalHandler=None, symbol=''
+        signal_handler: SignalHandler, symbol=''
     ):
         self.__entry_logic_function = entry_logic_function
         self.__exit_logic_function = exit_logic_function

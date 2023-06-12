@@ -152,6 +152,62 @@ def post_daily_data(
     )
 
 
+def complete_historic_data(symbol, exchange_name, *args, omxs_stock=False):
+    start_dt = dt.datetime(1995, 1, 1)
+    first_dt = dt.datetime.strptime(
+        first_dt_get_req(symbol).get('data').get('min').split('T')[0], '%Y-%m-%d'
+    ).date()
+    last_dt = dt.datetime.strptime(
+        last_dt_get_req(symbol).get('data').get('max').split('T')[0], '%Y-%m-%d'
+    ).date() + dt.timedelta(days=1)
+
+    try:
+        if omxs_stock:
+            if '^' in symbol:
+                first_dt_data = Ticker(symbol.upper()).history(start=start_dt, end=first_dt)
+                last_dt_data = Ticker(symbol.upper()).history(start=last_dt)
+            else:
+                first_dt_data = Ticker(
+                    symbol.upper().replace('_', '-') + '.ST'
+                ).history(start=start_dt, end=first_dt)
+                last_dt_data = Ticker(
+                    symbol.upper().replace('_', '-') + '.ST'
+                ).history(start=last_dt)
+        else:
+            first_dt_data = Ticker(symbol.upper()).history(start=start_dt, end=first_dt)
+            last_dt_data = Ticker(symbol.upper()).history(start=last_dt)
+        first_dt_data.reset_index(inplace=True)
+        last_dt_data.reset_index(inplace=True)
+        if len(first_dt_data):
+            post_daily_data(
+                [symbol], exchange_name, start_dt, first_dt + dt.timedelta(days=1), 
+                omxs_stock=omxs_stock
+            )
+        if len(last_dt_data):
+            post_daily_data(
+                [symbol], exchange_name, last_dt - dt.timedelta(days=1), dt.datetime.now(), 
+                omxs_stock=omxs_stock
+            )
+    except (KeyError, AttributeError, TypeError):
+        critical_logger.error(
+            f'\n\tERROR while trying to fetch data with yhq. Instrument: {symbol}'
+        )
+
+
+def first_dt_get_req(symbol):
+    first_dt_res = requests.get(
+        f'http://{env.API_HOST}:{env.API_PORT}{env.API_URL}/first-dt/{symbol}'
+    ).json()
+    return first_dt_res
+
+
+def last_dt_get_req(symbol):
+    last_dt_res = requests.get(
+        f'http://{env.API_HOST}:{env.API_PORT}{env.API_URL}/last-dt/{symbol}'
+    ).json()
+    return last_dt_res
+
+
 def last_date_get_req(instrument_one, instrument_two):
     last_date_res = requests.get(
         f'http://{env.API_HOST}:{env.API_PORT}{env.API_URL}/date/?inst1={instrument_one}&inst2={instrument_two}'
@@ -255,10 +311,13 @@ if __name__ == '__main__':
                     )
 
             post_daily_data(
-                exchange_data['symbols'], exchange, 
+                exchange_data.get('symbols'), exchange, 
                 start_date=start_date, end_date=end_date, 
                 omxs_stock=omxs_stock
             )
+            if dt_now.weekday() == 0 and dt_now.day <= 7:
+                for symbol in exchange_data.get('symbols'):
+                    complete_historic_data(symbol, exchange, omxs_stock=omxs_stock)
 
     base_logger.info('\n------------------------------------------------------------------------\n')
     critical_logger.info('\n------------------------------------------------------------------------\n')

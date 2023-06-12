@@ -8,29 +8,20 @@ services:
       - POSTGRES_PASSWORD=${PG_DB_PASSWORD}
       - POSTGRES_DB=${PG_DB_NAME}
     volumes:
-      - ./securities_pg_db/db_dumps/securities_db.sql:/docker-entrypoint-initdb.d/datadump.sql
+      - ./stonkinator_api/db_dumps/securities_db.sql:/docker-entrypoint-initdb.d/datadump.sql
       - securities_data:/var/lib/postgresql/data
     ports:
       - ${PG_DB_PORT_EXP}:${PG_DB_PORT}
 
   mongodb:
     image: mongo
-    environment: 
+    environment:
       - MONGO_INITDB_ROOT_USERNAME=${MDB_USER}
       - MONGO_INITDB_ROOT_PASSWORD=${MDB_PASSWORD}
     volumes:
       - tet_data:/data/db
     ports:
       - ${MDB_PORT_EXP}:${MDB_PORT}
-
-  securities_data_api:
-    depends_on:
-      - ${PG_DB_SERVICE}
-    build: ./securities_pg_db/api
-    ports:
-      - ${SECURITIES_DATA_API_PORT_EXP}:${SECURITIES_DATA_API_PORT}
-    env_file:
-      - .env
 
   tet_api:
     depends_on:
@@ -44,10 +35,10 @@ services:
   tet_py_packages:
     depends_on:
       - ${MDB_SERVICE}
-      - ${SECURITIES_DATA_SERVICE}
+      - ${TET_API_SERVICE}
     build: ./tet_py_packages
     volumes:
-      - ./live_systems:/app/tet_trading_systems/tet_trading_systems/trading_system_development/trading_systems/live_systems
+      - ./${LIVE_SYSTEMS_DIR}:/${LIVE_SYSTEMS_DIR_TARGET}
 
 volumes:
   securities_data:

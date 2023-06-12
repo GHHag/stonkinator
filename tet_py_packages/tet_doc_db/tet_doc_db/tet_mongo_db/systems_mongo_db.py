@@ -16,19 +16,27 @@ from TETrading.position.position_manager import PositionManager
 
 class TetSystemsMongoDb(ITetSystemsDocumentDatabase):
 
-    __ID_FIELD = '_id'
-    __SYSTEM_ID_FIELD = 'system_id'
-    __NAME_FIELD = 'name'
-    __SYSTEM_NAME_FIELD = 'system_name'
+    __ID_FIELD = TradingSystemAttributes.ID
+    __SYSTEM_ID_FIELD = TradingSystemAttributes.SYSTEM_ID
+    __NAME_FIELD = TradingSystemAttributes.NAME
+    __SYSTEM_NAME_FIELD = TradingSystemAttributes.SYSTEM_NAME
     __SYMBOL_FIELD = TradingSystemAttributes.SYMBOL
-    __METRICS_FIELD = 'metrics'
+    __METRICS_FIELD = TradingSystemAttributes.METRICS
     __MARKET_STATE_FIELD = TradingSystemAttributes.MARKET_STATE
     __PORTFOLIO_CREATION_DATA_FIELD = 'portfolio_creation_data'
-    __NUMBER_OF_PERIODS_FIELD = 'num_of_periods'
-    __POSITION_LIST_FIELD = 'position_list'
-    __ML_MODEL_FIELD = 'model'
-    __INSTRUMENT_FIELD = 'instrument'
+    __NUMBER_OF_PERIODS_FIELD = TradingSystemAttributes.NUMBER_OF_PERIODS
+    __POSITION_LIST_FIELD = TradingSystemAttributes.POSITION_LIST
+    __ML_MODEL_FIELD = TradingSystemAttributes.ML_MODEL
+    __INSTRUMENT_FIELD = TradingSystemAttributes.INSTRUMENT
     __SIGNAL_DT_FIELD = TradingSystemAttributes.SIGNAL_DT
+    __START_DT = TradingSystemAttributes.START_DT
+    __END_DT = TradingSystemAttributes.END_DT
+    __MARKET_TO_MARKET_RETURNS = TradingSystemAttributes.MARKET_TO_MARKET_RETURNS
+    __EQUITY_LIST = TradingSystemAttributes.EQUITY_LIST
+    __RETURNS_LIST = TradingSystemAttributes.RETURNS_LIST
+    __MAE_LIST = TradingSystemAttributes.MAE_LIST
+    __MFE_LIST = TradingSystemAttributes.MFE_LIST
+    __POSITION_PERIOD_LENGTHS_LIST = TradingSystemAttributes.POSITION_PERIOD_LENGTHS_LIST
 
     def __init__(self, client_uri, client_name):
         mongo_client = MongoClient(client_uri)
@@ -283,16 +291,16 @@ class TetSystemsMongoDb(ITetSystemsDocumentDatabase):
 
         return json.dumps(
             {
-                'start_dt': str(start_dt),
-                'end_dt': str(end_dt),
-                'market_to_market_returns': list(
+                self.__START_DT: str(start_dt),
+                self.__END_DT: str(end_dt),
+                self.__MARKET_TO_MARKET_RETURNS: list(
                         map(float, position_manager.metrics.market_to_market_returns_list)
                     ),
-                'equity_list': list(map(float, position_manager.metrics.equity_list)),
-                'returns_list': list(position_manager.metrics.returns_list),
-                'mae_list': list(position_manager.metrics.mae_list),
-                'mfe_list': list(position_manager.metrics.mfe_list),
-                'pos_period_lengths_list': list(position_manager.metrics.pos_period_lengths_list)
+                self.__EQUITY_LIST: list(map(float, position_manager.metrics.equity_list)),
+                self.__RETURNS_LIST: list(position_manager.metrics.returns_list),
+                self.__MAE_LIST: list(position_manager.metrics.mae_list),
+                self.__MFE_LIST: list(position_manager.metrics.mfe_list),
+                self.__POSITION_PERIOD_LENGTHS_LIST: list(position_manager.metrics.pos_period_lengths_list)
             }
         )
 
@@ -318,16 +326,16 @@ class TetSystemsMongoDb(ITetSystemsDocumentDatabase):
 
         return json.dumps(
             {
-                'start_dt': str(start_dt),
-                'end_dt': str(end_dt),
-                'market_to_market_returns': list(
+                self.__START_DT: str(start_dt),
+                self.__END_DT: str(end_dt),
+                self.__MARKET_TO_MARKET_RETURNS: list(
                     position_manager.metrics.market_to_market_returns_list.astype(float)
                 ),
-                'equity_list': list(position_manager.metrics.equity_list.astype(float)),
-                'returns_list': list(position_manager.metrics.returns_list),
-                'mae_list': list(position_manager.metrics.mae_list),
-                'mfe_list': list(position_manager.metrics.mfe_list),
-                'pos_period_lengths_list': list(position_manager.metrics.pos_period_lengths_list)
+                self.__EQUITY_LIST: list(position_manager.metrics.equity_list.astype(float)),
+                self.__RETURNS_LIST: list(position_manager.metrics.returns_list),
+                self.__MAE_LIST: list(position_manager.metrics.mae_list),
+                self.__MFE_LIST: list(position_manager.metrics.mfe_list),
+                self.__POSITION_PERIOD_LENGTHS_LIST: list(position_manager.metrics.pos_period_lengths_list)
             }
         )
 

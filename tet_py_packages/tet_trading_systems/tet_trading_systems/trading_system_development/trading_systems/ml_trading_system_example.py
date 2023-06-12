@@ -337,7 +337,10 @@ def preprocess_data(
     return df_dict, pred_features_df_dict 
 
 
-def get_example_ml_system_props(instruments_db: InstrumentsMongoDb, target_period=1):
+def get_props(
+    instruments_db: InstrumentsMongoDb, target_period=1,
+    import_instruments=False, path=None
+):
     system_name = 'example_ml_system'
     symbols_list = ['SKF_B', 'VOLV_B']#, 'NDA_SE', 'SCA_B']
     """ symbols_list = json.loads(
@@ -372,14 +375,19 @@ def get_example_ml_system_props(instruments_db: InstrumentsMongoDb, target_perio
 
 
 if __name__ == '__main__':
-    SYSTEMS_DB = TetSystemsMongoDb('mongodb://localhost:27017/', 'systems_db')
-    INSTRUMENTS_DB = InstrumentsMongoDb('mongodb://localhost:27017/', 'instruments_db')
+    import tet_trading_systems.trading_system_development.trading_systems.env as env
+    #SYSTEMS_DB = TetSystemsMongoDb('mongodb://localhost:27017/', 'systems_db')
+    #INSTRUMENTS_DB = InstrumentsMongoDb('mongodb://localhost:27017/', 'instruments_db')
+    #SYSTEMS_DB = TetSystemsMongoDb(env.ATLAS_MONGO_DB_URL, env.CLIENT_DB)
+    SYSTEMS_DB = TetSystemsMongoDb(env.LOCALHOST_MONGO_DB_URL, env.SYSTEMS_DB)
+    INSTRUMENTS_DB = InstrumentsMongoDb(env.ATLAS_MONGO_DB_URL, env.CLIENT_DB)
 
     start_dt = dt.datetime(1999, 1, 1)
     end_dt = dt.datetime(2011, 1, 1)
 
     target_period = 1
-    system_props = get_example_ml_system_props(INSTRUMENTS_DB, target_period=target_period)
+    system_props = get_props(INSTRUMENTS_DB, target_period=target_period)
+    insert_into_db = False
 
     df_dict, pred_features = system_props.preprocess_data_function(
         *system_props.preprocess_data_args, start_dt, end_dt,
@@ -389,18 +397,21 @@ if __name__ == '__main__':
     #model_data_dict = create_reg_models(df_dict, target_period=target_period)
     model_data_dict = create_classification_models(df_dict, target_period=target_period)
 
-    if not create_production_models(
-        SYSTEMS_DB, df_dict, 'example_ml_system', target_period=target_period
-    ):
-        raise Exception('Failed to create model')
+    if insert_into_db:
+        models_created_bool = create_production_models(
+            SYSTEMS_DB, df_dict, system_props.system_name, target_period=target_period
+        )
+        if not models_created_bool:
+            raise Exception('Failed to create model')
 
     run_trading_system(
-        model_data_dict, 'example_ml_system', 
+        model_data_dict, 
+        system_props.system_name,
         #ml_entry_regression, ml_exit_regression, 
         ml_entry_classification, ml_exit_classification, 
         {'req_period_iters': target_period, 'entry_period_lookback': target_period}, 
         {'exit_period_lookback'}, 
         market_state_null_default=True,
         plot_fig=True,
-        systems_db=SYSTEMS_DB, client_db=SYSTEMS_DB, insert_into_db=True
+        systems_db=SYSTEMS_DB, client_db=SYSTEMS_DB, insert_into_db=insert_into_db
     )
