@@ -52,13 +52,37 @@ def n_period_rw_rsi_target_trail_atr_exit(
 def preprocess_data(
     symbols_list, benchmark_symbol, get_data_function, 
     entry_args, exit_args, start_dt, end_dt, 
+    latest_position_dts=None
 ):
-    df_dict = {
-        symbol: pd.json_normalize(
-            get_data_function(symbol, start_dt, end_dt)['data']
-        )
-        for symbol in symbols_list
-    }
+    dt_strf = '%Y-%m-%dT%H:%M:%S'
+    if not latest_position_dts:
+        df_dict = {
+            symbol: pd.json_normalize(
+                get_data_function(symbol, start_dt, end_dt)['data']
+            )
+            for symbol in symbols_list
+        }
+    else:
+        latest_position_dts = {
+            symbol: dt.datetime.strptime(pos_dt['$date'].replace('Z', ''), dt_strf)
+            for symbol, pos_dt in latest_position_dts.items()
+        }
+        req_period_iters_dts = {
+            symbol: pos_dt - dt.timedelta(entry_args.get('req_period_iters') * 1.5)
+            for symbol, pos_dt in latest_position_dts.items()
+        }
+        df_dict = {
+            symbol: pd.json_normalize(
+                get_data_function(symbol, req_period_iters_dts[symbol], end_dt)['data']
+            )
+            for symbol in symbols_list
+        }
+    #df_dict = {
+    #    symbol: pd.json_normalize(
+    #        get_data_function(symbol, start_dt, end_dt)['data']
+    #    )
+    #    for symbol in symbols_list
+    #}
 
     benchmark_col_suffix = '_benchmark'
     df_benchmark = pd.json_normalize(
@@ -88,6 +112,12 @@ def preprocess_data(
             apply_rsi(df_dict[symbol], period_param=entry_args['rsi_period_param'])
             apply_atr(df_dict[symbol], period_param=exit_args['atr_period_param'])
             apply_comparative_relative_strength(df_dict[symbol], 'Close', 'Close_benchmark')
+            
+            #if latest_position_dts:
+            #    df_dict[symbol] = df_dict[symbol].iloc[entry_args['req_period_iters'] + 2:]
+            #else:
+            #    df_dict[symbol] = df_dict[symbol].iloc[entry_args['req_period_iters']:]
+
             df_dict[symbol].dropna(inplace=True)
 
     return df_dict, None
@@ -159,7 +189,7 @@ if __name__ == '__main__':
     import tet_trading_systems.trading_system_development.trading_systems.env as env
     #SYSTEMS_DB = TetSystemsMongoDb('mongodb://localhost:27017/', 'systems_db')
     #INSTRUMENTS_DB = InstrumentsMongoDb('mongodb://localhost:27017/', 'instruments_db')
-    SYSTEMS_DB = TetSystemsMongoDb(env.ATLAS_MONGO_DB_URL, env.SYSTEMS_DB)
+    SYSTEMS_DB = TetSystemsMongoDb(env.LOCALHOST_MONGO_DB_URL, env.SYSTEMS_DB)
     INSTRUMENTS_DB = InstrumentsMongoDb(env.ATLAS_MONGO_DB_URL, env.CLIENT_DB)
 
     start_dt = dt.datetime(1999, 1, 1)

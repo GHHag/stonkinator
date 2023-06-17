@@ -184,6 +184,7 @@ class TetSystemsMongoDb(ITetSystemsDocumentDatabase):
         format='serialized'
     ):
         print(position.to_dict)
+        input('adiasod')
 
     def get_position_list(self, system_name, format='serialized', return_num_of_periods=False):
         system_id = self._get_system_id(system_name)
@@ -252,6 +253,7 @@ class TetSystemsMongoDb(ITetSystemsDocumentDatabase):
         format='serialized'
     ):
         print(position.to_dict)
+        input('asasd')
 
     def get_single_symbol_position_list(
         self, system_name, symbol, 
@@ -302,7 +304,8 @@ class TetSystemsMongoDb(ITetSystemsDocumentDatabase):
         )
         latest_positions_dts = {
             pos[self.__SYMBOL_FIELD]: pos['position'][self.__EXIT_SIGNAL_DT_FIELD]
-            for pos in list(query)
+            # add filter for given list of symbols in query instead of filtering here
+            for pos in list(query) if pos[self.__SYMBOL_FIELD] in symbols_list
         }
         return json.dumps(latest_positions_dts, default=json_util.default)
 

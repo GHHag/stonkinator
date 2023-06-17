@@ -33,12 +33,8 @@ def handle_trading_system(
     time_series_db: ITimeSeriesDocumentDatabase=None,
     insert_into_db=False, plot_fig=False 
 ):
-    # if systems should be ran with only latest position for each instrument
-    # being related to then fetch the earliest date needed to preprocess the
-    # instrument's data or have logic for it in the preprocess_data_function
-    # itself with a data structure looking something like following:
-    # {<symbol1>: <symbol1 latest date>, <symbol2>: <symbol2 latest date}
     if from_latest_exit:
+        # make sure exit dates are available to get for the given trading system
         latest_position_dts = json.loads(
             client_db.get_latest_position_dts(
                 # make symbols_list a member of TradingSystemProperties instead
@@ -241,7 +237,7 @@ if __name__ == '__main__':
     start_dt = dt.datetime(2015, 9, 16)
     #start_dt = dt.datetime(2023, 1, 21)
     #end_dt = dt.datetime.now()
-    end_dt = dt.datetime(2023, 2, 24)
+    end_dt = dt.datetime(2023, 2, 27)
 
     systems_props_list: List[TradingSystemProperties] = []
 

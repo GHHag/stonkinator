@@ -295,8 +295,8 @@ class TradingSystem:
             #TODO: Implement protocol for function handling database communication.
             elif (
                 insert_data_to_db_bool and single_symbol_pos_db_insert_func and 
+                len(pos_manager.metrics.positions) and 
                 pos_manager.metrics.positions[-1].exit_signal_dt
-                #len(pos_manager.metrics.positions)
             ):
                 single_symbol_pos_db_insert_func(
                     self.__system_name, instrument, 
@@ -312,8 +312,8 @@ class TradingSystem:
             #TODO: Implement protocol for function handling database communication.
             elif (
                 insert_data_to_db_bool and json_format_single_symbol_pos_db_insert_func and
+                len(pos_manager.metrics.positions) and 
                 pos_manager.metrics.positions[-1].exit_signal_dt
-                #len(pos_manager.metrics.positions)
             ):
                 json_format_single_symbol_pos_db_insert_func(
                     self.__system_name, instrument,
@@ -361,18 +361,20 @@ class TradingSystem:
                 signal_handler_db_insert_funcs, self.__system_name
             )
 
-        num_of_pos_insert_multiplier = pos_list_slice_years_est * 1.5
-        sorted_pos_lists = sorted(self.__pos_lists, key=len, reverse=True)
-        position_list_lengths = [len(i) for i in sorted_pos_lists[:int(len(self.__pos_lists) / 4 + 0.5)]] \
-            if len(self.__pos_lists) > 1 \
-            else [len(sorted_pos_lists[0])]
-        data_periods = [len(v) for k, v in self.__data_dict.items()][:int(len(self.__data_dict) / 4 + 0.5)]
-        avg_yearly_positions = int(np.mean(position_list_lengths) / (np.mean(data_periods) / avg_yearly_periods) + 0.5) \
-            * num_of_pos_insert_multiplier
-        full_pos_list_slice_param = int(avg_yearly_positions * (pos_list_slice_years_est * 1.5) + 0.5)
-        sorted_full_pos_list: list[Position] = sorted(self.__full_pos_list, key=lambda x: x.entry_dt)
-        sliced_pos_list: list[Position] = sorted_full_pos_list[-full_pos_list_slice_param:]
-        num_of_periods = avg_yearly_periods * pos_list_slice_years_est * num_of_pos_insert_multiplier
+        #TODO: pass another variable or define a member to use as check if running from latest exit
+        if not single_symbol_pos_db_insert_func and not json_format_single_symbol_pos_db_insert_func:
+            num_of_pos_insert_multiplier = pos_list_slice_years_est * 1.5
+            sorted_pos_lists = sorted(self.__pos_lists, key=len, reverse=True)
+            position_list_lengths = [len(i) for i in sorted_pos_lists[:int(len(self.__pos_lists) / 4 + 0.5)]] \
+                if len(self.__pos_lists) > 1 \
+                else [len(sorted_pos_lists[0])]
+            data_periods = [len(v) for k, v in self.__data_dict.items()][:int(len(self.__data_dict) / 4 + 0.5)]
+            avg_yearly_positions = int(np.mean(position_list_lengths) / (np.mean(data_periods) / avg_yearly_periods) + 0.5) \
+                * num_of_pos_insert_multiplier
+            full_pos_list_slice_param = int(avg_yearly_positions * (pos_list_slice_years_est * 1.5) + 0.5)
+            sorted_full_pos_list: list[Position] = sorted(self.__full_pos_list, key=lambda x: x.entry_dt)
+            sliced_pos_list: list[Position] = sorted_full_pos_list[-full_pos_list_slice_param:]
+            num_of_periods = avg_yearly_periods * pos_list_slice_years_est * num_of_pos_insert_multiplier
 
         #TODO: Implement protocol for function handling database communication.
         if insert_data_to_db_bool and full_pos_list_db_insert_func:
@@ -388,7 +390,7 @@ class TradingSystem:
         #elif insert_data_to_db_bool and json_format_single_pos_db_insert_func:
         #    json_format_single_pos_db_insert_func(self.__system_name)
 
-        returns_distribution_plot(
-            self.__full_market_to_market_returns_list, self.__full_mae_list, self.__full_mfe_list,
-            plot_fig=plot_returns_distribution, save_fig_to_path=save_returns_distribution_plot_to_path
-        )
+        #returns_distribution_plot(
+        #    self.__full_market_to_market_returns_list, self.__full_mae_list, self.__full_mfe_list,
+        #    plot_fig=plot_returns_distribution, save_fig_to_path=save_returns_distribution_plot_to_path
+        #)
