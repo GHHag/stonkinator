@@ -29,6 +29,7 @@ class TetSystemsMongoDb(ITetSystemsDocumentDatabase):
     __ML_MODEL_FIELD = TradingSystemAttributes.ML_MODEL
     __INSTRUMENT_FIELD = TradingSystemAttributes.INSTRUMENT
     __SIGNAL_DT_FIELD = TradingSystemAttributes.SIGNAL_DT
+    __EXIT_SIGNAL_DT_FIELD = 'exit_signal_dt'
     __START_DT = TradingSystemAttributes.START_DT
     __END_DT = TradingSystemAttributes.END_DT
     __MARKET_TO_MARKET_RETURNS = TradingSystemAttributes.MARKET_TO_MARKET_RETURNS
@@ -178,6 +179,12 @@ class TetSystemsMongoDb(ITetSystemsDocumentDatabase):
             )
             return result.modified_count > 0
 
+    def insert_position(
+        self, system_name, position: Position, num_of_periods,
+        format='serialized'
+    ):
+        print(position.to_dict)
+
     def get_position_list(self, system_name, format='serialized', return_num_of_periods=False):
         system_id = self._get_system_id(system_name)
         if format == 'serialized':
@@ -240,6 +247,12 @@ class TetSystemsMongoDb(ITetSystemsDocumentDatabase):
             )
             return result.modified_count > 0
 
+    def insert_single_symbol_position(
+        self, system_name, symbol, position: Position, num_of_periods,
+        format='serialized'
+    ):
+        print(position.to_dict)
+
     def get_single_symbol_position_list(
         self, system_name, symbol, 
         format='serialized', return_num_of_periods=False
@@ -267,6 +280,31 @@ class TetSystemsMongoDb(ITetSystemsDocumentDatabase):
                 {f'{self.__POSITION_LIST_FIELD}_json': 1, self.__NUMBER_OF_PERIODS_FIELD: 1}
             )
             return json.dumps(query, default=json_util.default)
+
+    def get_latest_position_dts(self, system_name, symbols_list):
+        system_id = self._get_system_id(system_name)
+        query = self.__single_symbol_positions.aggregate(
+            [
+                {
+                    '$match': {
+                        self.__SYSTEM_ID_FIELD: system_id
+                    }
+                },
+                {
+                    '$project': {
+                        self.__SYMBOL_FIELD: f'${self.__SYMBOL_FIELD}',
+                        'position': {
+                            '$arrayElemAt': [f'${self.__POSITION_LIST_FIELD}_json', -1]
+                        }
+                    }
+                }
+            ]
+        )
+        latest_positions_dts = {
+            pos[self.__SYMBOL_FIELD]: pos['position'][self.__EXIT_SIGNAL_DT_FIELD]
+            for pos in list(query)
+        }
+        return json.dumps(latest_positions_dts, default=json_util.default)
 
     def get_historic_data(self, system_name):
         position_list = self.get_position_list(system_name)

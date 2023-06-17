@@ -98,9 +98,13 @@ class TradingSystem:
         monte_carlo_analysis_to_csv_path: str=None, write_signals_to_file_path: str=None, 
         insert_data_to_db_bool=False, signal_handler_db_insert_funcs: Dict[str, Callable]=None,
         single_symbol_pos_list_db_insert_func: Callable=None, 
+        single_symbol_pos_db_insert_func: Callable=None, 
         json_format_single_symbol_pos_list_db_insert_func: Callable=None,
+        json_format_single_symbol_pos_db_insert_func: Callable=None,
         full_pos_list_db_insert_func: Callable=None, 
+        single_pos_db_insert_func: Callable=None, 
         json_format_full_pos_list_db_insert_func: Callable=None,
+        json_format_single_pos_db_insert_func: Callable=None,
         pos_list_slice_years_est=2, **kwargs
     ):
         """
@@ -289,10 +293,31 @@ class TradingSystem:
                     pos_manager.metrics.positions[:], len(data)
                 )
             #TODO: Implement protocol for function handling database communication.
+            elif (
+                insert_data_to_db_bool and single_symbol_pos_db_insert_func and 
+                pos_manager.metrics.positions[-1].exit_signal_dt
+                #len(pos_manager.metrics.positions)
+            ):
+                single_symbol_pos_db_insert_func(
+                    self.__system_name, instrument, 
+                    pos_manager.metrics.positions[-1], len(data)
+                )
+            #TODO: Implement protocol for function handling database communication.
             if insert_data_to_db_bool and json_format_single_symbol_pos_list_db_insert_func:
                 json_format_single_symbol_pos_list_db_insert_func(
                     self.__system_name, instrument,
                     pos_manager.metrics.positions[:], len(data),
+                    format='json'
+                )
+            #TODO: Implement protocol for function handling database communication.
+            elif (
+                insert_data_to_db_bool and json_format_single_symbol_pos_db_insert_func and
+                pos_manager.metrics.positions[-1].exit_signal_dt
+                #len(pos_manager.metrics.positions)
+            ):
+                json_format_single_symbol_pos_db_insert_func(
+                    self.__system_name, instrument,
+                    pos_manager.metrics.positions[-1], len(data),
                     format='json'
                 )
 
@@ -352,12 +377,16 @@ class TradingSystem:
         #TODO: Implement protocol for function handling database communication.
         if insert_data_to_db_bool and full_pos_list_db_insert_func:
             full_pos_list_db_insert_func(self.__system_name, sliced_pos_list, num_of_periods)
+        #elif insert_data_to_db_bool and single_pos_db_insert_func:
+        #    single_pos_db_insert_func(self.__system_name, )
 
         #TODO: Implement protocol for function handling database communication.
         if insert_data_to_db_bool and json_format_full_pos_list_db_insert_func:
             json_format_full_pos_list_db_insert_func(
                 self.__system_name, sliced_pos_list, num_of_periods, format='json'
             )
+        #elif insert_data_to_db_bool and json_format_single_pos_db_insert_func:
+        #    json_format_single_pos_db_insert_func(self.__system_name)
 
         returns_distribution_plot(
             self.__full_market_to_market_returns_list, self.__full_mae_list, self.__full_mfe_list,

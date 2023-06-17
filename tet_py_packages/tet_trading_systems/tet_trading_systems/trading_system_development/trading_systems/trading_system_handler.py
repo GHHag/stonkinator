@@ -27,13 +27,28 @@ from tet_doc_db.instruments_mongo_db.instruments_mongo_db import InstrumentsMong
 
 def handle_trading_system(
     system_props: TradingSystemProperties, start_dt, end_dt, 
+    from_latest_exit: bool,
     systems_db: ITetSystemsDocumentDatabase, 
     client_db: ITetSignalsDocumentDatabase, 
     time_series_db: ITimeSeriesDocumentDatabase=None,
     insert_into_db=False, plot_fig=False 
 ):
+    # if systems should be ran with only latest position for each instrument
+    # being related to then fetch the earliest date needed to preprocess the
+    # instrument's data or have logic for it in the preprocess_data_function
+    # itself with a data structure looking something like following:
+    # {<symbol1>: <symbol1 latest date>, <symbol2>: <symbol2 latest date}
+    if from_latest_exit:
+        latest_position_dts = json.loads(
+            client_db.get_latest_position_dts(
+                # make symbols_list a member of TradingSystemProperties instead
+                system_props.system_name, list(system_props.preprocess_data_args)[0]
+            )
+        )
+
     data, pred_features_data = system_props.preprocess_data_function(
-        *system_props.preprocess_data_args, start_dt, end_dt
+        *system_props.preprocess_data_args, start_dt, end_dt, 
+        latest_position_dts=latest_position_dts if from_latest_exit else from_latest_exit
     )
     #if time_series_db:
     #    time_series_db.insert_pandas_time_series_data(data)
@@ -79,6 +94,7 @@ def handle_trading_system(
 
 def handle_ext_pos_sizer_trading_system(
     system_props: TradingSystemProperties, start_dt, end_dt, 
+    from_latest_exit: bool,
     systems_db: ITetSystemsDocumentDatabase, 
     client_db: ITetSignalsDocumentDatabase, 
     time_series_db: ITimeSeriesDocumentDatabase=None,
@@ -120,6 +136,7 @@ def handle_ext_pos_sizer_trading_system(
 
 def handle_ml_trading_system(
     system_props: MlTradingSystemProperties, start_dt, end_dt, 
+    from_latest_exit: bool,
     systems_db: ITetSystemsDocumentDatabase, 
     client_db: ITetSignalsDocumentDatabase, 
     time_series_db: ITimeSeriesDocumentDatabase=None,
@@ -190,6 +207,8 @@ def handle_trading_system_portfolio(
 if __name__ == '__main__':
     import tet_trading_systems.trading_system_development.trading_systems.env as env
 
+    from_latest_exit = '-from-latest-exit' in sys.argv
+
     LIVE_SYSTEMS_DIR = sys.argv[1]
     file_dir = os.path.dirname(os.path.abspath(__file__))
     __globals = globals()
@@ -220,11 +239,15 @@ if __name__ == '__main__':
     #start_dt = dt.datetime(1999, 1, 1)
     #end_dt = dt.datetime(2011, 1, 1)
     start_dt = dt.datetime(2015, 9, 16)
-    end_dt = dt.datetime.now()
+    #start_dt = dt.datetime(2023, 1, 21)
+    #end_dt = dt.datetime.now()
+    end_dt = dt.datetime(2023, 2, 24)
 
     systems_props_list: List[TradingSystemProperties] = []
 
     for trading_system in trading_system_modules:
+        if trading_system != 'mean_reversion_stocks':
+            continue
         systems_props_list.append(
             __globals[trading_system].get_props(
                 INSTRUMENTS_DB, import_instruments=True, 
@@ -236,6 +259,7 @@ if __name__ == '__main__':
         # implementera protocol för system_handler_function?
         system_props.system_handler_function(
             system_props, start_dt, end_dt, 
+            from_latest_exit,
             SYSTEMS_DB, CLIENT_DB, 
             time_series_db=TIME_SERIES_DB, 
             insert_into_db=True, plot_fig=False

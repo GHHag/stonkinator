@@ -51,8 +51,12 @@ def run_trading_system(
             MarketState.EXIT.value: client_db.insert_market_state_data
         },
         single_symbol_pos_list_db_insert_func=systems_db.insert_single_symbol_position_list,
+        #single_symbol_pos_db_insert_func=systems_db.insert_single_symbol_position,
         json_format_single_symbol_pos_list_db_insert_func=client_db.insert_single_symbol_position_list,
+        #json_format_single_symbol_pos_db_insert_func=client_db.insert_single_symbol_position,
         full_pos_list_db_insert_func=systems_db.insert_position_list,
+        #single_pos_db_insert_func=systems_db.insert_position,
         json_format_full_pos_list_db_insert_func=client_db.insert_position_list,
+        #json_format_single_pos_db_insert_func=client_db.insert_position,
         pos_list_slice_years_est=pos_list_slice_years_est
     )
