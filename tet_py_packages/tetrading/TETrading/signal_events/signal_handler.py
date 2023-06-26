@@ -1,7 +1,8 @@
-from TETrading.data.metadata.market_state_enum import MarketState
 from TETrading.signal_events.signals.entry_signal import EntrySignals
 from TETrading.signal_events.signals.exit_signal import ExitSignals
 from TETrading.signal_events.signals.active_position import ActivePositions
+
+from tet_doc_db.doc_database_meta_classes.tet_signals_doc_db import ITetSignalsDocumentDatabase
 
 
 class SignalHandler:
@@ -111,7 +112,7 @@ class SignalHandler:
             if self.__exit_signals.dataframe is not None:
                 self.__exit_signals.dataframe.to_csv(path, mode='a')
 
-    def insert_into_db(self, db_insert_funcs, system_name):
+    def insert_into_db(self, db: ITetSignalsDocumentDatabase, system_name):
         """
         Insert data into database from the dataframes that holds data 
         and stats for signals and positions. If a system with the given
@@ -120,21 +121,17 @@ class SignalHandler:
 
         Parameters
         ----------
-        :param db_insert_funcs:
-            'dict' : A dict containing functions to handle inserting data to
-            database as values. The keys are 'entry', 'exit' and 'active' and
-            their corresponding data which the value are to handle the inserting 
-            of is: 
-            'entry': __entry_signals.dataframe
-            'exit': __exit_signals.dataframe
-            'active': __active_positions.dataframe
+        TODO: update function doc
+        :param db:
+            'ITetSignalsDocumentDatabase' : A database object of a class that
+            implements the 'ITetSignalsDocumentDatabase' meta class.
         :param system_name:
             'str' : The name of a system which it will be identified by in
             in the database.
         """
 
         if self.__entry_signals.dataframe is not None:
-            insert_successful = db_insert_funcs[MarketState.ENTRY.value](
+            insert_successful = db.insert_market_state_data(
                 system_name, self.__entry_signals.dataframe.to_json(orient='table')
             )
 
@@ -142,7 +139,7 @@ class SignalHandler:
                 raise Exception('DatabaseInsertException, failed to insert to database.')
 
         if self.__active_positions.dataframe is not None:
-            insert_successful = db_insert_funcs[MarketState.ACTIVE.value](
+            insert_successful = db.insert_market_state_data(
                 system_name, self.__active_positions.dataframe.to_json(orient='table')
             )
 
@@ -150,7 +147,7 @@ class SignalHandler:
                 raise Exception('DatabaseInsertException, failed to insert to database.')
 
         if self.__exit_signals.dataframe is not None:
-            insert_successful = db_insert_funcs[MarketState.EXIT.value](
+            insert_successful = db.insert_market_state_data(
                 system_name, self.__exit_signals.dataframe.to_json(orient='table')
             )
 

@@ -30,3 +30,5 @@ class TradingSystemProperties:
     position_sizer_args: Tuple
     position_sizer_call_args: Tuple
     position_sizer_call_kwargs: Dict
+
+    system_instruments_list: list[str]
