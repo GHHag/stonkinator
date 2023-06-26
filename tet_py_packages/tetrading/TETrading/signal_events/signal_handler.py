@@ -115,9 +115,7 @@ class SignalHandler:
     def insert_into_db(self, db: ITetSignalsDocumentDatabase, system_name):
         """
         Insert data into database from the dataframes that holds data 
-        and stats for signals and positions. If a system with the given
-        name is not found in an attempt to query it from the database it
-        will be inserted with a generated id of type 'int'.
+        and stats for signals and positions.
 
         Parameters
         ----------
