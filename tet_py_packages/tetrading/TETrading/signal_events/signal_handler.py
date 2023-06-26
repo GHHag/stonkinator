@@ -121,7 +121,6 @@ class SignalHandler:
 
         Parameters
         ----------
-        TODO: update function doc
         :param db:
             'ITetSignalsDocumentDatabase' : A database object of a class that
             implements the 'ITetSignalsDocumentDatabase' meta class.
