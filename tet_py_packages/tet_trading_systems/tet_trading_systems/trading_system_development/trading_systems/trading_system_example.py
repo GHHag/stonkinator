@@ -10,8 +10,8 @@ from tet_doc_db.instruments_mongo_db.instruments_mongo_db import InstrumentsMong
 
 from tet_trading_systems.trading_system_development.trading_systems.trading_system_properties.trading_system_properties \
     import TradingSystemProperties
-from tet_trading_systems.trading_system_development.trading_systems.run_trading_systems import run_trading_system
-from tet_trading_systems.trading_system_development.trading_systems.trading_system_handler import handle_trading_system
+from tet_trading_systems.trading_system_development.trading_systems.trading_system_handler \
+    import handle_trading_system, run_trading_system
 from tet_trading_systems.trading_system_management.position_sizer.safe_f_position_sizer import SafeFPositionSizer
 from tet_trading_systems.trading_system_state_handler.trad_trading_system_state_handler import TradingSystemStateHandler
 from tet_trading_systems.trading_system_state_handler.instrument_selection.pd_instrument_selector import PdInstrumentSelector
@@ -78,7 +78,8 @@ def exit_logic_example(
 
 def preprocess_data(
     symbols_list, benchmark_symbol, get_data_function,
-    entry_args, exit_args, start_dt, end_dt
+    entry_args, exit_args, start_dt, end_dt,
+    latest_position_dts=False
 ):
     df_dict = {
         symbol: pd.json_normalize(
@@ -154,7 +155,6 @@ def get_props(instruments_db: InstrumentsMongoDb, import_instruments=False, path
         system_name, 2,
         preprocess_data,
         (
-            symbols_list,
             benchmark_symbol, price_data_get_req,
             entry_args, exit_args
         ),
@@ -165,13 +165,14 @@ def get_props(instruments_db: InstrumentsMongoDb, import_instruments=False, path
             entry_logic_example, exit_logic_example,
             entry_args, exit_args
         ),
-        {'run_monte_carlo_sims': True, 'num_of_sims': 1000},
+        {'run_monte_carlo_sims': False, 'num_of_sims': 1000},
         None, (), (),
         SafeFPositionSizer, (20, 0.8), (),
         {
             'plot_fig': False,
             'num_of_sims': 500
-        }
+        },
+        symbols_list
     )
 
 
@@ -181,7 +182,7 @@ if __name__ == '__main__':
     #INSTRUMENTS_DB = InstrumentsMongoDb('mongodb://localhost:27017/', 'instruments_db')
     #SYSTEMS_DB = TetSystemsMongoDb(env.ATLAS_MONGO_DB_URL, 'client_db')
     #INSTRUMENTS_DB = InstrumentsMongoDb(env.ATLAS_MONGO_DB_URL, 'client_db')
-    SYSTEMS_DB = TetSystemsMongoDb(env.ATLAS_MONGO_DB_URL, env.SYSTEMS_DB)
+    SYSTEMS_DB = TetSystemsMongoDb(env.LOCALHOST_MONGO_DB_URL, env.SYSTEMS_DB)
     INSTRUMENTS_DB = InstrumentsMongoDb(env.ATLAS_MONGO_DB_URL, env.CLIENT_DB)
 
     start_dt = dt.datetime(1999, 1, 1)
@@ -190,7 +191,7 @@ if __name__ == '__main__':
     system_props = get_props(INSTRUMENTS_DB)
 
     df_dict, features = system_props.preprocess_data_function(
-        system_props.preprocess_data_args[0], '^OMX',
+        system_props.system_instruments_list, '^OMX',
         price_data_get_req,
         system_props.preprocess_data_args[-2],
         system_props.preprocess_data_args[-1],
@@ -203,10 +204,10 @@ if __name__ == '__main__':
         entry_logic_example, exit_logic_example,
         system_props.preprocess_data_args[-2], 
         system_props.preprocess_data_args[-1], 
-        plot_fig=True,
+        plot_fig=False,
         #run_monte_carlo_sims=True,
         #num_of_sims=100,
         #plot_monte_carlo=True,
-        #system_analysis_to_csv_path=f'./backtests/{system_name}.csv',
+        system_analysis_to_csv_path=f'./backtests/{system_props.system_name}.csv',
         systems_db=SYSTEMS_DB, client_db=SYSTEMS_DB, insert_into_db=False
     )

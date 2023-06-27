@@ -183,6 +183,7 @@ class TetSystemsMongoDb(ITetSystemsDocumentDatabase):
         self, system_name, position: Position, num_of_periods,
         format='serialized'
     ):
+        # TODO: implement method
         print(position.to_dict)
         input('adiasod')
 
@@ -252,8 +253,42 @@ class TetSystemsMongoDb(ITetSystemsDocumentDatabase):
         self, system_name, symbol, position: Position, num_of_periods,
         format='serialized'
     ):
-        print(position.to_dict)
-        input('asasd')
+        system_id = self._get_system_id(system_name)
+        if not system_id:
+            self._insert_system(system_name)
+            system_id = self._get_system_id(system_name)
+        if format == 'serialized':
+            result = self.__single_symbol_positions.update_one(
+                {
+                    self.__SYSTEM_ID_FIELD: system_id, self.__SYSTEM_NAME_FIELD: system_name,
+                    self.__SYMBOL_FIELD: symbol
+                },
+                {
+                    '$push': {
+                        self.__POSITION_LIST_FIELD: pickle.dumps(position)
+                    },
+                    '$inc':{
+                        self.__NUMBER_OF_PERIODS_FIELD: num_of_periods
+                    }
+                }, upsert=True
+            )
+            return result.modified_count > 0
+        elif format == 'json':
+            result = self.__single_symbol_positions.update_one(
+                {
+                    self.__SYSTEM_ID_FIELD: system_id, self.__SYSTEM_NAME_FIELD: system_name,
+                    self.__SYMBOL_FIELD: symbol
+                },
+                {
+                    '$push': {
+                        f'{self.__POSITION_LIST_FIELD}_json': position.to_dict
+                    },
+                    '$inc': {
+                        self.__NUMBER_OF_PERIODS_FIELD: num_of_periods
+                    }
+                }, upsert=True
+            )
+            return result.modified_count > 0
 
     def get_single_symbol_position_list(
         self, system_name, symbol, 
@@ -304,7 +339,7 @@ class TetSystemsMongoDb(ITetSystemsDocumentDatabase):
         )
         latest_positions_dts = {
             pos[self.__SYMBOL_FIELD]: pos['position'][self.__EXIT_SIGNAL_DT_FIELD]
-            # add filter for given list of symbols in query instead of filtering here
+            # TODO: add filter for given list of symbols in query instead of filtering here
             for pos in list(query) if pos[self.__SYMBOL_FIELD] in symbols_list
         }
         return json.dumps(latest_positions_dts, default=json_util.default)
