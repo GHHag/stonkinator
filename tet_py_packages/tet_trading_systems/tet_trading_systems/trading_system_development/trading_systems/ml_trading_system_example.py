@@ -14,12 +14,15 @@ from sklearn.metrics import mean_squared_error, r2_score, classification_report,
 
 from securities_db_py_dal.dal import price_data_get_req
 
+from TETrading.data.metadata.trading_system_attributes import TradingSystemAttributes
+
 from tet_doc_db.tet_mongo_db.systems_mongo_db import TetSystemsMongoDb
 from tet_doc_db.instruments_mongo_db.instruments_mongo_db import InstrumentsMongoDb
 
-from tet_trading_systems.trading_system_development.trading_systems.trading_system_properties.ml_trading_system_properties import MlTradingSystemProperties
-from tet_trading_systems.trading_system_development.trading_systems.run_trading_systems import run_trading_system
-from tet_trading_systems.trading_system_development.trading_systems.trading_system_handler import handle_ml_trading_system
+from tet_trading_systems.trading_system_development.trading_systems.trading_system_properties.trading_system_properties \
+    import TradingSystemProperties
+from tet_trading_systems.trading_system_development.trading_systems.trading_system_handler \
+    import handle_ml_trading_system, run_trading_system
 from tet_trading_systems.trading_system_state_handler.ml_trading_system_state_handler import MlTradingSystemStateHandler 
 from tet_trading_systems.trading_system_management.position_sizer.safe_f_position_sizer import SafeFPositionSizer
 from tet_trading_systems.trading_system_development.ml_utils.ml_system_utils import serialize_models
@@ -349,19 +352,24 @@ def get_props(
         )
     ) """
 
-    return MlTradingSystemProperties( 
+    return TradingSystemProperties( 
         system_name, 1,
         preprocess_data,
         (
-            symbols_list, '^OMX', price_data_get_req
+            '^OMX', price_data_get_req
         ),
         handle_ml_trading_system,
         MlTradingSystemStateHandler, (system_name, ),
         (
             #ml_entry_regression, ml_exit_regression,
             ml_entry_classification, ml_exit_classification,
-            {'req_period_iters': target_period, 'entry_period_lookback': target_period},
-            {'exit_period_lookback': target_period}
+            {
+                TradingSystemAttributes.REQ_PERIOD_ITERS: target_period, 
+                TradingSystemAttributes.ENTRY_PERIOD_LOOKBACK: target_period
+            },
+            {
+                TradingSystemAttributes.EXIT_PERIOD_LOOKBACK: target_period
+            }
         ),
         {},
         None, (), (),
@@ -390,6 +398,7 @@ if __name__ == '__main__':
     insert_into_db = False
 
     df_dict, pred_features = system_props.preprocess_data_function(
+        system_props.system_instruments_list,
         *system_props.preprocess_data_args, start_dt, end_dt,
         target_period=target_period
     )
@@ -409,8 +418,11 @@ if __name__ == '__main__':
         system_props.system_name,
         #ml_entry_regression, ml_exit_regression, 
         ml_entry_classification, ml_exit_classification, 
-        {'req_period_iters': target_period, 'entry_period_lookback': target_period}, 
-        {'exit_period_lookback'}, 
+        {
+            TradingSystemAttributes.REQ_PERIOD_ITERS: target_period, 
+            TradingSystemAttributes.ENTRY_PERIOD_LOOKBACK: target_period
+        },
+        {TradingSystemAttributes.EXIT_PERIOD_LOOKBACK: target_period},
         market_state_null_default=True,
         plot_fig=True,
         systems_db=SYSTEMS_DB, client_db=SYSTEMS_DB, insert_into_db=insert_into_db

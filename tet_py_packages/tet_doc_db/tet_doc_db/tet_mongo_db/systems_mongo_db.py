@@ -172,7 +172,7 @@ class TetSystemsMongoDb(ITetSystemsDocumentDatabase):
                 {self.__SYSTEM_ID_FIELD: system_id, self.__SYSTEM_NAME_FIELD: system_name},
                 {
                     '$set': {
-                        f'{self.__POSITION_LIST_FIELD}_json': [pos.to_dict for pos in position_list],
+                        f'{self.__POSITION_LIST_FIELD}_json': [pos.as_dict for pos in position_list],
                         self.__NUMBER_OF_PERIODS_FIELD: num_of_periods
                     }
                 }, upsert=True
@@ -184,7 +184,7 @@ class TetSystemsMongoDb(ITetSystemsDocumentDatabase):
         format='serialized'
     ):
         # TODO: implement method
-        print(position.to_dict)
+        print(position.as_dict)
         input('adiasod')
 
     def get_position_list(self, system_name, format='serialized', return_num_of_periods=False):
@@ -242,7 +242,7 @@ class TetSystemsMongoDb(ITetSystemsDocumentDatabase):
                 },
                 {
                     '$set': {
-                        f'{self.__POSITION_LIST_FIELD}_json': [pos.to_dict for pos in position_list],
+                        f'{self.__POSITION_LIST_FIELD}_json': [pos.as_dict for pos in position_list],
                         self.__NUMBER_OF_PERIODS_FIELD: num_of_periods
                     }
                 }, upsert=True
@@ -281,7 +281,7 @@ class TetSystemsMongoDb(ITetSystemsDocumentDatabase):
                 },
                 {
                     '$push': {
-                        f'{self.__POSITION_LIST_FIELD}_json': position.to_dict
+                        f'{self.__POSITION_LIST_FIELD}_json': position.as_dict
                     },
                     '$inc': {
                         self.__NUMBER_OF_PERIODS_FIELD: num_of_periods

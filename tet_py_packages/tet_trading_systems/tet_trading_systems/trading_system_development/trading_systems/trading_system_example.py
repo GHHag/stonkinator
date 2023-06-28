@@ -5,6 +5,8 @@ import pandas as pd
 
 from securities_db_py_dal.dal import price_data_get_req
 
+from TETrading.data.metadata.trading_system_attributes import TradingSystemAttributes
+
 from tet_doc_db.tet_mongo_db.systems_mongo_db import TetSystemsMongoDb
 from tet_doc_db.instruments_mongo_db.instruments_mongo_db import InstrumentsMongoDb
 
@@ -103,7 +105,7 @@ def preprocess_data(
     )
 
     for symbol, data in dict(df_dict).items():
-        if data.empty or len(data) < entry_args['req_period_iters']:
+        if data.empty or len(data) < entry_args[TradingSystemAttributes.REQ_PERIOD_ITERS]:
             print(symbol, 'DataFrame empty')
             del df_dict[symbol]
         else:
@@ -125,7 +127,7 @@ def get_props(instruments_db: InstrumentsMongoDb, import_instruments=False, path
     system_name = 'example_system'
     benchmark_symbol = '^OMX'
     entry_args = {
-        'req_period_iters': 5, 'entry_period_param': 5
+        TradingSystemAttributes.REQ_PERIOD_ITERS: 5, 'entry_period_param': 5
     }
     exit_args = {
         'exit_period_param': 5

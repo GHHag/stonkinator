@@ -45,7 +45,8 @@ class TradingSession:
 
     def __call__(
         self, *args, entry_args=None, exit_args=None, 
-        max_req_periods_feature='req_period_iters', datetime_col_name='Date',
+        max_req_periods_feature=TradingSystemAttributes.REQ_PERIOD_ITERS, 
+        datetime_col_name='Date',
         close_price_col_name='Close', open_price_col_name='Open',
         fixed_position_size=True, capital=10000, commission_pct_cost=0.0,
         market_state_null_default=False,

@@ -189,7 +189,7 @@ class Position:
         return self.__market_to_market_returns_list
 
     @property
-    def to_dict(self):
+    def as_dict(self):
         return {
             'entry_dt': self.entry_dt,
             'exit_signal_dt': self.exit_signal_dt,

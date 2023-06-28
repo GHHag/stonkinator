@@ -29,6 +29,9 @@ class TradingSystemAttributes:
     __MAE_LIST = 'mae_list'
     __MFE_LIST = 'mfe_list'
     __POSITION_PERIOD_LENGTHS_LIST = 'pos_period_lengths_list'
+    __ENTRY_PERIOD_LOOKBACK = 'entry_period_lookback'
+    __EXIT_PERIOD_LOOKBACK = 'exit_period_lookback'
+    __REQ_PERIOD_ITERS = 'req_period_iters'
 
     @classproperty
     def MARKET_STATE(cls):
@@ -125,3 +128,15 @@ class TradingSystemAttributes:
     @classproperty
     def POSITION_PERIOD_LENGTHS_LIST(cls):
         return cls.__POSITION_PERIOD_LENGTHS_LIST
+
+    @classproperty
+    def ENTRY_PERIOD_LOOKBACK(cls):
+        return cls.__ENTRY_PERIOD_LOOKBACK
+
+    @classproperty
+    def EXIT_PERIOD_LOOKBACK(cls):
+        return cls.__EXIT_PERIOD_LOOKBACK
+
+    @classproperty
+    def REQ_PERIOD_ITERS(cls):
+        return cls.__REQ_PERIOD_ITERS
