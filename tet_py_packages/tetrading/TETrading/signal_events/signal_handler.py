@@ -87,9 +87,10 @@ class SignalHandler:
             fields in the given 'evaluation_dict'
         """
 
-        self.__entry_signals.add_evaluation_data(
-            {k: evaluation_dict[k] for k in evaluation_fields}
-        )
+        if evaluation_dict:
+            self.__entry_signals.add_evaluation_data(
+                {k: evaluation_dict[k] for k in evaluation_fields}
+            )
         self.__entry_signal_given = False
 
     def write_to_csv(self, path, system_name):
