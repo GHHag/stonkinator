@@ -316,6 +316,12 @@ class TradingSystem:
                     pos_manager.metrics.positions[-1], len(data),
                     format='json'
                 )
+                self.__systems_db.insert_position(
+                    self.__system_name, pos_manager.metrics.positions[-1]
+                )
+                self.__client_db.insert_position(
+                    self.__system_name, pos_manager.metrics.positions[-1], format='json'
+                )
 
         self._print_metrics_df()
 
@@ -358,10 +364,6 @@ class TradingSystem:
             self.__client_db.insert_position_list(
                 self.__system_name, sliced_pos_list, num_of_periods, format='json'
             )
-        #elif insert_data_to_db_bool and run_from_latest_exit:
-        #    pass
-        #    self.__systems_db.insert_position(self.__system_name, )
-        #    self.__systems_db.insert_position(self.__system_name, format='json')
 
         if not run_from_latest_exit:
             returns_distribution_plot(

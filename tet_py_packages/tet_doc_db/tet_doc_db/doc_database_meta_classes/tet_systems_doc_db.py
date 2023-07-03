@@ -12,10 +12,6 @@ class ITetSystemsDocumentDatabase(ITetSignalsDocumentDatabase):
         ...
 
     @abstractmethod
-    def get_system_portfolio_creation_data(self):
-        ...
-
-    @abstractmethod
     def get_market_state_data(self):
         ...
 

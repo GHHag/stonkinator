@@ -135,6 +135,7 @@ class Metrics:
                 TradingSystemMetrics.CAGR: round(self.__cagr, 3)
             }
         except AttributeError:
+            # TODO: Log error
             return
 
     def _mae_mfe_dataframe_apply(self):

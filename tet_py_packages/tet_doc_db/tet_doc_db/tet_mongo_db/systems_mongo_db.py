@@ -180,12 +180,46 @@ class TetSystemsMongoDb(ITetSystemsDocumentDatabase):
             return result.modified_count > 0
 
     def insert_position(
-        self, system_name, position: Position, num_of_periods,
+        self, system_name, position: Position,
         format='serialized'
     ):
-        # TODO: implement method
-        print(position.as_dict)
-        input('adiasod')
+        system_id = self._get_system_id(system_name)
+        if format == 'serialized':
+            popResult = self.__positions.update_one(
+                {self.__SYSTEM_ID_FIELD: system_id, self.__SYSTEM_NAME_FIELD: system_name},
+                {
+                    '$pop': {
+                        self.__POSITION_LIST_FIELD: -1
+                    }
+                }
+            )
+            pushResult = self.__positions.update_one(
+                {self.__SYSTEM_ID_FIELD: system_id, self.__SYSTEM_NAME_FIELD: system_name},
+                {
+                    '$push': {
+                        self.__POSITION_LIST_FIELD: pickle.dumps(position)
+                    }
+                }, upsert=True
+            )
+            return popResult.modified_count + pushResult.modified_count >= 2
+        elif format == 'json':
+            popResult = self.__positions.update_one(
+                {self.__SYSTEM_ID_FIELD: system_id, self.__SYSTEM_NAME_FIELD: system_name},
+                {
+                    '$pop': {
+                        f'{self.__POSITION_LIST_FIELD}_json': -1
+                    }
+                }
+            )
+            pushResult = self.__positions.update_one(
+                {self.__SYSTEM_ID_FIELD: system_id, self.__SYSTEM_NAME_FIELD: system_name},
+                {
+                    '$push': {
+                        f'{self.__POSITION_LIST_FIELD}_json': position.as_dict
+                    },
+                }, upsert=True
+            )
+            return popResult.modified_count + pushResult.modified_count >= 2
 
     def get_position_list(self, system_name, format='serialized', return_num_of_periods=False):
         system_id = self._get_system_id(system_name)
