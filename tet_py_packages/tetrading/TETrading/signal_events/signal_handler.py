@@ -73,7 +73,7 @@ class SignalHandler:
         #  and execute orders with the use of an 'ExecutionHandler' class.
         pass
 
-    def add_system_evaluation_data(self, evaluation_dict, evaluation_fields):
+    def add_system_evaluation_data(self, evaluation_dict: dict, evaluation_fields):
         """
         Adds the given evaluation data to the EntrySignals object member
         by calling its add_evaluation_data method.
@@ -89,7 +89,10 @@ class SignalHandler:
 
         if evaluation_dict:
             self.__entry_signals.add_evaluation_data(
-                {k: evaluation_dict[k] for k in evaluation_fields}
+                {
+                    k: evaluation_dict.get(k) for k in evaluation_fields 
+                    if evaluation_dict.get(k) is not None
+                }
             )
         self.__entry_signal_given = False
 

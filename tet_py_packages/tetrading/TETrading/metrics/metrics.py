@@ -136,7 +136,7 @@ class Metrics:
             }
         except AttributeError:
             # TODO: Log error
-            return
+            return {TradingSystemMetrics.SYMBOL: self.__symbol}
 
     def _mae_mfe_dataframe_apply(self):
         """
