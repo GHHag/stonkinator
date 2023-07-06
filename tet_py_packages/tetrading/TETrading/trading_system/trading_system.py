@@ -248,7 +248,7 @@ class TradingSystem:
                     pos_manager.metrics.summary_data_dict, system_evaluation_fields
                 )
 
-            if len(pos_manager.metrics.positions) and not run_from_latest_exit:
+            if len(pos_manager.position_list) and not run_from_latest_exit:
                 # write trading system data and stats to DataFrame
                 self.__metrics_df: pd.DataFrame = pd.concat(
                     [self.__metrics_df, pd.DataFrame([pos_manager.metrics.summary_data_dict])], 
@@ -259,7 +259,7 @@ class TradingSystem:
                 if run_monte_carlo_sims:
                     print('\nRunning Monte Carlo simulations...')
                     monte_carlo_sims_data_dicts_list = monte_carlo_simulate_returns(
-                        pos_manager.metrics.positions, pos_manager.symbol, 
+                        pos_manager.position_list, pos_manager.symbol, 
                         pos_manager.metrics.num_testing_periods,
                         start_capital=capital, capital_fraction=capital_f,
                         num_of_sims=num_of_monte_carlo_sims, data_amount_used=monte_carlo_data_amount,
@@ -277,16 +277,16 @@ class TradingSystem:
                 if insert_data_to_db_bool:
                     self.__systems_db.insert_single_symbol_position_list(
                         self.__system_name, instrument, 
-                        pos_manager.metrics.positions[:], len(data)
+                        pos_manager.position_list[:], len(data)
                     )
                     self.__client_db.insert_single_symbol_position_list(
                         self.__system_name, instrument,
-                        pos_manager.metrics.positions[:], len(data),
+                        pos_manager.position_list[:], len(data),
                         format='json'
                     )
 
-                self.__full_pos_list += pos_manager.metrics.positions[:]
-                self.__pos_lists.append(pos_manager.metrics.positions[:])
+                self.__full_pos_list += pos_manager.position_list[:]
+                self.__pos_lists.append(pos_manager.position_list[:])
                 self.__total_period_len += len(data)
 
                 if len(pos_manager.metrics.market_to_market_returns_list):
@@ -303,24 +303,24 @@ class TradingSystem:
                         (self.__full_mfe_list, pos_manager.metrics.mfe_list), axis=0                    
                     )
             elif (
-                len(pos_manager.metrics.positions) and 
-                pos_manager.metrics.positions[-1].exit_signal_dt and
+                len(pos_manager.position_list) and 
+                pos_manager.position_list[-1].exit_signal_dt and
                 insert_data_to_db_bool and run_from_latest_exit
             ):
                 self.__systems_db.insert_single_symbol_position(
                     self.__system_name, instrument, 
-                    pos_manager.metrics.positions[-1], len(data)
+                    pos_manager.position_list[-1], len(data)
                 )
                 self.__client_db.insert_single_symbol_position(
                     self.__system_name, instrument,
-                    pos_manager.metrics.positions[-1], len(data),
+                    pos_manager.position_list[-1], len(data),
                     format='json'
                 )
                 self.__systems_db.insert_position(
-                    self.__system_name, pos_manager.metrics.positions[-1]
+                    self.__system_name, pos_manager.position_list[-1]
                 )
                 self.__client_db.insert_position(
-                    self.__system_name, pos_manager.metrics.positions[-1], format='json'
+                    self.__system_name, pos_manager.position_list[-1], format='json'
                 )
 
         self._print_metrics_df()

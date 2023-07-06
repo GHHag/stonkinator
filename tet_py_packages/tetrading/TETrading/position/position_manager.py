@@ -1,3 +1,4 @@
+from TETrading.position.position import Position
 from TETrading.metrics.metrics import Metrics
 
 
@@ -44,6 +45,17 @@ class PositionManager:
         """
 
         return self.__symbol
+
+    @property
+    def position_list(self) -> list[Position]:
+        """
+        A collection of Position objects.
+
+        :return:
+            'list'
+        """
+
+        return self.metrics.positions
 
     @property
     def metrics(self):
