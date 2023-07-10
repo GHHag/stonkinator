@@ -182,7 +182,7 @@ def system_metrics_summary_plot(
         print('\nMFE/MAE data missing')
 
     axs[1, 3].text(
-        0.2, 0.3, 
+        0.2, 0.15, 
         f'Win rate (%):            {summary_data_dict[TradingSystemMetrics.PCT_WINS]:.2f}\n\n'
         f'Gross profit             {summary_data_dict[TradingSystemMetrics.TOTAL_GROSS_PROFIT]}\n\n'
         f'Profit factor:           {summary_data_dict[TradingSystemMetrics.PROFIT_FACTOR]:.3f}\n\n'

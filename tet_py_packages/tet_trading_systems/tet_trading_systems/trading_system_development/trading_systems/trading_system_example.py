@@ -39,7 +39,8 @@ def entry_logic_example(df, *args, entry_args=None):
         condition is met or not.
     """
 
-    return df['Close'].iloc[-1] >= max(df['Close'].iloc[-entry_args['entry_period_param']:]), \
+    entry_period_param = TradingSystemAttributes.ENTRY_PERIOD_LOOKBACK
+    return df['Close'].iloc[-1] >= max(df['Close'].iloc[-entry_args[entry_period_param]:]), \
         'long'
 
 
@@ -74,7 +75,8 @@ def exit_logic_example(
         condition is met or not.
     """
 
-    return df['Close'].iloc[-1] <= min(df['Close'].iloc[-exit_args['exit_period_param']:]), \
+    exit_period_param = TradingSystemAttributes.EXIT_PERIOD_LOOKBACK
+    return df['Close'].iloc[-1] <= min(df['Close'].iloc[-exit_args[exit_period_param]:]), \
         trail, trailing_exit_price
 
 
@@ -83,12 +85,29 @@ def preprocess_data(
     entry_args, exit_args, start_dt, end_dt,
     latest_position_dts=False
 ):
-    df_dict = {
-        symbol: pd.json_normalize(
-            get_data_function(symbol, start_dt, end_dt)['data']
-        )
-        for symbol in symbols_list
-    }
+    dt_strf = '%Y-%m-%dT%H:%M:%S'
+    if not latest_position_dts:
+        df_dict = {
+            symbol: pd.json_normalize(
+                get_data_function(symbol, start_dt, end_dt)['data']
+            )
+            for symbol in symbols_list
+        }
+    else:
+        latest_position_dts = {
+            symbol: dt.datetime.strptime(pos_dt['$date'].replace('Z', ''), dt_strf)
+            for symbol, pos_dt in latest_position_dts.items()
+        }
+        req_period_iters_dts = {
+            symbol: pos_dt - dt.timedelta(entry_args.get(TradingSystemAttributes.REQ_PERIOD_ITERS) * 1.5)
+            for symbol, pos_dt in latest_position_dts.items()
+        }
+        df_dict = {
+            symbol: pd.json_normalize(
+                get_data_function(symbol, req_period_iters_dts[symbol], end_dt)['data']
+            )
+            for symbol in symbols_list
+        }
 
     benchmark_col_suffix = '_benchmark'
     df_benchmark = pd.json_normalize(
@@ -127,10 +146,11 @@ def get_props(instruments_db: InstrumentsMongoDb, import_instruments=False, path
     system_name = 'example_system'
     benchmark_symbol = '^OMX'
     entry_args = {
-        TradingSystemAttributes.REQ_PERIOD_ITERS: 5, 'entry_period_param': 5
+        TradingSystemAttributes.REQ_PERIOD_ITERS: 5, 
+        TradingSystemAttributes.ENTRY_PERIOD_LOOKBACK: 5
     }
     exit_args = {
-        'exit_period_param': 5
+        TradingSystemAttributes.EXIT_PERIOD_LOOKBACK: 5
     }
 
     if import_instruments:
@@ -180,10 +200,6 @@ def get_props(instruments_db: InstrumentsMongoDb, import_instruments=False, path
 
 if __name__ == '__main__':
     import tet_trading_systems.trading_system_development.trading_systems.env as env
-    #SYSTEMS_DB = TetSystemsMongoDb('mongodb://localhost:27017/', 'systems_db')
-    #INSTRUMENTS_DB = InstrumentsMongoDb('mongodb://localhost:27017/', 'instruments_db')
-    #SYSTEMS_DB = TetSystemsMongoDb(env.ATLAS_MONGO_DB_URL, 'client_db')
-    #INSTRUMENTS_DB = InstrumentsMongoDb(env.ATLAS_MONGO_DB_URL, 'client_db')
     SYSTEMS_DB = TetSystemsMongoDb(env.LOCALHOST_MONGO_DB_URL, env.SYSTEMS_DB)
     INSTRUMENTS_DB = InstrumentsMongoDb(env.ATLAS_MONGO_DB_URL, env.CLIENT_DB)
 

@@ -299,7 +299,8 @@ def create_production_models(
 
 def preprocess_data(
     symbols_list, benchmark_symbol, get_data_function,
-    start_dt, end_dt, target_period=1
+    entry_args, exit_args, start_dt, end_dt, 
+    target_period=1, **null
 ):
     df_dict = {
         symbol: pd.json_normalize(
@@ -345,7 +346,16 @@ def get_props(
     import_instruments=False, path=None
 ):
     system_name = 'example_ml_system'
-    symbols_list = ['SKF_B', 'VOLV_B']#, 'NDA_SE', 'SCA_B']
+    benchmark_symbol = '^OMX'
+    entry_args = {
+        TradingSystemAttributes.REQ_PERIOD_ITERS: target_period, 
+        TradingSystemAttributes.ENTRY_PERIOD_LOOKBACK: target_period
+    }
+    exit_args = {
+        TradingSystemAttributes.EXIT_PERIOD_LOOKBACK: target_period
+    }
+
+    symbols_list = ['SKF_B', 'VOLV_B', 'NDA_SE', 'SCA_B']
     """ symbols_list = json.loads(
         instruments_db.get_market_list_instrument_symbols(
             instruments_db.get_market_list_id('omxs30')
@@ -356,20 +366,15 @@ def get_props(
         system_name, 1,
         preprocess_data,
         (
-            '^OMX', price_data_get_req
+            benchmark_symbol, price_data_get_req,
+            entry_args, exit_args
         ),
         handle_ml_trading_system,
         MlTradingSystemStateHandler, (system_name, ),
         (
             #ml_entry_regression, ml_exit_regression,
             ml_entry_classification, ml_exit_classification,
-            {
-                TradingSystemAttributes.REQ_PERIOD_ITERS: target_period, 
-                TradingSystemAttributes.ENTRY_PERIOD_LOOKBACK: target_period
-            },
-            {
-                TradingSystemAttributes.EXIT_PERIOD_LOOKBACK: target_period
-            }
+            entry_args, exit_args
         ),
         {},
         None, (), (),
@@ -384,9 +389,6 @@ def get_props(
 
 if __name__ == '__main__':
     import tet_trading_systems.trading_system_development.trading_systems.env as env
-    #SYSTEMS_DB = TetSystemsMongoDb('mongodb://localhost:27017/', 'systems_db')
-    #INSTRUMENTS_DB = InstrumentsMongoDb('mongodb://localhost:27017/', 'instruments_db')
-    #SYSTEMS_DB = TetSystemsMongoDb(env.ATLAS_MONGO_DB_URL, env.CLIENT_DB)
     SYSTEMS_DB = TetSystemsMongoDb(env.LOCALHOST_MONGO_DB_URL, env.SYSTEMS_DB)
     INSTRUMENTS_DB = InstrumentsMongoDb(env.ATLAS_MONGO_DB_URL, env.CLIENT_DB)
 
@@ -418,11 +420,8 @@ if __name__ == '__main__':
         system_props.system_name,
         #ml_entry_regression, ml_exit_regression, 
         ml_entry_classification, ml_exit_classification, 
-        {
-            TradingSystemAttributes.REQ_PERIOD_ITERS: target_period, 
-            TradingSystemAttributes.ENTRY_PERIOD_LOOKBACK: target_period
-        },
-        {TradingSystemAttributes.EXIT_PERIOD_LOOKBACK: target_period},
+        system_props.preprocess_data_args[-2],
+        system_props.preprocess_data_args[-1],
         market_state_null_default=True,
         plot_fig=True,
         systems_db=SYSTEMS_DB, client_db=SYSTEMS_DB, insert_into_db=insert_into_db
