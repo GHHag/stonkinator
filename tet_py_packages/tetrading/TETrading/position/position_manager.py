@@ -110,7 +110,7 @@ class PositionManager:
             )
             self.__metrics(self.__generated_positions)
 
-    def summarize_performance(self, plot_fig=False, save_fig_to_path=None):
+    def summarize_performance(self, print_data=False, plot_fig=False, save_fig_to_path=None):
         """
         Summarizes the performance of the managed positions,
         printing a summary of metrics and statistics, and plots
@@ -118,6 +118,9 @@ class PositionManager:
 
         Parameters
         ----------
+        :param print_data:
+            Keyword arg 'bool' : True/False decides whether to print metrics
+            of the trading system's generated positions or not. Default value=False
         :param plot_fig:
             Keyword arg 'bool' : True/False decides if the figure
             will be plotted or not. Default value=False
@@ -129,7 +132,8 @@ class PositionManager:
         if len(self.__metrics.positions) < 1:
             print('No positions generated.')
         else:
-            self.__metrics.print_metrics()
+            if print_data: 
+                self.__metrics.print_metrics()
             if plot_fig or save_fig_to_path:
                 self.__metrics.plot_performance_summary(
                     self.__asset_price_series, plot_fig=plot_fig, 
