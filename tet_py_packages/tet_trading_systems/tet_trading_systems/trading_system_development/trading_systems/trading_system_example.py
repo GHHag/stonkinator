@@ -99,7 +99,7 @@ def preprocess_data(
             for symbol, pos_dt in latest_position_dts.items()
         }
         req_period_iters_dts = {
-            symbol: pos_dt - dt.timedelta(entry_args.get(TradingSystemAttributes.REQ_PERIOD_ITERS) * 1.5)
+            symbol: pos_dt - dt.timedelta(entry_args.get(TradingSystemAttributes.REQ_PERIOD_ITERS) * 2)
             for symbol, pos_dt in latest_position_dts.items()
         }
         df_dict = {
@@ -137,7 +137,14 @@ def preprocess_data(
 
             # apply indicators/features to dataframe
             df_dict[symbol]['SMA'] = df_dict[symbol]['Close'].rolling(20).mean()
+
             df_dict[symbol].dropna(inplace=True)
+
+            if latest_position_dts:
+                df = df_dict[symbol].loc[latest_position_dts[symbol] + dt.timedelta(1):]
+                if len(df) < entry_args[TradingSystemAttributes.REQ_PERIOD_ITERS]:
+                    df = df_dict[symbol].loc[latest_position_dts[symbol] - dt.timedelta(entry_args.get(TradingSystemAttributes.REQ_PERIOD_ITERS)):]
+                df_dict[symbol] = df
 
     return df_dict, None
 
