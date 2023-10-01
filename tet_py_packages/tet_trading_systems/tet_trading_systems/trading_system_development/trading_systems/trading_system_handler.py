@@ -4,6 +4,7 @@ import importlib
 import datetime as dt
 from typing import List, Dict
 import json
+import argparse
 
 from TETrading.data.metadata.trading_system_attributes import TradingSystemAttributes
 from TETrading.data.metadata.market_state_enum import MarketState
@@ -268,14 +269,26 @@ def handle_trading_system_portfolio(
 if __name__ == '__main__':
     import tet_trading_systems.trading_system_development.trading_systems.env as env
 
-    from_latest_exit = '-from-latest-exit' in sys.argv
+    arg_parser = argparse.ArgumentParser(description='trading_system_handler CLI argument parser')
+    arg_parser.add_argument(
+        '--trading-systems-dir', help='Trading system files directory', dest='ts_dir'
+    )
+    arg_parser.add_argument(
+        '--from-latest-exit', action='store_true',
+        help='Run trading systems from the date of the latest exit of each instrument',
+        dest='from_latest_exit'
+    )
 
-    LIVE_SYSTEMS_DIR = sys.argv[1]
+    cli_args = arg_parser.parse_args()
+
+    live_systems_dir = cli_args.ts_dir
+    from_latest_exit = cli_args.from_latest_exit
+
     file_dir = os.path.dirname(os.path.abspath(__file__))
     __globals = globals()
-    sys.path.append(os.path.join(sys.path[0], LIVE_SYSTEMS_DIR))
+    sys.path.append(os.path.join(sys.path[0], live_systems_dir))
     trading_system_modules = []
-    for file in os.listdir(f'{sys.path[0]}/{LIVE_SYSTEMS_DIR}'):
+    for file in os.listdir(f'{sys.path[0]}/{live_systems_dir}'):
         if file == '__init__.py' or not file.endswith('.py'):
             continue
         module_name = file[:-3]
@@ -314,7 +327,7 @@ if __name__ == '__main__':
         systems_props_list.append(
             __globals[trading_system].get_props(
                 INSTRUMENTS_DB, import_instruments=True, 
-                path=f'{file_dir}/{LIVE_SYSTEMS_DIR}/backtests'
+                path=f'{file_dir}/{live_systems_dir}/backtests'
             )
         )
 
