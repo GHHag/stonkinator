@@ -117,21 +117,42 @@ class TetSystemsMongoDb(ITetSystemsDocumentDatabase):
             data_p.update({self.__SYSTEM_ID_FIELD: system_id})
             if self.__MARKET_STATE_FIELD in data_p and \
                 data_p[self.__MARKET_STATE_FIELD] == MarketState.ENTRY.value:
-                self.__market_states.delete_one(
+                result = self.__market_states.delete_one(
                     {
                         self.__SYSTEM_ID_FIELD: system_id, 
-                        self.__SYMBOL_FIELD: data_p[TradingSystemAttributes.SYMBOL]
+                        self.__SYMBOL_FIELD: data_p[TradingSystemAttributes.SYMBOL],
+                        self.__SIGNAL_DT_FIELD: {'$lt': data_p.get(self.__SIGNAL_DT_FIELD)}
                     }
                 )
-                self.__market_states.insert_one(data_p)
+                if result.deleted_count > 0:
+                    self.__market_states.insert_one(data_p)
+                else:
+                    existing_doc = self.__market_states.find_one(
+                        {
+                            self.__SYSTEM_ID_FIELD: system_id, 
+                            self.__SYMBOL_FIELD: data_p[TradingSystemAttributes.SYMBOL]
+                        }
+                    )
+                    if existing_doc is None:
+                        self.__market_states.insert_one(data_p)
             else:
-                self.__market_states.update_one(
+                result = self.__market_states.update_one(
                     {
                         self.__SYSTEM_ID_FIELD: system_id, 
-                        self.__SYMBOL_FIELD: data_p[TradingSystemAttributes.SYMBOL]
+                        self.__SYMBOL_FIELD: data_p[TradingSystemAttributes.SYMBOL],
+                        self.__SIGNAL_DT_FIELD: {'$lt': data_p.get(self.__SIGNAL_DT_FIELD)}
                     },
-                    {'$set': data_p}, upsert=True
+                    {'$set': data_p}
                 )
+                if result.modified_count < 1:
+                    existing_doc = self.__market_states.find_one(
+                        {
+                            self.__SYSTEM_ID_FIELD: system_id, 
+                            self.__SYMBOL_FIELD: data_p[TradingSystemAttributes.SYMBOL]
+                        }
+                    )
+                    if existing_doc is None:
+                        self.__market_states.insert_one(data_p)
         return True
 
     def get_market_state_data(self, system_name, market_state):
