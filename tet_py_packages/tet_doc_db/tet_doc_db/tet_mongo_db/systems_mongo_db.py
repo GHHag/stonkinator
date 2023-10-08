@@ -174,10 +174,10 @@ class TetSystemsMongoDb(ITetSystemsDocumentDatabase):
 
     def insert_position_list(
         self, system_name, position_list: List[Position], num_of_periods,
-        format='serialized'
+        serialized_format=False, json_format=False
     ):
         system_id = self._get_system_id(system_name)
-        if format == 'serialized':
+        if serialized_format:
             result = self.__positions.update_one(
                 {self.__SYSTEM_ID_FIELD: system_id, self.__SYSTEM_NAME_FIELD: system_name},
                 {
@@ -188,7 +188,7 @@ class TetSystemsMongoDb(ITetSystemsDocumentDatabase):
                 }, upsert=True
             )
             return result.modified_count > 0
-        elif format == 'json':
+        if json_format:
             result = self.__positions.update_one(
                 {self.__SYSTEM_ID_FIELD: system_id, self.__SYSTEM_NAME_FIELD: system_name},
                 {
@@ -202,10 +202,10 @@ class TetSystemsMongoDb(ITetSystemsDocumentDatabase):
 
     def insert_position(
         self, system_name, position: Position,
-        format='serialized'
+        serialized_format=False, json_format=False
     ):
         system_id = self._get_system_id(system_name)
-        if format == 'serialized':
+        if serialized_format:
             popResult = self.__positions.update_one(
                 {self.__SYSTEM_ID_FIELD: system_id, self.__SYSTEM_NAME_FIELD: system_name},
                 {
@@ -223,7 +223,7 @@ class TetSystemsMongoDb(ITetSystemsDocumentDatabase):
                 }, upsert=True
             )
             return popResult.modified_count + pushResult.modified_count >= 2
-        elif format == 'json':
+        if json_format:
             popResult = self.__positions.update_one(
                 {self.__SYSTEM_ID_FIELD: system_id, self.__SYSTEM_NAME_FIELD: system_name},
                 {
@@ -242,9 +242,12 @@ class TetSystemsMongoDb(ITetSystemsDocumentDatabase):
             )
             return popResult.modified_count + pushResult.modified_count >= 2
 
-    def get_position_list(self, system_name, format='serialized', return_num_of_periods=False):
+    def get_position_list(
+        self, system_name, serialized_format=False, json_format=False, 
+        return_num_of_periods=False
+    ):
         system_id = self._get_system_id(system_name)
-        if format == 'serialized':
+        if serialized_format:
             query = self.__positions.find_one(
                 {self.__SYSTEM_ID_FIELD: system_id, self.__SYSTEM_NAME_FIELD: system_name},
                 {
@@ -257,7 +260,7 @@ class TetSystemsMongoDb(ITetSystemsDocumentDatabase):
                     query[self.__NUMBER_OF_PERIODS_FIELD]
             else:
                 return list(map(pickle.loads, query[self.__POSITION_LIST_FIELD]))
-        elif format == 'json':
+        if json_format:
             query = self.__positions.find_one(
                 {self.__SYSTEM_ID_FIELD: system_id, self.__SYSTEM_NAME_FIELD: system_name},
                 {
@@ -269,13 +272,13 @@ class TetSystemsMongoDb(ITetSystemsDocumentDatabase):
 
     def insert_single_symbol_position_list(
         self, system_name, symbol, position_list: List[Position], num_of_periods,
-        format='serialized'
+        serialized_format=False, json_format=False
     ):
         system_id = self._get_system_id(system_name)
         if not system_id:
             self._insert_system(system_name)
             system_id = self._get_system_id(system_name)
-        if format == 'serialized':
+        if serialized_format:
             result = self.__single_symbol_positions.update_one(
                 {
                     self.__SYSTEM_ID_FIELD: system_id, self.__SYSTEM_NAME_FIELD: system_name, 
@@ -289,7 +292,7 @@ class TetSystemsMongoDb(ITetSystemsDocumentDatabase):
                 }, upsert=True
             )
             return result.modified_count > 0
-        elif format == 'json':
+        if json_format:
             result = self.__single_symbol_positions.update_one(
                 {
                     self.__SYSTEM_ID_FIELD: system_id, self.__SYSTEM_NAME_FIELD: system_name, 
@@ -306,13 +309,13 @@ class TetSystemsMongoDb(ITetSystemsDocumentDatabase):
 
     def insert_single_symbol_position(
         self, system_name, symbol, position: Position, num_of_periods,
-        format='serialized'
+        serialized_format=False, json_format=False
     ):
         system_id = self._get_system_id(system_name)
         if not system_id:
             self._insert_system(system_name)
             system_id = self._get_system_id(system_name)
-        if format == 'serialized':
+        if serialized_format:
             result = self.__single_symbol_positions.update_one(
                 {
                     self.__SYSTEM_ID_FIELD: system_id, self.__SYSTEM_NAME_FIELD: system_name,
@@ -328,7 +331,7 @@ class TetSystemsMongoDb(ITetSystemsDocumentDatabase):
                 }, upsert=True
             )
             return result.modified_count > 0
-        elif format == 'json':
+        if json_format:
             result = self.__single_symbol_positions.update_one(
                 {
                     self.__SYSTEM_ID_FIELD: system_id, self.__SYSTEM_NAME_FIELD: system_name,
@@ -347,10 +350,11 @@ class TetSystemsMongoDb(ITetSystemsDocumentDatabase):
 
     def get_single_symbol_position_list(
         self, system_name, symbol, 
-        format='serialized', return_num_of_periods=False
+        serialized_format=False, json_format=False,
+        return_num_of_periods=False
     ):
         system_id = self._get_system_id(system_name)
-        if format == 'serialized':
+        if serialized_format:
             query = self.__single_symbol_positions.find_one(
                 {
                     self.__SYSTEM_ID_FIELD: system_id, self.__SYSTEM_NAME_FIELD: system_name, 
@@ -363,7 +367,7 @@ class TetSystemsMongoDb(ITetSystemsDocumentDatabase):
                     query[self.__NUMBER_OF_PERIODS_FIELD]
             else:
                 return list(map(pickle.loads, query[self.__POSITION_LIST_FIELD]))
-        elif format == 'json':
+        if json_format:
             query = self.__single_symbol_positions.find_one(
                 {
                     self.__SYSTEM_ID_FIELD: system_id, self.__SYSTEM_NAME_FIELD: system_name, 

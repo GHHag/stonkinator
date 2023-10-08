@@ -284,12 +284,13 @@ class TradingSystem:
                 if insert_data_to_db_bool:
                     self.__systems_db.insert_single_symbol_position_list(
                         self.__system_name, instrument, 
-                        pos_manager.position_list[:], len(data)
+                        pos_manager.position_list[:], len(data),
+                        serialized_format=True
                     )
                     self.__client_db.insert_single_symbol_position_list(
                         self.__system_name, instrument,
                         pos_manager.position_list[:], len(data),
-                        format='json'
+                        json_format=True
                     )
 
                 self.__full_pos_list += pos_manager.position_list[:]
@@ -316,18 +317,18 @@ class TradingSystem:
             ):
                 self.__systems_db.insert_single_symbol_position(
                     self.__system_name, instrument, 
-                    pos_manager.position_list[-1], len(data)
+                    pos_manager.position_list[-1], len(data),
+                    serialized_format=True
                 )
                 self.__client_db.insert_single_symbol_position(
                     self.__system_name, instrument,
-                    pos_manager.position_list[-1], len(data),
-                    format='json'
+                    pos_manager.position_list[-1], len(data), json_format=True
                 )
                 self.__systems_db.insert_position(
-                    self.__system_name, pos_manager.position_list[-1]
+                    self.__system_name, pos_manager.position_list[-1], serialized_format=True
                 )
                 self.__client_db.insert_position(
-                    self.__system_name, pos_manager.position_list[-1], format='json'
+                    self.__system_name, pos_manager.position_list[-1], json_format=True
                 )
 
         if print_data: self._print_metrics_df()
@@ -368,9 +369,13 @@ class TradingSystem:
             num_of_periods = avg_yearly_periods * pos_list_slice_years_est * num_of_pos_insert_multiplier
 
         if insert_data_to_db_bool and not run_from_latest_exit:
-            self.__systems_db.insert_position_list(self.__system_name, sliced_pos_list, num_of_periods)
+            self.__systems_db.insert_position_list(
+                self.__system_name, sliced_pos_list, num_of_periods,
+                serialized_format=True
+            )
             self.__client_db.insert_position_list(
-                self.__system_name, sliced_pos_list, num_of_periods, format='json'
+                self.__system_name, sliced_pos_list, num_of_periods, 
+                json_format=True
             )
 
         if not run_from_latest_exit:
