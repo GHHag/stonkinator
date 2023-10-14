@@ -83,7 +83,6 @@ def handle_trading_system(
     insert_into_db=False, plot_fig=False 
 ):
     if from_latest_exit:
-        # make sure exit dates are available to get for the given trading system
         latest_position_dts = json.loads(
             client_db.get_latest_position_dts(
                 system_props.system_name, system_props.system_instruments_list

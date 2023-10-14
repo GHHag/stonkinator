@@ -96,6 +96,7 @@ def preprocess_data(
     else:
         latest_position_dts = {
             symbol: dt.datetime.strptime(pos_dt['$date'].replace('Z', ''), dt_strf)
+            if pos_dt else start_dt
             for symbol, pos_dt in latest_position_dts.items()
         }
         req_period_iters_dts = {

@@ -396,12 +396,14 @@ class TetSystemsMongoDb(ITetSystemsDocumentDatabase):
                 }
             ]
         )
+        symbols_dict = dict.fromkeys(symbols_list)
         latest_positions_dts = {
             pos[self.__SYMBOL_FIELD]: pos['position'][self.__EXIT_SIGNAL_DT_FIELD]
             # TODO: add filter for given list of symbols in query instead of filtering here
             for pos in list(query) if pos[self.__SYMBOL_FIELD] in symbols_list
         }
-        return json.dumps(latest_positions_dts, default=json_util.default)
+        symbols_dict.update(latest_positions_dts)
+        return json.dumps(symbols_dict, default=json_util.default)
 
     def get_historic_data(self, system_name):
         position_list = self.get_position_list(system_name)
