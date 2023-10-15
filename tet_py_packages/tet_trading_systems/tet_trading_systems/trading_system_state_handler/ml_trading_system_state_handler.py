@@ -148,7 +148,8 @@ class MlTradingSystemStateHandler:
                 yield pos
     
         entry_signal, direction = entry_logic_function(
-            instrument_data.dataframe.iloc[-entry_args['entry_period_lookback']:], entry_args
+            instrument_data.dataframe.iloc[-entry_args[TradingSystemAttributes.ENTRY_PERIOD_LOOKBACK]:], 
+            entry_args
         )
         if entry_signal and not instrument_data.position_list[-1].active_position and \
             not instrument_data.position_list[-1].exit_signal_dt == instrument_data.dataframe['Date'].iloc[-2]:
@@ -220,7 +221,7 @@ class MlTradingSystemStateHandler:
         self, instrument_data: MlSystemInstrumentData, exit_logic_function, exit_args
     ):
         exit_condition, trailing_exit, trailing_exit_price = exit_logic_function(
-            instrument_data.dataframe.iloc[-exit_args['exit_period_lookback']:], False, None,
+            instrument_data.dataframe.iloc[-exit_args[TradingSystemAttributes.EXIT_PERIOD_LOOKBACK]:], False, None,
             instrument_data.position_list[-1].entry_price, exit_args, len(instrument_data.position_list[-1].returns_list)
         )
         if exit_condition:
@@ -249,8 +250,8 @@ class MlTradingSystemStateHandler:
     ):
         instrument_data: MlSystemInstrumentData
         for instrument_data in self.__instrument_dicts_list:
-            if not 'entry_period_lookback' in entry_args.keys() or \
-                not 'exit_period_lookback' in exit_args.keys():
+            if not TradingSystemAttributes.ENTRY_PERIOD_LOOKBACK in entry_args.keys() or \
+                not TradingSystemAttributes.EXIT_PERIOD_LOOKBACK in exit_args.keys():
                 raise Exception("Given parameter for 'entry_args' or 'exit_args' is missing required key(s).")
 
             if instrument_data.dataframe['Date'].iloc[-1] != pd.Timestamp(instrument_data.market_state_data[TradingSystemAttributes.SIGNAL_DT]):
@@ -295,18 +296,6 @@ class MlTradingSystemStateHandler:
 
         print(self.__signal_handler)
         if insert_into_db:
-            self.__signal_handler.insert_into_db(
-                {
-                    MarketState.ENTRY.value: self.__systems_db.insert_market_state_data,
-                    MarketState.ACTIVE.value: self.__systems_db.insert_market_state_data, 
-                    MarketState.EXIT.value: self.__systems_db.insert_market_state_data
-                }, self.__system_name
-            )
+            self.__signal_handler.insert_into_db(self.__systems_db, self.__system_name)
             if client_db is not self.__systems_db:
-                self.__signal_handler.insert_into_db(
-                    {
-                        MarketState.ENTRY.value: client_db.insert_market_state_data,
-                        MarketState.ACTIVE.value: client_db.insert_market_state_data, 
-                        MarketState.EXIT.value: client_db.insert_market_state_data
-                    }, self.__system_name
-                )
+                self.__signal_handler.insert_into_db(client_db, self.__system_name)

@@ -107,32 +107,36 @@ class Metrics:
             'dict'
         """
 
-        return {
-            TradingSystemMetrics.SYMBOL: self.__symbol,
-            TradingSystemMetrics.NUM_OF_POSITIONS: len(self.__returns_list),
-            TradingSystemMetrics.START_CAPITAL: self.__start_capital,
-            TradingSystemMetrics.FINAL_CAPITAL: self.__final_capital,
-            TradingSystemMetrics.TOTAL_GROSS_PROFIT: self.__total_gross_profit,
-            TradingSystemMetrics.AVG_POS_NET_PROFIT: round(self.__avg_pos_net_result, 3),
-            TradingSystemMetrics.PCT_WINS: self.__pct_wins,
-            TradingSystemMetrics.PROFIT_FACTOR: round(self.__profit_factor, 3),
-            TradingSystemMetrics.EXPECTANCY: round(self.__expectancy, 3),
-            TradingSystemMetrics.SHARPE_RATIO: round(float(self.__sharpe_ratio), 3),
-            TradingSystemMetrics.RATE_OF_RETURN: self.__rate_of_return,
-            TradingSystemMetrics.MEAN_PROFIT_LOSS: round(self.__mean_profit_loss, 3),
-            TradingSystemMetrics.MEDIAN_PROFIT_LOSS: round(self.__median_profit_loss, 3),
-            TradingSystemMetrics.STD_OF_PROFIT_LOSS: round(self.__std_profit_loss, 3),
-            TradingSystemMetrics.MEAN_RETURN: round(self.__mean_return, 3),
-            TradingSystemMetrics.MEDIAN_RETURN: round(self.__median_return, 3),
-            TradingSystemMetrics.STD_OF_RETURNS: round(self.__std_return, 3),
-            TradingSystemMetrics.AVG_MAE: round(np.mean(self.__mae_list), 3),
-            TradingSystemMetrics.MIN_MAE: round(np.min(self.__mae_list), 3),
-            TradingSystemMetrics.AVG_MFE: round(np.mean(self.__mfe_list), 3),
-            TradingSystemMetrics.MAX_MFE: round(np.max(self.__mfe_list), 3),
-            TradingSystemMetrics.MAX_DRAWDOWN: float(self.__max_drawdown),
-            TradingSystemMetrics.ROMAD: round(self.__return_to_max_drawdown, 3),
-            TradingSystemMetrics.CAGR: round(self.__cagr, 3)
-        }
+        try:
+            return {
+                TradingSystemMetrics.SYMBOL: self.__symbol,
+                TradingSystemMetrics.NUM_OF_POSITIONS: len(self.__returns_list),
+                TradingSystemMetrics.START_CAPITAL: self.__start_capital,
+                TradingSystemMetrics.FINAL_CAPITAL: self.__final_capital,
+                TradingSystemMetrics.TOTAL_GROSS_PROFIT: self.__total_gross_profit,
+                TradingSystemMetrics.AVG_POS_NET_PROFIT: round(self.__avg_pos_net_result, 3),
+                TradingSystemMetrics.PCT_WINS: self.__pct_wins,
+                TradingSystemMetrics.PROFIT_FACTOR: round(self.__profit_factor, 3),
+                TradingSystemMetrics.EXPECTANCY: round(self.__expectancy, 3),
+                TradingSystemMetrics.SHARPE_RATIO: round(float(self.__sharpe_ratio), 3),
+                TradingSystemMetrics.RATE_OF_RETURN: self.__rate_of_return,
+                TradingSystemMetrics.MEAN_PROFIT_LOSS: round(self.__mean_profit_loss, 3),
+                TradingSystemMetrics.MEDIAN_PROFIT_LOSS: round(self.__median_profit_loss, 3),
+                TradingSystemMetrics.STD_OF_PROFIT_LOSS: round(self.__std_profit_loss, 3),
+                TradingSystemMetrics.MEAN_RETURN: round(self.__mean_return, 3),
+                TradingSystemMetrics.MEDIAN_RETURN: round(self.__median_return, 3),
+                TradingSystemMetrics.STD_OF_RETURNS: round(self.__std_return, 3),
+                TradingSystemMetrics.AVG_MAE: round(np.mean(self.__mae_list), 3),
+                TradingSystemMetrics.MIN_MAE: round(np.min(self.__mae_list), 3),
+                TradingSystemMetrics.AVG_MFE: round(np.mean(self.__mfe_list), 3),
+                TradingSystemMetrics.MAX_MFE: round(np.max(self.__mfe_list), 3),
+                TradingSystemMetrics.MAX_DRAWDOWN: float(self.__max_drawdown),
+                TradingSystemMetrics.ROMAD: round(self.__return_to_max_drawdown, 3),
+                TradingSystemMetrics.CAGR: round(self.__cagr, 3)
+            }
+        except AttributeError:
+            # TODO: Log error
+            return {TradingSystemMetrics.SYMBOL: self.__symbol}
 
     def _mae_mfe_dataframe_apply(self):
         """
@@ -437,6 +441,9 @@ class Metrics:
 
             self.__mae_list = np.append(self.__mae_list, float(pos.mae))
             self.__mfe_list = np.append(self.__mfe_list, float(pos.mfe))
+
+        if not len(self.__positions):
+            return
 
         self.__final_capital = int(self.__equity_list[-1])
         if len(self.__profitable_pos_list) == 0:

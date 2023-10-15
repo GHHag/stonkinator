@@ -1,5 +1,4 @@
 import pandas as pd
-from sklearn.preprocessing import OneHotEncoder
 
 
 def base_labeler(df: pd.DataFrame, column: str, predicate: callable, label_name: str):
@@ -10,20 +9,26 @@ def multi_period_labeler(
     predicate1: callable, predicate2: callable,
     entry_label: str='entry', hold_label: str='hold', exit_label: str='exit'
 ):
-    df['condition_one'] = predicate1(df[column1])
-    df['condition_two'] = predicate2(df['condition_one'], df[column2])
-
     df[entry_label] = predicate1(df[column1])
-    df[exit_label] = predicate2(df['condition_one'], df[column2])
+    df[exit_label] = predicate2(df[entry_label], df[column2])
     df[hold_label] = False
 
-    x = False
-    for i, r in enumerate(df.itertuples()):
-        if df[hold_label].iloc[i-1] == True and df[exit_label].iloc[i] == True and x == True:
-            x = False
-        elif df[hold_label].iloc[i] == False and df[entry_label].iloc[i] == True and x == False:
-            x = True
-        df[hold_label].iloc[i] = x
+    hold_label_state = False
+    for i, _ in enumerate(df.itertuples()):
+        if (
+            df[hold_label].iloc[i-1] and
+            df[exit_label].iloc[i] and
+            hold_label_state
+        ):
+            hold_label_state = False
+        elif (
+            not df[hold_label].iloc[i] and 
+            df[entry_label].iloc[i] and 
+            not hold_label_state 
+        ):
+            hold_label_state = True
+        
+        df.loc[i, hold_label] = hold_label_state
 
     df[hold_label] = df[hold_label].shift(1)
 

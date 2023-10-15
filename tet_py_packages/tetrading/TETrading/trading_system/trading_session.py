@@ -45,12 +45,14 @@ class TradingSession:
 
     def __call__(
         self, *args, entry_args=None, exit_args=None, 
-        max_req_periods_feature='req_period_iters', datetime_col_name='Date',
+        max_req_periods_feature=TradingSystemAttributes.REQ_PERIOD_ITERS, 
+        datetime_col_name='Date',
         close_price_col_name='Close', open_price_col_name='Open',
         fixed_position_size=True, capital=10000, commission_pct_cost=0.0,
         market_state_null_default=False,
         generate_signals=False, plot_positions=False, 
-        save_position_figs_path=None, **kwargs
+        save_position_figs_path=None,
+        print_data=False, **kwargs
     ):
         """
         Generates positions using the __entry_logic_function and 
@@ -109,6 +111,9 @@ class TradingSession:
             Keyword arg 'None/str' : Provide a file path as a str to save a
             candlestick chart visualizing the points of buying and selling a
             position. Default value=None
+        :param print_data:
+            Keyword arg 'bool' : True/False decides whether to print data
+            of positions and signals or not. Default value=False
         :param kwargs:
             'dict' : A dictionary with keyword arguments.
         """
@@ -140,13 +145,14 @@ class TradingSession:
                         self.__dataframe[open_price_col_name].iloc[index], 
                         self.__dataframe[datetime_col_name].iloc[index-1]
                     )
-                    position.print_position_stats()
-                    print(
-                        f'Exit index {index}: '
-                        f'{format(self.__dataframe[open_price_col_name].iloc[index], ".3f")}, '
-                        f'{self.__dataframe[datetime_col_name].iloc[index]}\n'
-                        f'Realised return: {position.position_return}'
-                    )
+                    if print_data:
+                        position.print_position_stats()
+                        print(
+                            f'Exit index {index}: '
+                            f'{format(self.__dataframe[open_price_col_name].iloc[index], ".3f")}, '
+                            f'{self.__dataframe[datetime_col_name].iloc[index]}\n'
+                            f'Realised return: {position.position_return}'
+                        )
                     if plot_positions:
                         if save_position_figs_path is not None:
                             position_figs_path = save_position_figs_path + (
@@ -178,11 +184,12 @@ class TradingSession:
                     self.__dataframe[open_price_col_name].iloc[index], direction, 
                     self.__dataframe[datetime_col_name].iloc[index]
                 )
-                print(
-                    f'\nEntry index {index}: '
-                    f'{format(self.__dataframe[open_price_col_name].iloc[index], ".3f")}, '
-                    f'{self.__dataframe[datetime_col_name].iloc[index]}'
-                )
+                if print_data:
+                    print(
+                        f'\nEntry index {index}: '
+                        f'{format(self.__dataframe[open_price_col_name].iloc[index], ".3f")}, '
+                        f'{self.__dataframe[datetime_col_name].iloc[index]}'
+                    )
 
         # Handle the trading sessions current market state/events/signals.
         if market_state_null_default and generate_signals:
@@ -229,7 +236,8 @@ class TradingSession:
                         self.__market_state_column: MarketState.EXIT.value
                     }
                 )
-                print(f'\nExit signal, exit next open\nIndex {len(self.__dataframe)}')
+                if print_data: 
+                    print(f'\nExit signal, exit next open\nIndex {len(self.__dataframe)}')
         elif not position.active_position and generate_signals:
             entry_signal, direction = self.__entry_logic_function(
                 self.__dataframe, entry_args=entry_args
@@ -245,4 +253,5 @@ class TradingSession:
                         self.__market_state_column: MarketState.ENTRY.value
                     }
                 )
-                print(f'\nEntry signal, buy next open\nIndex {len(self.__dataframe)}')
+                if print_data: 
+                    print(f'\nEntry signal, buy next open\nIndex {len(self.__dataframe)}')

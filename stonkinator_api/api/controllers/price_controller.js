@@ -31,8 +31,8 @@ const insertExchange = async (req, res) => {
     try {
         let exchangeInsert = await pool.query(
             `
-            INSERT INTO exchanges(exchange_name, currency)
-            VALUES($1, $2)
+                INSERT INTO exchanges(exchange_name, currency)
+                VALUES($1, $2)
             `,
             [req.body.exchangeName, req.body.currency]
         );
@@ -57,9 +57,9 @@ const getExchange = async (req, res) => {
     try {
         let exchangeQuery = await pool.query(
             `
-            SELECT id, exchange_name, currency
-            FROM exchanges
-            WHERE UPPER(exchange_name) = $1
+                SELECT id, exchange_name, currency
+                FROM exchanges
+                WHERE UPPER(exchange_name) = $1
             `,
             [req.params.name.toUpperCase()]
         );
@@ -80,8 +80,8 @@ const insertInstrument = async (req, res) => {
     try {
         let instrumentInsert = await pool.query(
             `
-            INSERT INTO instruments(exchange_id, symbol)
-            VALUES($1, $2)
+                INSERT INTO instruments(exchange_id, symbol)
+                VALUES($1, $2)
             `,
             [req.params.id, req.body.symbol]
         );
@@ -106,9 +106,9 @@ const getInstrument = async (req, res) => {
     try {
         let instrumentQuery = await pool.query(
             `
-            SELECT id, exchange_id, symbol
-            FROM instruments
-            WHERE UPPER(symbol) = $1
+                SELECT id, exchange_id, symbol
+                FROM instruments
+                WHERE UPPER(symbol) = $1
             `,
             [req.params.symbol.toUpperCase()]
         );
@@ -143,23 +143,23 @@ const insertPriceData = async (req, res) => {
 
                 /* let priceDataInsert = await pool.query(
                     `
-                    WITH
-                        check_date AS (
-                            SELECT instrument_id, date_time
-                            FROM price_data
-                            WHERE instrument_id = $1
-                            AND date_time = $7
-                        )
-                        INSERT INTO price_data(
-                            instrument_id, open_price, high_price, 
-                            low_price, close_price, volume, date_time
-                        )
-                        SELECT $1, $2, $3, $4, $5, $6, $7
-                        WHERE NOT EXISTS(
-                            SELECT date_time
-                            FROM check_date
-                            WHERE date_time = $7
-                        )
+                        WITH
+                            check_date AS (
+                                SELECT instrument_id, date_time
+                                FROM price_data
+                                WHERE instrument_id = $1
+                                AND date_time = $7
+                            )
+                            INSERT INTO price_data(
+                                instrument_id, open_price, high_price, 
+                                low_price, close_price, volume, date_time
+                            )
+                            SELECT $1, $2, $3, $4, $5, $6, $7
+                            WHERE NOT EXISTS(
+                                SELECT date_time
+                                FROM check_date
+                                WHERE date_time = $7
+                            )
                     `,
                     [
                         req.params.id, priceData.open, priceData.high,
@@ -170,11 +170,11 @@ const insertPriceData = async (req, res) => {
 
                 let checkDateQuery = await pool.query(
                     `
-                SELECT instrument_id, date_time
-                FROM price_data
-                WHERE instrument_id = $1
-                AND date_time = $2
-                `,
+                        SELECT instrument_id, date_time
+                        FROM price_data
+                        WHERE instrument_id = $1
+                        AND date_time = $2
+                    `,
                     [req.params.id, priceData.date]
                 );
                 //if (!priceDataInsert.rowCount > 0) {
@@ -184,14 +184,14 @@ const insertPriceData = async (req, res) => {
                 else {
                     let priceDataInsert = await pool.query(
                         `
-                    INSERT INTO price_data(
-                        instrument_id, open_price, high_price, 
-                        low_price, close_price, volume, date_time
-                    )
-                    VALUES(
-                        $1, $2, $3, $4, $5, $6, $7
-                    )
-                    `,
+                            INSERT INTO price_data(
+                                instrument_id, open_price, high_price, 
+                                low_price, close_price, volume, date_time
+                            )
+                            VALUES(
+                                $1, $2, $3, $4, $5, $6, $7
+                            )
+                        `,
                         [
                             req.params.id, priceData.open, priceData.high,
                             priceData.low, priceData.close, priceData.volume,
@@ -225,17 +225,17 @@ const getPriceData = async (req, res) => {
     try {
         let priceDataQuery = await pool.query(
             `
-            SELECT instruments.symbol,
-                price_data.open_price AS "Open", price_data.high_price AS "High", 
-                price_data.low_price AS "Low", price_data.close_price AS "Close",
-                price_data.volume AS "Volume", 
-                price_data.date_time AT TIME ZONE 'UTC' AS "Date" 
-            FROM instruments, price_data
-            WHERE instruments.id = price_data.instrument_id
-            AND UPPER(instruments.symbol) = $1
-            AND price_data.date_time >= $2
-            AND price_data.date_time <= $3
-            ORDER BY price_data.date_time
+                SELECT instruments.symbol,
+                    price_data.open_price AS "Open", price_data.high_price AS "High", 
+                    price_data.low_price AS "Low", price_data.close_price AS "Close",
+                    price_data.volume AS "Volume", 
+                    price_data.date_time AT TIME ZONE 'UTC' AS "Date" 
+                FROM instruments, price_data
+                WHERE instruments.id = price_data.instrument_id
+                AND UPPER(instruments.symbol) = $1
+                AND price_data.date_time >= $2
+                AND price_data.date_time <= $3
+                ORDER BY price_data.date_time
             `,
             [
                 req.params.symbol.toUpperCase(), req.body.startDateTime,
@@ -259,10 +259,10 @@ const getFirstAvailableDate = async (req, res) => {
     try {
         let firstDateQuery = await pool.query(
             `
-            SELECT MIN(price_data.date_time)
-            FROM instruments, price_data
-            WHERE instruments.id = price_data.instrument_id
-            AND instruments.symbol = $1
+                SELECT MIN(price_data.date_time)
+                FROM instruments, price_data
+                WHERE instruments.id = price_data.instrument_id
+                AND instruments.symbol = $1
             `,
             [req.params.symbol.toUpperCase()]
         );
@@ -283,10 +283,10 @@ const getLastAvailableDate = async (req, res) => {
     try {
         let lastDateQuery = await pool.query(
             `
-            SELECT MAX(price_data.date_time)
-            FROM instruments, price_data
-            WHERE instruments.id = price_data.instrument_id
-            AND instruments.symbol = $1
+                SELECT MAX(price_data.date_time)
+                FROM instruments, price_data
+                WHERE instruments.id = price_data.instrument_id
+                AND instruments.symbol = $1
             `,
             [req.params.symbol.toUpperCase()]
         );

@@ -12,10 +12,6 @@ class ITetSystemsDocumentDatabase(ITetSignalsDocumentDatabase):
         ...
 
     @abstractmethod
-    def get_system_portfolio_creation_data(self):
-        ...
-
-    @abstractmethod
     def get_market_state_data(self):
         ...
 
@@ -28,6 +24,10 @@ class ITetSystemsDocumentDatabase(ITetSignalsDocumentDatabase):
         ...
 
     @abstractmethod
+    def insert_position(self):
+        ...
+
+    @abstractmethod
     def get_position_list(self):
         ...
 
@@ -36,7 +36,15 @@ class ITetSystemsDocumentDatabase(ITetSignalsDocumentDatabase):
         ...
 
     @abstractmethod
+    def insert_single_symbol_position(self):
+        ...
+
+    @abstractmethod
     def get_single_symbol_position_list(self):
+        ...
+
+    @abstractmethod
+    def get_latest_position_dts(self):
         ...
 
     @abstractmethod

@@ -39,6 +39,7 @@ services:
     build: ./tet_py_packages
     volumes:
       - ./${LIVE_SYSTEMS_DIR}:/${LIVE_SYSTEMS_DIR_TARGET}
+      - ./tet_py_packages:/app
 
 volumes:
   securities_data:
