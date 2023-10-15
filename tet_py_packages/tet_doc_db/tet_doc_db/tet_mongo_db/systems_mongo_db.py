@@ -206,7 +206,7 @@ class TetSystemsMongoDb(ITetSystemsDocumentDatabase):
     ):
         system_id = self._get_system_id(system_name)
         if serialized_format:
-            popResult = self.__positions.update_one(
+            pop_result = self.__positions.update_one(
                 {self.__SYSTEM_ID_FIELD: system_id, self.__SYSTEM_NAME_FIELD: system_name},
                 {
                     '$pop': {
@@ -214,7 +214,7 @@ class TetSystemsMongoDb(ITetSystemsDocumentDatabase):
                     }
                 }
             )
-            pushResult = self.__positions.update_one(
+            push_result = self.__positions.update_one(
                 {self.__SYSTEM_ID_FIELD: system_id, self.__SYSTEM_NAME_FIELD: system_name},
                 {
                     '$push': {
@@ -222,9 +222,9 @@ class TetSystemsMongoDb(ITetSystemsDocumentDatabase):
                     }
                 }, upsert=True
             )
-            return popResult.modified_count + pushResult.modified_count >= 2
+            return pop_result.modified_count + push_result.modified_count >= 2
         if json_format:
-            popResult = self.__positions.update_one(
+            pop_result = self.__positions.update_one(
                 {self.__SYSTEM_ID_FIELD: system_id, self.__SYSTEM_NAME_FIELD: system_name},
                 {
                     '$pop': {
@@ -232,7 +232,7 @@ class TetSystemsMongoDb(ITetSystemsDocumentDatabase):
                     }
                 }
             )
-            pushResult = self.__positions.update_one(
+            push_result = self.__positions.update_one(
                 {self.__SYSTEM_ID_FIELD: system_id, self.__SYSTEM_NAME_FIELD: system_name},
                 {
                     '$push': {
@@ -240,7 +240,7 @@ class TetSystemsMongoDb(ITetSystemsDocumentDatabase):
                     },
                 }, upsert=True
             )
-            return popResult.modified_count + pushResult.modified_count >= 2
+            return pop_result.modified_count + push_result.modified_count >= 2
 
     def get_position_list(
         self, system_name, serialized_format=False, json_format=False, 
