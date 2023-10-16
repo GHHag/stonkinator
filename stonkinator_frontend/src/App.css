@@ -1,3 +1,13 @@
 .header-link-div {
-    font-size: 20px
+    font-size: 20px;
+}
+
+.side-bar-list-item {
+    font-size: 18px;
+}
+
+.side-bar-list-item:hover {
+    cursor: pointer;
+    font-weight: bold;
+    text-decoration: underline;
 }
