@@ -6,29 +6,39 @@ import (
 	"os"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"fmt"
+	"errors"
 )
 
-var PgPool *pgxpool.Pool
+var pgPool *pgxpool.Pool
 
-func init() {
+func initPgPool() {
 	connectionString := fmt.Sprintf(
 		"postgresql://%s:%s@%s:%s/%s",
 		os.Getenv("PG_DB_USER"),
 		os.Getenv("PG_DB_PASSWORD"),
-		os.Getenv("PG_DB_SERVICE"),
+		// os.Getenv("PG_DB_SERVICE"),
+		"0.0.0.0",
 		// os.Getenv("PG_DB_PORT"),
 		os.Getenv("PG_DB_PORT_EXP"),
 		os.Getenv("PG_DB_NAME"),
 	)
 
 	var err error
-	PgPool, err = pgxpool.New(context.Background(), connectionString)
+	pgPool, err = pgxpool.New(context.Background(), connectionString)
 	if err != nil {
 		log.Fatal("Error connecting to the database: ", err)
 		panic(err)
 	}
 
-	if PgPool == nil {
+	if pgPool == nil {
 		panic(err)
+	}
+}
+
+func GetPgPool() (*pgxpool.Pool, error) {
+	if pgPool == nil {
+		return nil, errors.New("pgPool has not been initialised")
+	} else {
+		return pgPool, nil
 	}
 }

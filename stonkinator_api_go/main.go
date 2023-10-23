@@ -8,7 +8,7 @@ import (
 )
 
 func main() {
-	file, err := os.Open("../.env")
+	file, err := os.Open(".env")
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -17,7 +17,10 @@ func main() {
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
 		line := scanner.Text()
+		// Can all ReplaceAll be done in the same call?
 		line = strings.ReplaceAll(line, " ", "")
+		line = strings.ReplaceAll(line, "'", "")
+		line = strings.ReplaceAll(line, "\"", "")
 		parts := strings.SplitN(line, "=", 2)
 		if len(parts) == 2 {
 			key, value := parts[0], parts[1]
@@ -29,7 +32,10 @@ func main() {
 		panic(err)
 	}
 
-	port := os.Getenv("TET_API_PORT")
+	initPgPool()
+
+	// port := os.Getenv("TET_API_PORT")
+	port := "5800"
 	api_url := os.Getenv("API_URL")
 
 	register(port, api_url)
