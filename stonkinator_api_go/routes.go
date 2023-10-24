@@ -15,13 +15,14 @@ func testGobware() gobware.ACL {
 func register(port string, api_url string) {
 	http.HandleFunc(fmt.Sprintf("%s/health-check", api_url), healthCheck)
 
-	http.HandleFunc(fmt.Sprintf("%s/exchange/", api_url), exchangeAction)
+	http.HandleFunc(fmt.Sprintf("%s/exchange", api_url), exchangeAction)
+
 	http.HandleFunc(fmt.Sprintf("%s/instrument/", api_url), instrumentAction)
-	// http.HandleFunc(fmt.Sprintf("%s/price-data", api_url), priceDataAction)
-	//
-	// http.HandleFunc(fmt.Sprintf("%s/first-dt", api_url), firstDateAction)
-	// http.HandleFunc(fmt.Sprintf("%s/last-dt", api_url), lastDateAction)
-	// http.HandleFunc(fmt.Sprintf("%s/date", api_url), dateAction)
+
+	http.HandleFunc(fmt.Sprintf("%s/price-data/", api_url), priceDataAction)
+	// http.HandleFunc(fmt.Sprintf("%s/price-data/first-dt", api_url), firstDateAction)
+	// http.HandleFunc(fmt.Sprintf("%s/price-data/last-dt", api_url), lastDateAction)
+	// http.HandleFunc(fmt.Sprintf("%s/price-data/date", api_url), dateAction)
 
 	// http.HandleFunc(fmt.Sprintf("%s/market-list", api_url), )
 	// http.HandleFunc(fmt.Sprintf("%s/market-lists", api_url), )

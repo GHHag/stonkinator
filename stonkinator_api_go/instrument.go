@@ -8,18 +8,15 @@ import (
 )
 
 type Instrument struct {
-	Id string `json:"id"` // nullable
+	Id string `json:"id"`
 	ExchangeId string `json:"exchange_id"`
 	Symbol string `json:"symbol"`
 }
 
-// post /instrument/:id
-// get /instrument/:symbol
 func instrumentAction(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 		case http.MethodGet:
-			URLSplit := strings.Split(r.URL.Path, "/")
-			symbol := URLSplit[len(URLSplit) - 1]
+			symbol := r.URL.Query().Get("symbol")
 			getInstrument(symbol, w, r)
 
 		case http.MethodPost:

@@ -8,7 +8,7 @@ import (
 )
 
 type Exchange struct {
-	Id string `json:"id"` // nullable
+	Id string `json:"id"`
 	ExchangeName string `json:"exchange_name"`
 	Currency string `json:"currency"`
 }
@@ -16,8 +16,7 @@ type Exchange struct {
 func exchangeAction(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 		case http.MethodGet:
-			URLSplit := strings.Split(r.URL.Path, "/")
-			exchangeName := URLSplit[len(URLSplit) - 1]
+			exchangeName := r.URL.Query().Get("exchange")
 			getExchange(exchangeName, w, r)
 
 		case http.MethodPost:
