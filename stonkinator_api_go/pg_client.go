@@ -4,9 +4,9 @@ import (
 	"context"
 	"log"
 	"os"
-	"github.com/jackc/pgx/v5/pgxpool"
 	"fmt"
 	"errors"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 var pgPool *pgxpool.Pool
@@ -26,7 +26,7 @@ func initPgPool() {
 	var err error
 	pgPool, err = pgxpool.New(context.Background(), connectionString)
 	if err != nil {
-		log.Fatal("Error connecting to the database: ", err)
+		log.Fatal("Error connecting to the PSQL database: ", err)
 		panic(err)
 	}
 

@@ -6,28 +6,26 @@ import (
 	"net/http"
 	"strings"
 	"time"
+	"fmt"
 )
 
 type Price struct {
 	InstrumentId string `json:"instrument_id"`
 	Symbol string `json:"symbol"`
-	DateTime time.Time `json:"date_time"`
 	Open float64 `json:"open"`
 	High float64 `json:"high"`
 	Low float64 `json:"low"`
 	Close float64 `json:"close"`
 	Volume int64 `json:"volume"`
+	DateTime time.Time `json:"date_time"`
 }
 
 type PriceInsertResponse struct {
 	Success bool `json:"success"`
 	Result string `json:"result"`
 	PrevExistingDates []time.Time `json:"prevExistingDates"`
-	IncorrectData []Price `json:"incorrectData"`
 }
 
-// get /price-data/:symbol
-// post /price-data/:id
 func priceDataAction(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 		case http.MethodGet:
@@ -35,7 +33,6 @@ func priceDataAction(w http.ResponseWriter, r *http.Request) {
 			start := r.URL.Query().Get("start")
 			end := r.URL.Query().Get("end")
 
-			// Create time.Time objects of start and end
 			getPriceData(symbol, start, end, w, r)
 		
 		case http.MethodPost:
@@ -51,12 +48,6 @@ func priceDataAction(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 
-			// if err != nil {
-			// 	http.Error(w, "Invalid request body", http.StatusBadRequest)
-			// 	return
-			// } else {
-			// 	insertPriceData(price, w, r)
-			// }
 			insertPriceData(id, priceData, w, r)
 
 		default:
@@ -64,10 +55,11 @@ func priceDataAction(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func getPriceData(symbol string, start time.Time, end time.Time, w http.ResponseWriter, r *http.Request) {
-	query := pgPool.Query(
+func getPriceData(symbol string, start string, end string, w http.ResponseWriter, r *http.Request) {
+	query, err := pgPool.Query(
+		context.Background(),
 		`
-			SELECT instruments.symbol,
+			SELECT instruments.id, instruments.symbol,
 				price_data.open_price AS "Open", price_data.high_price AS "High",
 				price_data.low_price AS "Low", price_data.close_price AS "Close",
 				price_data.volume AS "Volume",
@@ -78,21 +70,43 @@ func getPriceData(symbol string, start time.Time, end time.Time, w http.Response
 			AND price_data.date_time >= $2
 			AND price_data.date_time <= $3
 			ORDER BY price_data.date_time
-		`, strings.ToUpper(symbol), start, end,
+		`, 
+		strings.ToUpper(symbol), start, end,
 	)
-	
+
+	if err != nil {
+		http.Error(w, "Error while executing query", http.StatusInternalServerError)
+		return
+	}
+	defer query.Close()
+
+	priceData := []Price{}
+	for query.Next() {
+		var price Price
+		err = query.Scan(
+			&price.InstrumentId, &price.Symbol, 
+			&price.Open, &price.High, 
+			&price.Low, &price.Close, 
+			&price.Volume, &price.DateTime,
+		)
+		if err == nil {
+			priceData = append(priceData, price)
+		} 
+	}
+
+	jsonPriceData, err := json.Marshal(priceData)
+	if err != nil {
+		http.Error(w, "Failed to marshal price data", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.Write(jsonPriceData)
 }
 
 func insertPriceData(id string, priceData []Price, w http.ResponseWriter, r *http.Request) {
-	// pgPool, err := GetPgPool()
-	// if err != nil {
-	// 	http.Error(w, "Failed to connect to database", http.StatusInternalServerError)
-	// 	return
-	// }
-
 	existingDates := []time.Time{}
 	priceDataInserts := 0
-	// incorrectDataPoints := []Price{}
 
 	for _, price := range priceData {
 		// if price.Open == 0 || price.High == 0 ||
@@ -100,7 +114,6 @@ func insertPriceData(id string, priceData []Price, w http.ResponseWriter, r *htt
 		//    price.Volume == 0 || price.DateTime == nil {
 		// 	incorrectDataPoints = append(incorrectDataPoints, price)
 		// } else {
-		var dateExists int
 		query := pgPool.QueryRow(
 			context.Background(),
 			`
@@ -108,8 +121,11 @@ func insertPriceData(id string, priceData []Price, w http.ResponseWriter, r *htt
 				FROM price_data
 				WHERE instrument_id = $1
 				AND date_time = $2
-			`, id, price.DateTime,
+			`, 
+			id, price.DateTime,
 		)
+
+		var dateExists int
 		err := query.Scan(&dateExists)
 		if err != nil {
 			http.Error(w, "", http.StatusInternalServerError)
@@ -131,6 +147,7 @@ func insertPriceData(id string, priceData []Price, w http.ResponseWriter, r *htt
 				id, price.Open, price.High, price.Low, price.Close, 
 				price.Volume, price.DateTime,
 			)
+
 			var result string
 			err := query.Scan(&result)
 			if result == "" {
@@ -147,20 +164,145 @@ func insertPriceData(id string, priceData []Price, w http.ResponseWriter, r *htt
 		// }
 	}
 
-	var response PriceInsertResponse 
+	priceInsertResponse := PriceInsertResponse {
+		Success: true,
+		Result: fmt.Sprintf("Inserted %d rows", priceDataInserts),
+		PrevExistingDates: existingDates,
+	}
+	jsonPriceInsertResponse, err := json.Marshal(priceInsertResponse)
+	if err != nil {
+		http.Error(w, "Error caused by response data", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.Write(jsonPriceInsertResponse)
 }
 
-// get /first-dt/:symbol
-func getFirstAvailableDate() {
+func getFirstAvailableDate(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method now allowed", http.StatusMethodNotAllowed)
+		return
+	}
 
+	symbol := r.URL.Query().Get("symbol")
+
+	query := pgPool.QueryRow(
+		context.Background(),
+		`
+			SELECT MIN(price_data.date_time)
+			FROM instruments, price_data
+			WHERE instruments.id = price_data.instrument_id
+			AND instruments.symbol = $1
+		`, 
+		strings.ToUpper(symbol),
+	)
+
+	var dateTime time.Time
+	err := query.Scan(&dateTime)
+	if err != nil {
+		http.Error(w, "Failed to get date", http.StatusInternalServerError)
+		return
+	}
+
+	jsonDateTime, err := json.Marshal(dateTime)
+	if err != nil {
+		http.Error(w, "Failed to marshal date", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.Write(jsonDateTime)
 }
 
-// get /last-dt/:symbol
-func getLastAvailableDate() {
+func getLastAvailableDate(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method now allowed", http.StatusMethodNotAllowed)
+		return
+	}
 
+	symbol := r.URL.Query().Get("symbol")
+
+	query := pgPool.QueryRow(
+		context.Background(),
+		`
+			SELECT MAX(price_data.date_time)
+			FROM instruments, price_data
+			WHERE instruments.id = price_data.instrument_id
+			AND instruments.symbol = $1
+		`, 
+		strings.ToUpper(symbol),
+	)
+
+	var dateTime time.Time
+	err := query.Scan(&dateTime)
+	if err != nil {
+		http.Error(w, "Failed to get date", http.StatusInternalServerError)
+		return
+	}
+
+	jsonDateTime, err := json.Marshal(dateTime)
+	if err != nil {
+		http.Error(w, "Failed to marshal date", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.Write(jsonDateTime)
 }
 
-// get /date
-func getLastDate() {
+func getLastDate(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method now allowed", http.StatusMethodNotAllowed)
+		return
+	}
 
+	symbol1 := r.URL.Query().Get("symbol1")
+	symbol2 := r.URL.Query().Get("symbol2")
+
+	query := pgPool.QueryRow(
+		context.Background(),
+		`
+			WITH instrument_one_dates AS (
+				SELECT date_time
+				FROM instruments, price_data
+				WHERE instruments.id = price_data.instrument_id
+				AND UPPER(instruments.symbol) = $1
+				ORDER BY price_data.date_time DESC
+				LIMIT 20
+			),
+			instrument_two_dates AS (
+				SELECT date_time
+				FROM instruments, price_data
+				WHERE instruments.id = price_data.instrument_id
+				AND UPPER(instruments.symbol) = $2
+				ORDER BY price_data.date_time DESC
+				LIMIT 20
+			)
+			SELECT *
+			FROM instrument_one_dates
+			UNION
+			SELECT *
+			FROM instrument_two_dates
+			ORDER BY date_time
+			LIMIT 1
+		`,
+		strings.ToUpper(symbol1), strings.ToUpper(symbol2),
+	)
+
+	var dateTime time.Time
+	err := query.Scan(&dateTime)
+	if err != nil {
+		http.Error(w, "Failed to get date", http.StatusInternalServerError)
+		return
+	}
+
+	jsonDateTime, err := json.Marshal(dateTime)
+	if err != nil {
+		http.Error(w, "Failed to marshal date", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.Write(jsonDateTime)
 }

@@ -19,26 +19,26 @@ func register(port string, api_url string) {
 
 	http.HandleFunc(fmt.Sprintf("%s/instrument/", api_url), instrumentAction)
 
-	http.HandleFunc(fmt.Sprintf("%s/price-data/", api_url), priceDataAction)
-	// http.HandleFunc(fmt.Sprintf("%s/price-data/first-dt", api_url), firstDateAction)
-	// http.HandleFunc(fmt.Sprintf("%s/price-data/last-dt", api_url), lastDateAction)
-	// http.HandleFunc(fmt.Sprintf("%s/price-data/date", api_url), dateAction)
+	http.HandleFunc(fmt.Sprintf("%s/price", api_url), priceDataAction)
+	http.HandleFunc(fmt.Sprintf("%s/price/first-dt", api_url), getFirstAvailableDate)
+	http.HandleFunc(fmt.Sprintf("%s/price/last-dt", api_url), getLastAvailableDate)
+	http.HandleFunc(fmt.Sprintf("%s/price/date", api_url), getLastDate)
 
-	// http.HandleFunc(fmt.Sprintf("%s/market-list", api_url), )
+	http.HandleFunc(fmt.Sprintf("%s/market-list", api_url), marketListAction)
 	// http.HandleFunc(fmt.Sprintf("%s/market-lists", api_url), )
-	//
+
 	// http.HandleFunc(fmt.Sprintf("%s/instruments", api_url), )
 	// http.HandleFunc(fmt.Sprintf("%s/instruments/sector", api_url), )
 	// http.HandleFunc(fmt.Sprintf("%s/instruments/sectors", api_url), )
 	// http.HandleFunc(fmt.Sprintf("%s/instruments/symbols", api_url), )
 	// http.HandleFunc(fmt.Sprintf("%s/instruments/sector/market-lists", api_url), )
-	//
+
 	// http.HandleFunc(fmt.Sprintf("%s/systems", api_url), )
 	// http.HandleFunc(fmt.Sprintf("%s/systems/metrics", api_url), )
 	// http.HandleFunc(fmt.Sprintf("%s/systems/positions", api_url), )
 	// http.HandleFunc(fmt.Sprintf("%s/systems/market-states", api_url), )
 	// http.HandleFunc(fmt.Sprintf("%s/systems/market-state", api_url), )
-	//
+
 	// http.HandleFunc(fmt.Sprintf("%s/market-breadth", api_url), )
 	// http.HandleFunc(fmt.Sprintf("%s/sector-breadth", api_url), )
 

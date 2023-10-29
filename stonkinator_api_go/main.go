@@ -17,7 +17,6 @@ func main() {
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
 		line := scanner.Text()
-		// Can all ReplaceAll be done in the same call?
 		line = strings.ReplaceAll(line, " ", "")
 		line = strings.ReplaceAll(line, "'", "")
 		line = strings.ReplaceAll(line, "\"", "")
@@ -33,6 +32,7 @@ func main() {
 	}
 
 	initPgPool()
+	initMdb()
 
 	// port := os.Getenv("TET_API_PORT")
 	port := "5800"

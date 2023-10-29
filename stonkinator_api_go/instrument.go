@@ -5,6 +5,9 @@ import (
 	"encoding/json"
 	"net/http"
 	"strings"
+	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 type Instrument struct {
@@ -85,37 +88,99 @@ func insertInstrument(instrument Instrument, w http.ResponseWriter, r *http.Requ
 
 // post /instruments
 // get /instruments/:id
-func instrumentsAction() {
+func instrumentsAction(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+		case http.MethodGet:
+			insertInstruments(w, r)
+
+		case http.MethodPost:
+			marketListId := r.URL.Query().Get("id")
+			getMarketListInstruments(marketListId, w, r)
+
+		default:
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+	}
+}
+
+func insertInstruments(w http.ResponseWriter, r *http.Request) {
+
+}
+
+func getMarketListInstruments(marketListId string, w http.ResponseWriter, r *http.Request) {
 
 }
 
 // get /instruments/sector
-func getSectorInstruments() {
+func getSectorInstruments(w http.ResponseWriter, r *http.Request) {
 
 }
 
 // get /instruments/sectors
-func getSectors() {
+func getSectors(w http.ResponseWriter, r *http.Request) {
 
 }
 
 // get /instruments/symbols/:id
-func getMarketListInstrumentSymbols() {
+func getMarketListInstrumentSymbols(w http.ResponseWriter, r *http.Request) {
 
 }
 
 // get /instruments/sector/market-lists
-func getSectorInstrumentsForMarketLists() {
+func getSectorInstrumentsForMarketLists(w http.ResponseWriter, r *http.Request) {
 
 }
 
 // post /market-list
 // get /market-list
-func marketListAction() {
+func marketListAction(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+		case http.MethodGet:
+			marketList := r.URL.Query().Get("market-list")
+			getMarketListId(marketList, w, r)
+
+		case http.MethodPost:
+			insertMarketList(w, r)
+
+		default:
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+	}
+}
+
+func insertMarketList(w http.ResponseWriter, r *http.Request) {
 
 }
 
+func getMarketListId(marketList string, w http.ResponseWriter, r *http.Request) {
+	collection := mdb.Collection(MARKET_LISTS_COLLECTION)
+
+	filter := bson.M{"market_list": marketList}
+	projection := bson.M{"_id": 1, "market_list": 0}
+
+	var marketListId string 
+	err := collection.FindOne(
+		context.Background(), 
+		filter, 
+		options.FindOne().SetProjection(projection),
+	).Decode(&marketListId)
+	if err == mongo.ErrNoDocuments {
+		http.Error(w, "No documents found", http.StatusNoContent)
+		return
+	} else if err != nil {
+		http.Error(w, "Failed to execute query", http.StatusInternalServerError)
+		return
+	}
+
+	jsonMarketListId, err := json.Marshal(marketListId)
+	if err != nil {
+		http.Error(w, "Failed to marshal id", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.Write(jsonMarketListId)
+}
+
 // get /market-lists
-func getMarketLists() {
+func getMarketLists(w http.ResponseWriter, r *http.Request) {
 
 }

@@ -17,6 +17,7 @@ func exchangeAction(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 		case http.MethodGet:
 			exchangeName := r.URL.Query().Get("exchange")
+
 			getExchange(exchangeName, w, r)
 
 		case http.MethodPost:
@@ -41,7 +42,8 @@ func getExchange(exchangeName string, w http.ResponseWriter, r *http.Request) {
 			SELECT id, exchange_name, currency
 			FROM exchanges
 			WHERE UPPER(exchange_name) = $1
-		`, strings.ToUpper(exchangeName),
+		`, 
+		strings.ToUpper(exchangeName),
 	)
 
 	var exchange Exchange
@@ -68,7 +70,8 @@ func insertExchange(exchange Exchange, w http.ResponseWriter, r *http.Request) {
 			INSERT INTO exchanges(exchange_name, currency)
 			VALUES($1, $2)
 			ON CONFLICT DO NOTHING
-		`, exchange.ExchangeName, exchange.Currency,
+		`, 
+		exchange.ExchangeName, exchange.Currency,
 	)
 
 	var result string
@@ -81,4 +84,9 @@ func insertExchange(exchange Exchange, w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Error while inserting into the database", http.StatusInternalServerError)
 		return
 	}
+
+	// What to respond with?
+	jsonResult, err := json.Marshal(result)
+	w.Header().Set("Content-Type", "application/json")
+	w.Write(jsonResult)
 }
