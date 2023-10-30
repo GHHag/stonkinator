@@ -25,7 +25,7 @@ func register(port string, api_url string) {
 	http.HandleFunc(fmt.Sprintf("%s/price/date", api_url), getLastDate)
 
 	http.HandleFunc(fmt.Sprintf("%s/market-list", api_url), marketListAction)
-	// http.HandleFunc(fmt.Sprintf("%s/market-lists", api_url), )
+	http.HandleFunc(fmt.Sprintf("%s/market-lists", api_url), getMarketLists)
 
 	// http.HandleFunc(fmt.Sprintf("%s/instruments", api_url), )
 	// http.HandleFunc(fmt.Sprintf("%s/instruments/sector", api_url), )

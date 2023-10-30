@@ -38,9 +38,7 @@ func initMdb() {
 		panic(err)
 	}
 
-	defer client.Disconnect(context.Background())
-
-	mdb = client.Database("stnator")
+	mdb = client.Database("client_db")
 }
 
 func GetMdb() (*mongo.Database, error) {
