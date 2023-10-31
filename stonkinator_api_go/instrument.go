@@ -6,13 +6,22 @@ import (
 	"net/http"
 	"strings"
 	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 type MarketList struct {
-	Id string `json:"id"`
+	Id primitive.ObjectID `bson:"_id,omitempty" json:"id"`
 	MarketList string `bson:"market_list" json:"market_list"`
+}
+
+type Stock struct {
+	Id primitive.ObjectID `bson:"_id,omitempty" json:"id"`
+	Symbol string `bson:"symbol" json:"symbol"`
+	Industry string `bson:"industry" json:"industry"`
+	Instrument string `bson:"instrument" json:"instrument"`
+	MarketListIds []primitive.ObjectID `bson:"market_list_ids" json:"market_list_ids"`
 }
 
 type Instrument struct {
@@ -96,18 +105,26 @@ func insertInstrument(instrument Instrument, w http.ResponseWriter, r *http.Requ
 func instrumentsAction(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 		case http.MethodGet:
-			insertInstruments(w, r)
+			marketListId := r.URL.Query().Get("id")
+			
+			getMarketListInstruments(marketListId, w, r)
 
 		case http.MethodPost:
 			marketListId := r.URL.Query().Get("id")
-			getMarketListInstruments(marketListId, w, r)
+			var stock Stock
+			if err := json.NewDecoder(r.Body).Decode(&stock); err != nil {
+				http.Error(w, "Failed to parse request body", http.StatusBadRequest)
+				return
+			}
+
+			insertStock(marketListId, stock, w, r)
 
 		default:
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 	}
 }
 
-func insertInstruments(w http.ResponseWriter, r *http.Request) {
+func insertStock(marketListId string, stock Stock, w http.ResponseWriter, r *http.Request) {
 
 }
 
@@ -122,7 +139,7 @@ func getSectorInstruments(w http.ResponseWriter, r *http.Request) {
 
 // get /instruments/sectors
 func getSectors(w http.ResponseWriter, r *http.Request) {
-
+	collection := mdb.Collection(INSTRUMENTS_COLLECTION)
 }
 
 // get /instruments/symbols/:id
@@ -143,13 +160,13 @@ func marketListAction(w http.ResponseWriter, r *http.Request) {
 			getMarketListId(marketList, w, r)
 
 		case http.MethodPost:
-			var market MarketList
-			if err := json.NewDecoder(r.Body).Decode(&market); err != nil {
+			var marketList MarketList
+			if err := json.NewDecoder(r.Body).Decode(&marketList); err != nil {
 				http.Error(w, "Failed to parse request body", http.StatusBadRequest)
 				return
 			}
 
-			insertMarketList(market, w, r)
+			insertMarketList(marketList, w, r)
 
 		default:
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -170,9 +187,18 @@ func insertMarketList(marketList MarketList, w http.ResponseWriter, r *http.Requ
 	).Decode(&findResult)
 	if err == mongo.ErrNoDocuments {
 		insertResult, err = collection.InsertOne(context.Background(), marketList)
-	}
-	if err != nil {
+		if err != nil {
+			http.Error(w, "Failed to insert market list", http.StatusInternalServerError)
+			return
+		}
+	} else if err != nil {
 		http.Error(w, "Failed to insert market list", http.StatusInternalServerError)
+		return
+	} else {
+		response := map[string]string{"message": "Entry already exists"}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(response)
 		return
 	}
 
@@ -216,7 +242,6 @@ func getMarketListId(marketList string, w http.ResponseWriter, r *http.Request) 
 	w.Write(jsonMarketListId)
 }
 
-// get /market-lists
 func getMarketLists(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -225,36 +250,22 @@ func getMarketLists(w http.ResponseWriter, r *http.Request) {
 
 	collection := mdb.Collection(MARKET_LISTS_COLLECTION)
 
-	var result bson.M
 	var results []MarketList
-	cursor, err := collection.Find(context.Background(), bson.M{})
-	// if err == mongo.ErrNoDocuments {
-	// 	http.Error(w, "No documents found", http.StatusNoContent)
-	// 	return
-	// } else if err != nil {
-	// 	http.Error(w, "Failed to execute query", http.StatusInternalServerError)
-	// 	return
-	// }
-	if err != nil {
+	cursor, err := collection.Find(context.Background(), bson.D{})
+	if err == mongo.ErrNoDocuments {
+		http.Error(w, "No documents found", http.StatusNoContent)
+		return
+	} else if err != nil {
 		http.Error(w, "Failed to execute query", http.StatusInternalServerError)
 		return
 	}
 	defer cursor.Close(context.Background())
-
-	for cursor.Next(context.Background()) {
-		var result MarketList
-		if err := cursor.Decode(&result); err != nil {
-			http.Error(w, "Failed to decode result", http.StatusInternalServerError)
-			return
-		}
-		results = append(results, result)
-	}
-	if err := cursor.Err(); err != nil {
-		http.Error(w, "Failed to decode result", http.StatusInternalServerError)
+	if err = cursor.All(context.Background(), &results); err != nil {
+		http.Error(w, "Failed to retrieve result", http.StatusInternalServerError)
 		return
 	}
 
-	jsonMarketLists, err := json.Marshal(result)
+	jsonMarketLists, err := json.Marshal(results)
 	if err != nil {
 		http.Error(w, "Failed to marshal data", http.StatusInternalServerError)
 		return

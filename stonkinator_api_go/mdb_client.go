@@ -38,6 +38,7 @@ func initMdb() {
 		panic(err)
 	}
 
+	// Get DB name from a defined env var
 	mdb = client.Database("client_db")
 }
 
