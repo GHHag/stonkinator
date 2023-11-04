@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	// "context"
 	"log"
 	"os"
 	"strings"
@@ -39,4 +40,6 @@ func main() {
 	api_url := os.Getenv("API_URL")
 
 	register(port, api_url)
+
+	// defer mdb.Client().Disconnect(context.Background())
 }

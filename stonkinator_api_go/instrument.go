@@ -100,8 +100,6 @@ func insertInstrument(instrument Instrument, w http.ResponseWriter, r *http.Requ
 	}
 }
 
-// post /instruments
-// get /instruments/:id
 func instrumentsAction(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 		case http.MethodGet:
@@ -125,21 +123,157 @@ func instrumentsAction(w http.ResponseWriter, r *http.Request) {
 }
 
 func insertStock(marketListId string, stock Stock, w http.ResponseWriter, r *http.Request) {
+	collection := mdb.Collection(INSTRUMENTS_COLLECTION)
 
+	marketListObjectId, err := primitive.ObjectIDFromHex(marketListId)
+	if err != nil {
+		http.Error(w, "Failed to parse id", http.StatusBadRequest)
+		return
+	}
+
+	filter := bson.M{"symbol": stock.Symbol}
+	update := bson.M{
+		"$set": bson.M{
+			"symbol": stock.Symbol,
+			"industry": stock.Industry,
+			"instrument": stock.Instrument,
+		},
+		"$addToSet": bson.M{
+			"market_list_ids": marketListObjectId,
+		},
+	}
+	options := options.Update().SetUpsert(true)
+
+	var result *mongo.UpdateResult
+	result, err = collection.UpdateOne(context.Background(), filter, update, options)
+	if err != nil {
+		http.Error(w, "Failed to insert market list", http.StatusInternalServerError)
+		return
+	}
+
+	jsonResult, err := json.Marshal(result)
+	if err != nil {
+		http.Error(w, "Failed to marshal data", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.Write(jsonResult)
 }
 
 func getMarketListInstruments(marketListId string, w http.ResponseWriter, r *http.Request) {
+	collection := mdb.Collection(MARKET_LISTS_COLLECTION)
 
+	marketListObjectId, err := primitive.ObjectIDFromHex(marketListId)
+	if err != nil {
+		http.Error(w, "Failed to parse id", http.StatusBadRequest)
+		return
+	}
+
+	pipeline := mongo.Pipeline{
+		{{
+			"$match", bson.D{{"_id", marketListObjectId}},
+		}},
+		{{
+			"$lookup",
+			bson.D{
+				{"from", INSTRUMENTS_COLLECTION},
+				{"localField", "_id"},
+				{"foreignField", "market_list_ids"},
+				{"as", "market_list_instruments"},
+			},
+		}},
+	}
+
+	cursor, err := collection.Aggregate(context.Background(), pipeline)
+	if err != nil {
+		http.Error(w, "Failed to execute query", http.StatusInternalServerError)
+		return
+	}
+	defer cursor.Close(context.Background())
+
+	var result bson.M
+	if cursor.Next(context.Background()) {
+		if err := cursor.Decode(&result); err != nil {
+			http.Error(w, "Failed to parse results", http.StatusInternalServerError)
+			return
+		}
+	} else {
+		http.Error(w, "No documents found", http.StatusNoContent)
+		return
+	}
+
+	jsonMarketListsInstruments, err := json.Marshal(result)
+	if err != nil {
+		http.Error(w, "Failed to marshal data", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.Write(jsonMarketListsInstruments)
 }
 
-// get /instruments/sector
 func getSectorInstruments(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
 
+	sector := r.URL.Query().Get("sector")
+
+	collection := mdb.Collection(INSTRUMENTS_COLLECTION)
+
+	filter := bson.M{"industry": sector}
+
+	var results []bson.M
+	cursor, err := collection.Find(context.Background(), filter)
+	if err != nil {
+		http.Error(w, "Failed to execute query", http.StatusInternalServerError)
+		return
+	}
+	defer cursor.Close(context.Background())
+	if err := cursor.All(context.Background(), &results); err != nil {
+		http.Error(w, "Failed to retrieve result", http.StatusInternalServerError)
+		return
+	}
+	if len(results) == 0 {
+		http.Error(w, "No documents found", http.StatusNoContent)
+		return
+	}
+
+	jsonSectors, err := json.Marshal(results)
+	if err != nil {
+		http.Error(w, "Failed to marshal data", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.Write(jsonSectors)
 }
 
-// get /instruments/sectors
 func getSectors(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
 	collection := mdb.Collection(INSTRUMENTS_COLLECTION)
+
+	results, err := collection.Distinct(context.Background(), "industry", bson.M{})
+	if err != nil {
+		http.Error(w, "Failed to execute query", http.StatusInternalServerError)
+		return
+	}
+
+	// Change format of results json
+	jsonSectors, err := json.Marshal(results)
+	if err != nil {
+		http.Error(w, "Failed to marshal data", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.Write(jsonSectors)
 }
 
 // get /instruments/symbols/:id

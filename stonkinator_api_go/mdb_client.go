@@ -1,13 +1,15 @@
 package main
 
-import(
-	"errors"
+import (
 	"context"
-	"os"
+	"errors"
 	"fmt"
 	"log"
+	"os"
+
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
+	// "go.mongodb.org/mongo-driver/mongo/readpref"
 )
 
 var mdb *mongo.Database
@@ -38,8 +40,14 @@ func initMdb() {
 		panic(err)
 	}
 
+	// defer client.Disconnect(context.Background())
+
 	// Get DB name from a defined env var
 	mdb = client.Database("client_db")
+
+	// fmt.Println(mdb.Client().Ping(context.Background(), readpref.Primary()))
+	// defer client.Disconnect(context.Background())
+	// fmt.Println(mdb.Client().Ping(context.Background(), readpref.Primary()))
 }
 
 func GetMdb() (*mongo.Database, error) {
