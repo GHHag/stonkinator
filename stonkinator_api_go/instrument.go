@@ -3,8 +3,11 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
+
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -28,6 +31,22 @@ type Instrument struct {
 	Id string `json:"id"`
 	ExchangeId string `json:"exchange_id"`
 	Symbol string `json:"symbol"`
+}
+
+// Move func elsewhere?
+func convertStringIds(ids []string) ([]primitive.ObjectID, error) {
+	var objIDs []primitive.ObjectID
+
+	for _, idStr := range ids {
+	    objID, err := primitive.ObjectIDFromHex(idStr)
+	    if err != nil {
+		return nil, err
+	    } else {
+		objIDs = append(objIDs, objID)
+	    }
+	}
+
+	return objIDs, nil
 }
 
 func instrumentAction(w http.ResponseWriter, r *http.Request) {
@@ -104,8 +123,9 @@ func instrumentsAction(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 		case http.MethodGet:
 			marketListId := r.URL.Query().Get("id")
+			projection := r.URL.Query().Get("projection")
 			
-			getMarketListInstruments(marketListId, w, r)
+			getMarketListInstruments(marketListId, projection, w, r)
 
 		case http.MethodPost:
 			marketListId := r.URL.Query().Get("id")
@@ -161,7 +181,7 @@ func insertStock(marketListId string, stock Stock, w http.ResponseWriter, r *htt
 	w.Write(jsonResult)
 }
 
-func getMarketListInstruments(marketListId string, w http.ResponseWriter, r *http.Request) {
+func getMarketListInstruments(marketListId string, projection string, w http.ResponseWriter, r *http.Request) {
 	collection := mdb.Collection(MARKET_LISTS_COLLECTION)
 
 	marketListObjectId, err := primitive.ObjectIDFromHex(marketListId)
@@ -171,18 +191,29 @@ func getMarketListInstruments(marketListId string, w http.ResponseWriter, r *htt
 	}
 
 	pipeline := mongo.Pipeline{
-		{{
+		bson.D{{
 			"$match", bson.D{{"_id", marketListObjectId}},
 		}},
-		{{
-			"$lookup",
-			bson.D{
+		bson.D{{
+			"$lookup", bson.D{
 				{"from", INSTRUMENTS_COLLECTION},
 				{"localField", "_id"},
 				{"foreignField", "market_list_ids"},
 				{"as", "market_list_instruments"},
 			},
 		}},
+	}
+	projectionValue, err := strconv.Atoi(projection)
+	if err == nil && projectionValue == 1 {
+		pipeline = append(
+			pipeline, 
+			bson.D{{
+				"$project", bson.D{
+					{"market_list_instruments._id", 1},
+					{"market_list_instruments.symbol", 1},
+				},
+			}},
+		)
 	}
 
 	cursor, err := collection.Aggregate(context.Background(), pipeline)
@@ -223,10 +254,8 @@ func getSectorInstruments(w http.ResponseWriter, r *http.Request) {
 
 	collection := mdb.Collection(INSTRUMENTS_COLLECTION)
 
-	filter := bson.M{"industry": sector}
-
 	var results []bson.M
-	cursor, err := collection.Find(context.Background(), filter)
+	cursor, err := collection.Find(context.Background(), bson.M{"industry": sector})
 	if err != nil {
 		http.Error(w, "Failed to execute query", http.StatusInternalServerError)
 		return
@@ -276,14 +305,72 @@ func getSectors(w http.ResponseWriter, r *http.Request) {
 	w.Write(jsonSectors)
 }
 
-// get /instruments/symbols/:id
-func getMarketListInstrumentSymbols(w http.ResponseWriter, r *http.Request) {
-
-}
-
 // get /instruments/sector/market-lists
 func getSectorInstrumentsForMarketLists(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
 
+	sector := r.URL.Query().Get("sector")
+	// Good way to define struct inside a function?
+	type MarketListIdsBody struct {
+		MarketListIds []string `json:"market-list-ids"`
+	}
+	var marketListIds MarketListIdsBody
+	if err := json.NewDecoder(r.Body).Decode(&marketListIds); err != nil {
+		http.Error(w, "Failed to parse request body", http.StatusBadRequest)
+		return
+	}
+	objIDs, err := convertStringIds(marketListIds.MarketListIds)
+	fmt.Println(marketListIds.MarketListIds)
+	fmt.Println(objIDs)
+
+	collection := mdb.Collection(INSTRUMENTS_COLLECTION)
+
+	pipeline := mongo.Pipeline{
+		bson.D{{
+			"$match", bson.D{{"industry", sector}},
+		}},
+		bson.D{{
+			"$match", bson.M{
+				"$nor": []bson.M{{
+					"market_list_ids": bson.M{
+						// "$nin": marketListIds.MarketListIds,
+						"$nin": objIDs,
+					}},
+				},
+			},
+		}},
+	}
+
+	cursor, err := collection.Aggregate(context.Background(), pipeline)
+	if err != nil {
+		http.Error(w, "Failed to execute query", http.StatusInternalServerError)
+		return
+	}
+	defer cursor.Close(context.Background())
+
+	var result bson.M
+	if cursor.Next(context.Background()) {
+		var result bson.M
+		if err := cursor.Decode(&result); err != nil {
+			http.Error(w, "Failed to parse results", http.StatusInternalServerError)
+			return
+		}
+	} else {
+		http.Error(w, "No documents found", http.StatusNoContent)
+		return
+	}
+
+	jsonSectorInstruments, err := json.Marshal(result)
+	if err != nil {
+		http.Error(w, "Failed to marshal data", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.Write(jsonSectorInstruments)
 }
 
 func marketListAction(w http.ResponseWriter, r *http.Request) {

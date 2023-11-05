@@ -30,8 +30,7 @@ func register(port string, api_url string) {
 	http.HandleFunc(fmt.Sprintf("%s/instruments", api_url), instrumentsAction)
 	http.HandleFunc(fmt.Sprintf("%s/instruments/sector", api_url), getSectorInstruments)
 	http.HandleFunc(fmt.Sprintf("%s/instruments/sectors", api_url), getSectors)
-	// http.HandleFunc(fmt.Sprintf("%s/instruments/symbols", api_url), )
-	// http.HandleFunc(fmt.Sprintf("%s/instruments/sector/market-lists", api_url), )
+	http.HandleFunc(fmt.Sprintf("%s/instruments/sector/market-lists", api_url), getSectorInstrumentsForMarketLists)
 
 	// http.HandleFunc(fmt.Sprintf("%s/systems", api_url), )
 	// http.HandleFunc(fmt.Sprintf("%s/systems/metrics", api_url), )
