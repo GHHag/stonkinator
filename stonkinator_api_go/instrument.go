@@ -3,11 +3,9 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
-
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -305,7 +303,6 @@ func getSectors(w http.ResponseWriter, r *http.Request) {
 	w.Write(jsonSectors)
 }
 
-// get /instruments/sector/market-lists
 func getSectorInstrumentsForMarketLists(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -323,8 +320,6 @@ func getSectorInstrumentsForMarketLists(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	objIDs, err := convertStringIds(marketListIds.MarketListIds)
-	fmt.Println(marketListIds.MarketListIds)
-	fmt.Println(objIDs)
 
 	collection := mdb.Collection(INSTRUMENTS_COLLECTION)
 
@@ -336,7 +331,6 @@ func getSectorInstrumentsForMarketLists(w http.ResponseWriter, r *http.Request) 
 			"$match", bson.M{
 				"$nor": []bson.M{{
 					"market_list_ids": bson.M{
-						// "$nin": marketListIds.MarketListIds,
 						"$nin": objIDs,
 					}},
 				},
@@ -351,19 +345,21 @@ func getSectorInstrumentsForMarketLists(w http.ResponseWriter, r *http.Request) 
 	}
 	defer cursor.Close(context.Background())
 
-	var result bson.M
-	if cursor.Next(context.Background()) {
+	var results []bson.M
+	for cursor.Next(context.Background()) {
 		var result bson.M
 		if err := cursor.Decode(&result); err != nil {
 			http.Error(w, "Failed to parse results", http.StatusInternalServerError)
 			return
 		}
-	} else {
+		results = append(results, result)
+	}
+	if len(results) == 0 {
 		http.Error(w, "No documents found", http.StatusNoContent)
 		return
 	}
 
-	jsonSectorInstruments, err := json.Marshal(result)
+	jsonSectorInstruments, err := json.Marshal(results)
 	if err != nil {
 		http.Error(w, "Failed to marshal data", http.StatusInternalServerError)
 		return
