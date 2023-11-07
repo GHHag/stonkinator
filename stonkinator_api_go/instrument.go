@@ -310,7 +310,6 @@ func getSectorInstrumentsForMarketLists(w http.ResponseWriter, r *http.Request) 
 	}
 
 	sector := r.URL.Query().Get("sector")
-	// Good way to define struct inside a function?
 	type MarketListIdsBody struct {
 		MarketListIds []string `json:"market-list-ids"`
 	}
