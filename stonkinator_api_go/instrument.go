@@ -141,13 +141,13 @@ func instrumentsAction(w http.ResponseWriter, r *http.Request) {
 }
 
 func insertStock(marketListId string, stock Stock, w http.ResponseWriter, r *http.Request) {
-	collection := mdb.Collection(INSTRUMENTS_COLLECTION)
-
 	marketListObjectId, err := primitive.ObjectIDFromHex(marketListId)
 	if err != nil {
 		http.Error(w, "Failed to parse id", http.StatusBadRequest)
 		return
 	}
+
+	collection := mdb.Collection(INSTRUMENTS_COLLECTION)
 
 	filter := bson.M{"symbol": stock.Symbol}
 	update := bson.M{
@@ -180,13 +180,13 @@ func insertStock(marketListId string, stock Stock, w http.ResponseWriter, r *htt
 }
 
 func getMarketListInstruments(marketListId string, projection string, w http.ResponseWriter, r *http.Request) {
-	collection := mdb.Collection(MARKET_LISTS_COLLECTION)
-
 	marketListObjectId, err := primitive.ObjectIDFromHex(marketListId)
 	if err != nil {
 		http.Error(w, "Failed to parse id", http.StatusBadRequest)
 		return
 	}
+
+	collection := mdb.Collection(MARKET_LISTS_COLLECTION)
 
 	pipeline := mongo.Pipeline{
 		bson.D{{
@@ -214,17 +214,16 @@ func getMarketListInstruments(marketListId string, projection string, w http.Res
 		)
 	}
 
+	var result bson.M
 	cursor, err := collection.Aggregate(context.Background(), pipeline)
 	if err != nil {
 		http.Error(w, "Failed to execute query", http.StatusInternalServerError)
 		return
 	}
 	defer cursor.Close(context.Background())
-
-	var result bson.M
 	if cursor.Next(context.Background()) {
 		if err := cursor.Decode(&result); err != nil {
-			http.Error(w, "Failed to parse results", http.StatusInternalServerError)
+			http.Error(w, "Failed to retrieve result", http.StatusInternalServerError)
 			return
 		}
 	} else {
@@ -259,7 +258,7 @@ func getSectorInstruments(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer cursor.Close(context.Background())
-	if err := cursor.All(context.Background(), &results); err != nil {
+	if err = cursor.All(context.Background(), &results); err != nil {
 		http.Error(w, "Failed to retrieve result", http.StatusInternalServerError)
 		return
 	}
@@ -292,7 +291,6 @@ func getSectors(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Change format of results json
 	jsonSectors, err := json.Marshal(results)
 	if err != nil {
 		http.Error(w, "Failed to marshal data", http.StatusInternalServerError)
@@ -319,6 +317,10 @@ func getSectorInstrumentsForMarketLists(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	objIDs, err := convertStringIds(marketListIds.MarketListIds)
+	if len(objIDs) == 0 {
+		http.Error(w, "Invalid object ID/IDs", http.StatusBadRequest)
+		return
+	}
 
 	collection := mdb.Collection(INSTRUMENTS_COLLECTION)
 
@@ -337,21 +339,16 @@ func getSectorInstrumentsForMarketLists(w http.ResponseWriter, r *http.Request) 
 		}},
 	}
 
+	var results []bson.M
 	cursor, err := collection.Aggregate(context.Background(), pipeline)
 	if err != nil {
 		http.Error(w, "Failed to execute query", http.StatusInternalServerError)
 		return
 	}
 	defer cursor.Close(context.Background())
-
-	var results []bson.M
-	for cursor.Next(context.Background()) {
-		var result bson.M
-		if err := cursor.Decode(&result); err != nil {
-			http.Error(w, "Failed to parse results", http.StatusInternalServerError)
-			return
-		}
-		results = append(results, result)
+	if err = cursor.All(context.Background(), &results); err != nil {
+		http.Error(w, "Failed to retrieve result", http.StatusInternalServerError)
+		return
 	}
 	if len(results) == 0 {
 		http.Error(w, "No documents found", http.StatusNoContent)
@@ -468,16 +465,17 @@ func getMarketLists(w http.ResponseWriter, r *http.Request) {
 
 	var results []MarketList
 	cursor, err := collection.Find(context.Background(), bson.D{})
-	if err == mongo.ErrNoDocuments {
-		http.Error(w, "No documents found", http.StatusNoContent)
-		return
-	} else if err != nil {
+	if err != nil {
 		http.Error(w, "Failed to execute query", http.StatusInternalServerError)
 		return
 	}
 	defer cursor.Close(context.Background())
 	if err = cursor.All(context.Background(), &results); err != nil {
 		http.Error(w, "Failed to retrieve result", http.StatusInternalServerError)
+		return
+	}
+	if len(results) == 0 {
+		http.Error(w, "No documents found", http.StatusNoContent)
 		return
 	}
 
