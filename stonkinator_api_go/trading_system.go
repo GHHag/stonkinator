@@ -4,8 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"fmt"
 	"go.mongodb.org/mongo-driver/bson"
-	// "go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 const ID_FIELD string = "_id"
@@ -15,7 +18,6 @@ const SYSTEM_NAME_FIELD = "name"
 const METRICS_FIELD = "metrics"
 const POSITION_LIST_FIELD = "position_list_json"
 
-// /systems
 func getSystems(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -51,29 +53,75 @@ func getSystems(w http.ResponseWriter, r *http.Request) {
 	w.Write(jsonTradingSystems)
 }
 
-// /systems/metrics/:id
 func getSystemMetrics(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
-	// collection := mdb.Collection(TRADING_SYSTEMS_COLLECTION)
+	id := r.URL.Query().Get("id")
+	objID, err := primitive.ObjectIDFromHex(id)
+	if err != nil {
+		http.Error(w, "Incorrect ID", http.StatusBadRequest)
+		return
+	}
+
+	collection := mdb.Collection(TRADING_SYSTEMS_COLLECTION)
+
+	filter := bson.M{ID_FIELD: objID}
+	projection := bson.M{METRICS_FIELD: 1, SYSTEM_NAME_FIELD: 1}
+
+	var result bson.M
+	err = collection.FindOne(
+		context.Background(),
+		filter,
+		options.FindOne().SetProjection(projection),
+	).Decode(&result)
+	if err == mongo.ErrNoDocuments {
+		http.Error(w, "No documents found", http.StatusNoContent)
+		return
+	} else if err != nil {
+		http.Error(w, "Failed to execute query", http.StatusNoContent)
+		return
+	}
+
+	jsonSystemMetrics, err := json.Marshal(result)
+	if err != nil {
+		http.Error(w, "Failed to marshal data", http.StatusNoContent)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.Write(jsonSystemMetrics)
 }
 
 // /systems/positions
 // /systems/positions/:systemId
 func systemPositionsAction(w http.ResponseWriter, r *http.Request) {
-	getSystemPositions(w, r)
-	getSystemPositionsForSymbol(w, r)
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	id := r.URL.Query().Get("id")
+	symbol := r.URL.Query().Get("symbol")
+
+	fmt.Println(id)
+
+	if len(symbol) > 0 {
+		fmt.Println(symbol)
+		getSystemPositionsForSymbol(id, symbol, w, r)
+	} else {
+		getSystemPositions(id, w, r)
+	}
 }
 
-func getSystemPositions(w http.ResponseWriter, r *http.Request) {
-
+func getSystemPositions(systemID string, w http.ResponseWriter, r *http.Request) {
+	fmt.Println("getSystemPositions")
 }
 
-func getSystemPositionsForSymbol(w http.ResponseWriter, r *http.Request) {
-
+func getSystemPositionsForSymbol(systemID string, symbol string, w http.ResponseWriter, r *http.Request) {
+	fmt.Println("getSystemPositionsForSymbol")
 }
 
 // /systems/market-states/:systemId
