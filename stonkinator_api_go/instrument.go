@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -33,18 +34,18 @@ type Instrument struct {
 
 // Move func elsewhere?
 func convertStringIds(ids []string) ([]primitive.ObjectID, error) {
-	var objIDs []primitive.ObjectID
+	var objIds []primitive.ObjectID
 
 	for _, idStr := range ids {
-	    objID, err := primitive.ObjectIDFromHex(idStr)
+	    objId, err := primitive.ObjectIDFromHex(idStr)
 	    if err != nil {
 		return nil, err
 	    } else {
-		objIDs = append(objIDs, objID)
+		objIds = append(objIds, objId)
 	    }
 	}
 
-	return objIDs, nil
+	return objIds, nil
 }
 
 func instrumentAction(w http.ResponseWriter, r *http.Request) {
@@ -316,8 +317,8 @@ func getSectorInstrumentsForMarketLists(w http.ResponseWriter, r *http.Request) 
 		http.Error(w, "Failed to parse request body", http.StatusBadRequest)
 		return
 	}
-	objIDs, err := convertStringIds(marketListIds.MarketListIds)
-	if len(objIDs) == 0 {
+	objIds, err := convertStringIds(marketListIds.MarketListIds)
+	if len(objIds) == 0 {
 		http.Error(w, "Invalid object ID/IDs", http.StatusBadRequest)
 		return
 	}
@@ -332,7 +333,7 @@ func getSectorInstrumentsForMarketLists(w http.ResponseWriter, r *http.Request) 
 			"$match", bson.M{
 				"$nor": []bson.M{{
 					"market_list_ids": bson.M{
-						"$nin": objIDs,
+						"$nin": objIds,
 					}},
 				},
 			},
@@ -389,14 +390,12 @@ func marketListAction(w http.ResponseWriter, r *http.Request) {
 func insertMarketList(marketList MarketList, w http.ResponseWriter, r *http.Request) {
 	collection := mdb.Collection(MARKET_LISTS_COLLECTION)
 
-	projection := bson.M{"_id": 1}
-
 	var findResult bson.M
 	var insertResult *mongo.InsertOneResult
 	err := collection.FindOne(
 		context.Background(),
 		marketList,
-		options.FindOne().SetProjection(projection),
+		options.FindOne().SetProjection(bson.M{"_id": 1}),
 	).Decode(&findResult)
 	if err == mongo.ErrNoDocuments {
 		insertResult, err = collection.InsertOne(context.Background(), marketList)
@@ -428,14 +427,11 @@ func insertMarketList(marketList MarketList, w http.ResponseWriter, r *http.Requ
 func getMarketListId(marketList string, w http.ResponseWriter, r *http.Request) {
 	collection := mdb.Collection(MARKET_LISTS_COLLECTION)
 
-	filter := bson.M{"market_list": marketList}
-	projection := bson.M{"_id": 1, "market_list": 0}
-
 	var result bson.M
 	err := collection.FindOne(
 		context.Background(), 
-		filter, 
-		options.FindOne().SetProjection(projection),
+		bson.M{"market_list": marketList},
+		options.FindOne().SetProjection(bson.M{"_id": 1, "market_list": 0}),
 	).Decode(&result)
 	if err == mongo.ErrNoDocuments {
 		http.Error(w, "No documents found", http.StatusNoContent)
@@ -463,7 +459,7 @@ func getMarketLists(w http.ResponseWriter, r *http.Request) {
 
 	collection := mdb.Collection(MARKET_LISTS_COLLECTION)
 
-	var results []MarketList
+	var results []bson.M
 	cursor, err := collection.Find(context.Background(), bson.D{})
 	if err != nil {
 		http.Error(w, "Failed to execute query", http.StatusInternalServerError)

@@ -6,12 +6,15 @@ import (
 	"fmt"
 	"log"
 	"os"
+
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 	// "go.mongodb.org/mongo-driver/mongo/readpref"
 )
 
 var mdb *mongo.Database
+// Define collection variables here instead of locally in functions
+// where they are used?
 
 const MARKET_LISTS_COLLECTION string = "market_lists"
 const INSTRUMENTS_COLLECTION string = "instruments"

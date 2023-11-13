@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -26,7 +27,7 @@ func getSystems(w http.ResponseWriter, r *http.Request) {
 	collection := mdb.Collection(TRADING_SYSTEMS_COLLECTION)
 
 	var results []bson.M
-	// var results []TradingSystem
+	// var results []TradingSystem - define TradingSystem struct?
 	cursor, err := collection.Find(context.Background(), bson.D{})
 	if err != nil {
 		http.Error(w, "Failed to execute query", http.StatusInternalServerError)
@@ -59,7 +60,7 @@ func getSystemMetrics(w http.ResponseWriter, r *http.Request) {
 	}
 
 	id := r.URL.Query().Get("id")
-	objID, err := primitive.ObjectIDFromHex(id)
+	objId, err := primitive.ObjectIDFromHex(id)
 	if err != nil {
 		http.Error(w, "Incorrect ID", http.StatusBadRequest)
 		return
@@ -67,14 +68,11 @@ func getSystemMetrics(w http.ResponseWriter, r *http.Request) {
 
 	collection := mdb.Collection(TRADING_SYSTEMS_COLLECTION)
 
-	filter := bson.M{ID_FIELD: objID}
-	projection := bson.M{METRICS_FIELD: 1, SYSTEM_NAME_FIELD: 1}
-
 	var result bson.M
 	err = collection.FindOne(
 		context.Background(),
-		filter,
-		options.FindOne().SetProjection(projection),
+		bson.M{ID_FIELD: objId},
+		options.FindOne().SetProjection(bson.M{METRICS_FIELD: 1, SYSTEM_NAME_FIELD: 1}),
 	).Decode(&result)
 	if err == mongo.ErrNoDocuments {
 		http.Error(w, "No documents found", http.StatusNoContent)
@@ -113,8 +111,8 @@ func systemPositionsAction(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func getSystemPositions(systemID string, w http.ResponseWriter, r *http.Request) {
-	objID, err := primitive.ObjectIDFromHex(systemID)
+func getSystemPositions(systemId string, w http.ResponseWriter, r *http.Request) {
+	objId, err := primitive.ObjectIDFromHex(systemId)
 	if err != nil {
 		http.Error(w, "Incorrect ID", http.StatusBadRequest)
 		return
@@ -122,14 +120,11 @@ func getSystemPositions(systemID string, w http.ResponseWriter, r *http.Request)
 
 	collection := mdb.Collection(POSITIONS_COLLECTION)
 
-	filter := bson.M{SYSTEM_ID_FIELD: objID}
-	projection := bson.M{POSITION_LIST_FIELD: 1, SYSTEM_NAME_FIELD: 1}
-
 	var result bson.M
 	err = collection.FindOne(
 		context.Background(),
-		filter,
-		options.FindOne().SetProjection(projection),
+		bson.M{SYSTEM_ID_FIELD: objId},
+		options.FindOne().SetProjection(bson.M{POSITION_LIST_FIELD: 1, SYSTEM_NAME_FIELD: 1}),
 	).Decode(&result)
 	if err == mongo.ErrNoDocuments {
 		http.Error(w, "No documents found", http.StatusNoContent)
@@ -149,8 +144,8 @@ func getSystemPositions(systemID string, w http.ResponseWriter, r *http.Request)
 	w.Write(jsonSystemPositions)
 }
 
-func getSystemPositionsForSymbol(systemID string, symbol string, w http.ResponseWriter, r *http.Request) {
-	objID, err := primitive.ObjectIDFromHex(systemID)
+func getSystemPositionsForSymbol(systemId string, symbol string, w http.ResponseWriter, r *http.Request) {
+	objId, err := primitive.ObjectIDFromHex(systemId)
 	if err != nil {
 		http.Error(w, "Incorrect ID", http.StatusBadRequest)
 		return
@@ -158,14 +153,11 @@ func getSystemPositionsForSymbol(systemID string, symbol string, w http.Response
 
 	collection := mdb.Collection(SINGLE_SYMBOL_POS_COLLECTION)
 
-	filter := bson.M{SYSTEM_ID_FIELD: objID, SYMBOL_FIELD: symbol}
-	projection := bson.M{POSITION_LIST_FIELD: 1, SYSTEM_NAME_FIELD: 1, SYMBOL_FIELD: 1}
-
 	var result bson.M
 	err = collection.FindOne(
 		context.Background(),
-		filter,
-		options.FindOne().SetProjection(projection),
+		bson.M{SYSTEM_ID_FIELD: objId, SYMBOL_FIELD: symbol},
+		options.FindOne().SetProjection(bson.M{POSITION_LIST_FIELD: 1, SYSTEM_NAME_FIELD: 1, SYMBOL_FIELD: 1}),
 	).Decode(&result)
 	if err == mongo.ErrNoDocuments {
 		http.Error(w, "No documents found", http.StatusNoContent)
@@ -191,8 +183,8 @@ func getSystemMarketStates(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ID := r.URL.Query().Get("id")
-	objID, err := primitive.ObjectIDFromHex(ID)
+	id := r.URL.Query().Get("id")
+	objId, err := primitive.ObjectIDFromHex(id)
 	if err != nil {
 		http.Error(w, "Incorrect ID", http.StatusBadRequest)
 		return
@@ -201,8 +193,7 @@ func getSystemMarketStates(w http.ResponseWriter, r *http.Request) {
 	collection := mdb.Collection(MARKET_STATES_COLLECTION)
 
 	var results []bson.M
-	// pass filter like this instead of declaring a "filter" var?
-	cursor, err := collection.Find(context.Background(), bson.M{SYSTEM_ID_FIELD: objID})
+	cursor, err := collection.Find(context.Background(), bson.M{SYSTEM_ID_FIELD: objId})
 	if err != nil {
 		http.Error(w, "Failed to execute query", http.StatusInternalServerError)
 		return
@@ -227,7 +218,6 @@ func getSystemMarketStates(w http.ResponseWriter, r *http.Request) {
 	w.Write(jsonMarketStates)
 }
 
-// /systems/market-state
 func getSystemMarketStateForSymbol(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -235,21 +225,20 @@ func getSystemMarketStateForSymbol(w http.ResponseWriter, r *http.Request) {
 	}
 
 
-	ID := r.URL.Query().Get("id")
-	objID, err := primitive.ObjectIDFromHex(ID)
+	id := r.URL.Query().Get("id")
+	objId, err := primitive.ObjectIDFromHex(id)
 	if err != nil {
 		http.Error(w, "Incorrect ID", http.StatusBadRequest)
 		return
 	}
 	symbol := r.URL.Query().Get("symbol")
-	// check if symbol is given correctly?
 
 	collection := mdb.Collection(MARKET_STATES_COLLECTION)
 
 	var result bson.M
 	err = collection.FindOne(
 		context.Background(), 
-		bson.M{SYSTEM_ID_FIELD: objID, SYMBOL_FIELD: symbol},
+		bson.M{SYSTEM_ID_FIELD: objId, SYMBOL_FIELD: symbol},
 	).Decode(&result)
 	if err == mongo.ErrNoDocuments {
 		http.Error(w, "No documents found", http.StatusNoContent)
