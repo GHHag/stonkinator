@@ -224,7 +224,6 @@ func getSystemMarketStateForSymbol(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-
 	id := r.URL.Query().Get("id")
 	objId, err := primitive.ObjectIDFromHex(id)
 	if err != nil {

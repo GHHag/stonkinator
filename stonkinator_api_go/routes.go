@@ -17,7 +17,7 @@ func register(port string, api_url string) {
 
 	http.HandleFunc(fmt.Sprintf("%s/exchange", api_url), exchangeAction)
 
-	http.HandleFunc(fmt.Sprintf("%s/instrument/", api_url), instrumentAction)
+	http.HandleFunc(fmt.Sprintf("%s/instrument", api_url), instrumentAction)
 
 	http.HandleFunc(fmt.Sprintf("%s/price", api_url), priceDataAction)
 	http.HandleFunc(fmt.Sprintf("%s/price/first-dt", api_url), getFirstAvailableDate)
