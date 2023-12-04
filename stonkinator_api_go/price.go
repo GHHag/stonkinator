@@ -10,20 +10,21 @@ import (
 )
 
 type Price struct {
-	InstrumentId string `json:"instrument_id"`
+	InstrumentId string `json:"instrument_id,omitempty"`
+	Index int64 `json:"index,omitempty"`
 	Symbol string `json:"symbol"`
+	Date string `json:"date"`
 	Open float64 `json:"open"`
 	High float64 `json:"high"`
 	Low float64 `json:"low"`
 	Close float64 `json:"close"`
 	Volume int64 `json:"volume"`
-	DateTime time.Time `json:"date_time"`
 }
 
 type PriceInsertResponse struct {
 	Success bool `json:"success"`
 	Result string `json:"result"`
-	PrevExistingDates []time.Time `json:"prevExistingDates"`
+	PrevExistingDates []string `json:"prevExistingDates"`
 }
 
 func priceDataAction(w http.ResponseWriter, r *http.Request) {
@@ -87,7 +88,7 @@ func getPriceData(symbol string, start string, end string, w http.ResponseWriter
 			&price.InstrumentId, &price.Symbol, 
 			&price.Open, &price.High, 
 			&price.Low, &price.Close, 
-			&price.Volume, &price.DateTime,
+			&price.Volume, &price.Date,
 		)
 		if err == nil {
 			priceData = append(priceData, price)
@@ -105,15 +106,11 @@ func getPriceData(symbol string, start string, end string, w http.ResponseWriter
 }
 
 func insertPriceData(id string, priceData []Price, w http.ResponseWriter, r *http.Request) {
-	existingDates := []time.Time{}
-	priceDataInserts := 0
+	var existingDates []string
+	var priceDataInserts int64
+	priceDataInserts = 0
 
 	for _, price := range priceData {
-		// if price.Open == 0 || price.High == 0 ||
-		//    price.Low == 0 || price.Close == 0 ||
-		//    price.Volume == 0 || price.DateTime == nil {
-		// 	incorrectDataPoints = append(incorrectDataPoints, price)
-		// } else {
 		query := pgPool.QueryRow(
 			context.Background(),
 			`
@@ -122,7 +119,7 @@ func insertPriceData(id string, priceData []Price, w http.ResponseWriter, r *htt
 				WHERE instrument_id = $1
 				AND date_time = $2
 			`, 
-			id, price.DateTime,
+			id, price.Date,
 		)
 
 		var dateExists int
@@ -133,9 +130,9 @@ func insertPriceData(id string, priceData []Price, w http.ResponseWriter, r *htt
 		}
 
 		if dateExists > 0 {
-			existingDates = append(existingDates, price.DateTime)
+			existingDates = append(existingDates, price.Date)
 		} else {
-			query := pgPool.QueryRow(
+			result, err := pgPool.Exec(
 				context.Background(),
 				`
 					INSERT INTO price_data(
@@ -145,23 +142,20 @@ func insertPriceData(id string, priceData []Price, w http.ResponseWriter, r *htt
 					VALUES($1, $2, $3, $4, $5, $6, $7)
 				`, 
 				id, price.Open, price.High, price.Low, price.Close, 
-				price.Volume, price.DateTime,
+				price.Volume, price.Date,
 			)
-
-			var result string
-			err := query.Scan(&result)
-			if result == "" {
-				http.Error(w, "Failed to insert price data", http.StatusInternalServerError)
-				return
-			}
 			if err != nil {
 				http.Error(w, "Error while inserting into the database", http.StatusInternalServerError)
 				return
 			}
+			rowsAffected := result.RowsAffected()
+			if rowsAffected == 0 {
+				http.Error(w, "Failed to insert price data", http.StatusInternalServerError)
+				return
+			}
 
-			priceDataInserts++
+			priceDataInserts = priceDataInserts + rowsAffected
 		}
-		// }
 	}
 
 	priceInsertResponse := PriceInsertResponse {
@@ -171,7 +165,7 @@ func insertPriceData(id string, priceData []Price, w http.ResponseWriter, r *htt
 	}
 	jsonPriceInsertResponse, err := json.Marshal(priceInsertResponse)
 	if err != nil {
-		http.Error(w, "Error caused by response data", http.StatusInternalServerError)
+		http.Error(w, "Failed to marshal response", http.StatusInternalServerError)
 		return
 	}
 

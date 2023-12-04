@@ -5,10 +5,11 @@ import (
 	"encoding/json"
 	"net/http"
 	"strings"
+	"fmt"
 )
 
 type Exchange struct {
-	Id string `json:"id"`
+	Id string `json:"id,omitempty"`
 	ExchangeName string `json:"exchange_name"`
 	Currency string `json:"currency"`
 }
@@ -64,8 +65,8 @@ func getExchange(exchangeName string, w http.ResponseWriter, r *http.Request) {
 }
 
 func insertExchange(exchange Exchange, w http.ResponseWriter, r *http.Request) {
-	query := pgPool.QueryRow(
-		context.Background(), 
+	result, err := pgPool.Exec(
+		context.Background(),
 		`
 			INSERT INTO exchanges(exchange_name, currency)
 			VALUES($1, $2)
@@ -73,20 +74,16 @@ func insertExchange(exchange Exchange, w http.ResponseWriter, r *http.Request) {
 		`, 
 		exchange.ExchangeName, exchange.Currency,
 	)
-
-	var result string
-	err := query.Scan(&result)
-	if result == "" {
-		http.Error(w, "Failed to insert exchange", http.StatusConflict)
-		return
-	}
 	if err != nil {
 		http.Error(w, "Error while inserting into the database", http.StatusInternalServerError)
 		return
 	}
+	rowsAffected := result.RowsAffected()
+	if rowsAffected == 0 {
+		http.Error(w, "Failed to insert exchange", http.StatusConflict)
+		return
+	}
 
-	// What to respond with?
-	jsonResult, err := json.Marshal(result)
 	w.Header().Set("Content-Type", "application/json")
-	w.Write(jsonResult)
+	fmt.Fprint(w, rowsAffected)
 }

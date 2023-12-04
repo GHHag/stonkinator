@@ -1,4 +1,4 @@
-version: "2.16"
+version: "3"
 
 services:
   postgres:
@@ -23,14 +23,23 @@ services:
     ports:
       - ${MDB_PORT_EXP}:${MDB_PORT}
 
+  # tet_api:
+  #   depends_on:
+  #     - ${MDB_SERVICE}
+  #   build: ./stonkinator_api
+  #   ports:
+  #     - ${TET_API_PORT_EXP}:${TET_API_PORT}
+  #   env_file:
+  #     - .env
+
   tet_api:
     depends_on:
       - ${MDB_SERVICE}
-    build: ./stonkinator_api
+    build: ./stonkinator_api_go
     ports:
       - ${TET_API_PORT_EXP}:${TET_API_PORT}
-    env_file:
-      - .env
+    # env_file:
+    #   - .env
 
   tet_py_packages:
     depends_on:

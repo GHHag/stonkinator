@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"fmt"
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -27,7 +28,7 @@ type Stock struct {
 }
 
 type Instrument struct {
-	Id string `json:"id"`
+	Id string `json:"id,omitempty"`
 	ExchangeId string `json:"exchange_id"`
 	Symbol string `json:"symbol"`
 }
@@ -76,7 +77,8 @@ func getInstrument(symbol string, w http.ResponseWriter, r *http.Request) {
 			SELECT id, exchange_id, symbol
 			FROM instruments
 			WHERE UPPER(symbol) = $1
-		`, strings.ToUpper(symbol),
+		`, 
+		strings.ToUpper(symbol),
 	)
 
 	var instrument Instrument
@@ -97,25 +99,27 @@ func getInstrument(symbol string, w http.ResponseWriter, r *http.Request) {
 }
 
 func insertInstrument(instrument Instrument, w http.ResponseWriter, r *http.Request) {
-	query := pgPool.QueryRow(
+	result, err := pgPool.Exec(
 		context.Background(),
 		`
 			INSERT INTO instruments(exchange_id, symbol)
 			VALUES($1, $2)
 			ON CONFLICT DO NOTHING
-		`, instrument.ExchangeId, instrument.Symbol,
+		`, 
+		instrument.ExchangeId, instrument.Symbol,
 	)
-
-	var result string
-	err := query.Scan(&result)
-	if result == "" {
-		http.Error(w, "Failed to insert instrument", http.StatusConflict)
-		return
-	}
 	if err != nil {
 		http.Error(w, "Error while inserting into the database", http.StatusInternalServerError)
 		return
 	}
+	rowsAffected := result.RowsAffected()
+	if rowsAffected == 0 {
+		http.Error(w, "Failed to insert instrument", http.StatusConflict)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	fmt.Fprint(w, rowsAffected)
 }
 
 func instrumentsAction(w http.ResponseWriter, r *http.Request) {

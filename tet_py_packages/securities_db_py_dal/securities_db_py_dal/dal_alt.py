@@ -19,12 +19,12 @@ def setup_logger(name, log_file, level=logging.INFO):
     logger = logging.getLogger(name)
     logger.setLevel(level)
     logger.addHandler(handler)
-    return logger 
+    return logger
 
 
 def get_yahooquery_data(
-    instrument: str, *args, 
-    start_date=dt.datetime.now(), end_date=dt.datetime.now(), 
+    instrument: str, *args,
+    start_date=dt.datetime.now(), end_date=dt.datetime.now(),
     omxs_stock=False
 ):
     try:
@@ -49,8 +49,8 @@ def get_yahooquery_data(
 
 def exchange_post_req(exchange_data):
     exchange_post_res = requests.post(
-        f'http://{env.API_HOST}:{5800}{env.API_URL}/exchange',
-        data={
+        f'http://{env.API_HOST}:{env.API_PORT}{env.API_URL}/exchange',
+        json={
             "exchange_name": exchange_data['name'],
             "currency": exchange_data['currency']
         }
@@ -62,14 +62,14 @@ def exchange_post_req(exchange_data):
 
 def exchange_get_req(exchange_name):
     return requests.get(
-        f'http://{env.API_HOST}:{5800}{env.API_URL}/exchange?exchange={exchange_name}',
+        f'http://{env.API_HOST}:{env.API_PORT}{env.API_URL}/exchange?exchange={exchange_name}',
     ).json()
 
 
 def instrument_post_req(exchange_id, symbol):
     instrument_post_res = requests.post(
-        f'http://{env.API_HOST}:{5800}{env.API_URL}/instrument',
-        data={"exchange_id": exchange_id, "symbol": symbol}
+        f'http://{env.API_HOST}:{env.API_PORT}{env.API_URL}/instrument',
+        json={"exchange_id": exchange_id, "symbol": symbol}
     )
 
     base_logger.info(f'\n\tINSTRUMENT POST REQUEST ({symbol}):\n\t{instrument_post_res.content}')
@@ -78,28 +78,23 @@ def instrument_post_req(exchange_id, symbol):
 
 def instrument_get_req(symbol):
     return requests.get(
-        f'http://{env.API_HOST}:{5800}{env.API_URL}/instrument?symbol={symbol}'
+        f'http://{env.API_HOST}:{env.API_PORT}{env.API_URL}/instrument?symbol={symbol}'
     ).json()
 
 
-# How is the endpoint defined?
 def price_data_post_req(instrument_id, df_json):
     price_data_post_res = requests.post(
-        f'http://{env.API_HOST}:{5800}{env.API_URL}/price?id={instrument_id}',
-        data={"data": json.dumps(df_json['data'])}
+        f'http://{env.API_HOST}:{env.API_PORT}{env.API_URL}/price?id={instrument_id}',
+        json=df_json['data']
     )
 
     base_logger.info(f'\n\tPRICE DATA POST REQUEST:\n\t{price_data_post_res.content}')
-    return price_data_post_res.content  
+    return price_data_post_res.content
 
 
 def price_data_get_req(symbol, start_date_time, end_date_time):
     return requests.get(
-        f'http://{env.API_HOST}:{5800}{env.API_URL}/price?symbol={symbol}&start={start_date_time}&end={end_date_time}'#,
-        # data={
-        #     'startDateTime': start_date_time,
-        #     'endDateTime': end_date_time
-        # }
+        f'http://{env.API_HOST}:{env.API_PORT}{env.API_URL}/price?symbol={symbol}&start={start_date_time}&end={end_date_time}'
     ).json()
 
 
@@ -116,16 +111,17 @@ def post_daily_data(
         if df is None or len(df) == 0:
             exception_none_df_symbols += f'{symbol}, '
         else:
+            df = df.drop(columns=['adjclose'], errors='ignore')
             df_json = json.loads(df.to_json(orient='table'))
 
             try:
                 exchange_get_res = exchange_get_req(exchange_name)
-                exchange_id = exchange_get_res['data'][0]['id']
+                exchange_id = exchange_get_res['id']
 
                 instrument_post_req(exchange_id, symbol)
 
                 instrument_get_res = instrument_get_req(symbol)
-                instrument_id = instrument_get_res['data'][0]['id']
+                instrument_id = instrument_get_res['id']
 
                 price_data_post_res = json.loads(price_data_post_req(instrument_id, df_json))
                 if len(price_data_post_res['incorrectData']) > 0:
@@ -197,23 +193,23 @@ def complete_historic_data(symbol, exchange_name, *args, omxs_stock=False):
 
 def first_dt_get_req(symbol):
     first_dt_res = requests.get(
-        f'http://{env.API_HOST}:{5800}{env.API_URL}/price/first-dt?symbol={symbol}'
+        f'http://{env.API_HOST}:{env.API_PORT}{env.API_URL}/price/first-dt?symbol={symbol}'
     ).json()
     return first_dt_res
 
 
 def last_dt_get_req(symbol):
     last_dt_res = requests.get(
-        f'http://{env.API_HOST}:{5800}{env.API_URL}/price/last-dt?symbol={symbol}'
+        f'http://{env.API_HOST}:{env.API_PORT}{env.API_URL}/price/last-dt?symbol={symbol}'
     ).json()
     return last_dt_res
 
 
 def last_date_get_req(instrument_one, instrument_two):
     last_date_res = requests.get(
-        f'http://{env.API_HOST}:{5800}{env.API_URL}/price/date?symbol1={instrument_one}&symbol2={instrument_two}'
+        f'http://{env.API_HOST}:{env.API_PORT}{env.API_URL}/price/date?symbol1={instrument_one}&symbol2={instrument_two}'
     ).json()
-    return last_date_res.get('date')
+    return last_date_res
 
 
 if __name__ == '__main__':
@@ -312,8 +308,8 @@ if __name__ == '__main__':
                     )
 
             post_daily_data(
-                exchange_data.get('symbols'), exchange, 
-                start_date=start_date, end_date=end_date, 
+                exchange_data.get('symbols'), exchange,
+                start_date=start_date, end_date=end_date,
                 omxs_stock=omxs_stock
             )
             if dt_now.weekday() == 0 and dt_now.day <= 7:
