@@ -14,7 +14,7 @@ from securities_db_py_dal.market_data import get_stock_indices_symbols_list, \
 import securities_db_py_dal.env as env
 
 
-def setup_logger(name, log_file, level=logging.INFO):
+def set_up_logger(name, log_file, level=logging.INFO):
     handler = logging.FileHandler(log_file)
     logger = logging.getLogger(name)
     logger.setLevel(level)
@@ -57,13 +57,14 @@ def exchange_post_req(exchange_data):
     )
 
     base_logger.info(f'\n\tEXCHANGE POST REQUEST:\n\t{exchange_post_res.content}')
-    return exchange_post_res.content
+    return exchange_post_res.content, exchange_post_res.status_code
 
 
 def exchange_get_req(exchange_name):
-    return requests.get(
+    exchange_get_res = requests.get(
         f'http://{env.API_HOST}:{env.API_PORT}{env.API_URL}/exchange?exchange={exchange_name}',
-    ).json()
+    )
+    return exchange_get_res.content, exchange_get_res.status_code
 
 
 def instrument_post_req(exchange_id, symbol):
@@ -73,13 +74,14 @@ def instrument_post_req(exchange_id, symbol):
     )
 
     base_logger.info(f'\n\tINSTRUMENT POST REQUEST ({symbol}):\n\t{instrument_post_res.content}')
-    return instrument_post_res.content
+    return instrument_post_res.content, instrument_post_res.status_code
 
 
 def instrument_get_req(symbol):
-    return requests.get(
+    instrument_get_res = requests.get(
         f'http://{env.API_HOST}:{env.API_PORT}{env.API_URL}/instrument?symbol={symbol}'
-    ).json()
+    )
+    return instrument_get_res.content, instrument_get_res.status_code
 
 
 def price_data_post_req(instrument_id, df_json):
@@ -88,26 +90,35 @@ def price_data_post_req(instrument_id, df_json):
         json=df_json['data']
     )
 
+    # Log from here or from calling function?
     base_logger.info(f'\n\tPRICE DATA POST REQUEST:\n\t{price_data_post_res.content}')
-    return price_data_post_res.content
+    return price_data_post_res.content, price_data_post_res.status_code
 
 
 def price_data_get_req(symbol, start_date_time, end_date_time):
-    return requests.get(
+    price_data_get_res = requests.get(
         f'http://{env.API_HOST}:{env.API_PORT}{env.API_URL}/price?symbol={symbol}&start={start_date_time}&end={end_date_time}'
-    ).json()
+    )
+    return price_data_get_res.content, price_data_get_res.status_code
 
 
 def post_daily_data(
     symbols_list, exchange_name, start_date, end_date, omxs_stock=False
 ):
     exception_none_df_symbols = ''
-    incorrect_data_symbols = ''
+    bad_request_symbols = ''
+
+    # pass exchange into function instead of making a get request here
+    exchange_get_res_content, exchange_get_res_status = exchange_get_req(exchange_name)
+    if not exchange_get_res_status == 200:
+        critical_logger.warning(f'\nBAD REQUEST - Exchange get request failed for {exchange_name} with status code {exchange_get_res_status}')
+        return
+    exchange_id = json.loads(exchange_get_res_content).get('id')
+
     for symbol in symbols_list:
         df = get_yahooquery_data(
             symbol, start_date=start_date, end_date=end_date, omxs_stock=omxs_stock
         )
-
         if df is None or len(df) == 0:
             exception_none_df_symbols += f'{symbol}, '
         else:
@@ -115,23 +126,31 @@ def post_daily_data(
             df_json = json.loads(df.to_json(orient='table'))
 
             try:
-                exchange_get_res = exchange_get_req(exchange_name)
-                exchange_id = exchange_get_res['id']
+                instrument_get_res_content, instrument_get_res_status = instrument_get_req(symbol)
+                if not instrument_get_res_status == 200:
+                    instrument_post_res_content, instrument_post_res_status = instrument_post_req(exchange_id, symbol)
+                    if not instrument_post_res_status == 200:
+                        critical_logger.warning(f'\nBAD REQUEST - Instrument post request failed for {symbol} with status code {instrument_post_res_status}')
+                        continue
+                    else:
+                        # return data needed from post request instead of making a new get request here
+                        instrument_get_res_content, instrument_get_res_status = instrument_get_req(symbol)
+                        if not instrument_get_res_status == 200:
+                            critical_logger.warning(f'\nBAD REQUEST - Instrument get request failed for {symbol} with status code {instrument_get_res_status}')
+                            continue
 
-                instrument_post_req(exchange_id, symbol)
+                instrument_id = json.loads(instrument_get_res_content).get('id')
 
-                instrument_get_res = instrument_get_req(symbol)
-                instrument_id = instrument_get_res['id']
-
-                price_data_post_res = json.loads(price_data_post_req(instrument_id, df_json))
-                if len(price_data_post_res['incorrectData']) > 0:
-                    critical_logger.warning(
-                        f'\n'
-                        f'\tINCORRECT DATA for {symbol}:\n'
-                        f'\t{price_data_post_res["incorrectData"]}'
-                    )
-                    incorrect_data_symbols += f'{symbol}, '
-                    print(symbol, price_data_post_res)
+                price_data_post_res_content, price_data_post_res_status = price_data_post_req(instrument_id, df_json)
+                if not price_data_post_res_status == 200:
+                    critical_logger.warning(f'\nBAD REQUEST - Price data post request failed for {symbol} with status code {price_data_post_res_status}')
+                    bad_request_symbols += f'{symbol}, '
+                price_data_post_res_json = json.loads(price_data_post_res_content)
+                base_logger.info(
+                    f'\n'
+                    f'\tPRICE DATA POST REQUEST for {symbol}:\n'
+                    f'\tRESULT: {price_data_post_res_json}'
+                )
 
             except Exception:
                 critical_logger.error(
@@ -145,18 +164,28 @@ def post_daily_data(
         f"\tSymbols where conditional: 'df is None or len(df) == 0:' resulted in True\n"
         f"\tSymbols: {exception_none_df_symbols}\n"
         f"\tSymbols with incorrect data:\n"
-        f"\tSymbols: {incorrect_data_symbols}"
+        f"\tSymbols: {bad_request_symbols}"
     )
 
 
 def complete_historic_data(symbol, exchange_name, *args, omxs_stock=False):
     start_dt = dt.datetime(1995, 1, 1)
-    first_dt = dt.datetime.strptime(
-        first_dt_get_req(symbol).get('data').get('min').split('T')[0], '%Y-%m-%d'
-    ).date()
-    last_dt = dt.datetime.strptime(
-        last_dt_get_req(symbol).get('data').get('max').split('T')[0], '%Y-%m-%d'
-    ).date() + dt.timedelta(days=1)
+    first_dt_get_res_content, first_dt_get_res_status = first_dt_get_req(symbol)
+    last_dt_get_res_content, last_dt_get_res_status = last_dt_get_req(symbol)
+
+    if not first_dt_get_res_status == 200 and not last_dt_get_res_status == 200:
+        critical_logger.error(
+            f'\n\tERROR while trying to fetch last/first date. Instrument: {symbol}'
+        )
+        first_dt = start_dt
+        last_dt = dt.datetime.now()
+    else:
+        first_dt = dt.datetime.strptime(
+            json.loads(first_dt_get_res_content).split('T')[0], '%Y-%m-%d'
+        ).date()
+        last_dt = dt.datetime.strptime(
+            json.loads(last_dt_get_res_content).split('T')[0], '%Y-%m-%d'
+        ).date() + dt.timedelta(days=1)
 
     try:
         if omxs_stock:
@@ -194,27 +223,27 @@ def complete_historic_data(symbol, exchange_name, *args, omxs_stock=False):
 def first_dt_get_req(symbol):
     first_dt_res = requests.get(
         f'http://{env.API_HOST}:{env.API_PORT}{env.API_URL}/price/first-dt?symbol={symbol}'
-    ).json()
-    return first_dt_res
+    )
+    return first_dt_res.content, first_dt_res.status_code
 
 
 def last_dt_get_req(symbol):
     last_dt_res = requests.get(
         f'http://{env.API_HOST}:{env.API_PORT}{env.API_URL}/price/last-dt?symbol={symbol}'
-    ).json()
-    return last_dt_res
+    )
+    return last_dt_res.content, last_dt_res.status_code
 
 
 def last_date_get_req(instrument_one, instrument_two):
     last_date_res = requests.get(
         f'http://{env.API_HOST}:{env.API_PORT}{env.API_URL}/price/date?symbol1={instrument_one}&symbol2={instrument_two}'
-    ).json()
-    return last_date_res
+    )
+    return last_date_res.content, last_date_res.status_code
 
 
 if __name__ == '__main__':
-    base_logger = setup_logger('base', f'{env.DAL_LOG_FILE_PATH}log.log')
-    critical_logger = setup_logger('critical', f'{env.DAL_LOG_FILE_PATH_CRITICAL}log_critical.log')
+    base_logger = set_up_logger('base', f'{env.DAL_LOG_FILE_PATH}log.log')
+    critical_logger = set_up_logger('critical', f'{env.DAL_LOG_FILE_PATH_CRITICAL}log_critical.log')
 
     #INSTRUMENTS_DB = InstrumentsMongoDb(env.LOCALHOST_MONGO_DB_URL, env.INSTRUMENTS_DB)
     INSTRUMENTS_DB = InstrumentsMongoDb(env.ATLAS_MONGO_DB_URL, env.CLIENT_DB)
@@ -252,11 +281,11 @@ if __name__ == '__main__':
         }
     }
 
-    last_inserted_date = last_date_get_req('^OMX', '^SPX')
-    if not last_inserted_date:
+    last_inserted_date_res_content, last_inserted_date_res_status = last_date_get_req('^OMX', '^SPX')
+    if not last_inserted_date_res_status == 200:
         last_inserted_date = dt.datetime(1995, 1, 1)
     else:
-        last_inserted_date = pd.Timestamp(last_inserted_date)
+        last_inserted_date = pd.Timestamp(json.loads(last_inserted_date_res_content))
     year = last_inserted_date.year
     month = last_inserted_date.month
     day = last_inserted_date.day
@@ -283,7 +312,14 @@ if __name__ == '__main__':
             base_logger.info(
                 f'\nSeeding data for {exchange} instruments'
             )
-            exchange_post_req(exchange_data)
+
+            exchange_get_res_content, exchange_get_res_status = exchange_get_req(exchange)
+            if not exchange_get_res_status == 200:
+                _, exchange_post_res_status = exchange_post_req(exchange_data)
+                if not exchange_post_res_status == 200:
+                    critical_logger.info(
+                        f'\nBAD REQUEST - Exchange post request failed for {exchange} with status code {exchange_post_res_status}'
+                    )
 
             end_date_today_check = dt_now.year == end_date.year and \
                 dt_now.month == end_date.month and \
