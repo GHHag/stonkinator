@@ -90,7 +90,6 @@ def price_data_post_req(instrument_id, df_json):
         json=df_json['data']
     )
 
-    # Log from here or from calling function?
     base_logger.info(f'\n\tPRICE DATA POST REQUEST:\n\t{price_data_post_res.content}')
     return price_data_post_res.content, price_data_post_res.status_code
 
@@ -102,18 +101,33 @@ def price_data_get_req(symbol, start_date_time, end_date_time):
     return price_data_get_res.content, price_data_get_res.status_code
 
 
+def first_dt_get_req(symbol):
+    first_dt_res = requests.get(
+        f'http://{env.API_HOST}:{env.API_PORT}{env.API_URL}/price/first-dt?symbol={symbol}'
+    )
+    return first_dt_res.content, first_dt_res.status_code
+
+
+def last_dt_get_req(symbol):
+    last_dt_res = requests.get(
+        f'http://{env.API_HOST}:{env.API_PORT}{env.API_URL}/price/last-dt?symbol={symbol}'
+    )
+    return last_dt_res.content, last_dt_res.status_code
+
+
+def last_date_get_req(instrument_one, instrument_two):
+    last_date_res = requests.get(
+        f'http://{env.API_HOST}:{env.API_PORT}{env.API_URL}/price/date?symbol1={instrument_one}&symbol2={instrument_two}'
+    )
+    return last_date_res.content, last_date_res.status_code
+
+
 def post_daily_data(
-    symbols_list, exchange_name, start_date, end_date, omxs_stock=False
+    symbols_list, exchange_id, start_date, end_date, 
+    omxs_stock=False
 ):
     exception_none_df_symbols = ''
     bad_request_symbols = ''
-
-    # pass exchange into function instead of making a get request here
-    exchange_get_res_content, exchange_get_res_status = exchange_get_req(exchange_name)
-    if not exchange_get_res_status == 200:
-        critical_logger.warning(f'\nBAD REQUEST - Exchange get request failed for {exchange_name} with status code {exchange_get_res_status}')
-        return
-    exchange_id = json.loads(exchange_get_res_content).get('id')
 
     for symbol in symbols_list:
         df = get_yahooquery_data(
@@ -128,7 +142,8 @@ def post_daily_data(
             try:
                 instrument_get_res_content, instrument_get_res_status = instrument_get_req(symbol)
                 if not instrument_get_res_status == 200:
-                    instrument_post_res_content, instrument_post_res_status = instrument_post_req(exchange_id, symbol)
+                    # instrument_post_res_content, instrument_post_res_status = instrument_post_req(exchange_id, symbol)
+                    _, instrument_post_res_status = instrument_post_req(exchange_id, symbol)
                     if not instrument_post_res_status == 200:
                         critical_logger.warning(f'\nBAD REQUEST - Instrument post request failed for {symbol} with status code {instrument_post_res_status}')
                         continue
@@ -220,27 +235,6 @@ def complete_historic_data(symbol, exchange_name, *args, omxs_stock=False):
         )
 
 
-def first_dt_get_req(symbol):
-    first_dt_res = requests.get(
-        f'http://{env.API_HOST}:{env.API_PORT}{env.API_URL}/price/first-dt?symbol={symbol}'
-    )
-    return first_dt_res.content, first_dt_res.status_code
-
-
-def last_dt_get_req(symbol):
-    last_dt_res = requests.get(
-        f'http://{env.API_HOST}:{env.API_PORT}{env.API_URL}/price/last-dt?symbol={symbol}'
-    )
-    return last_dt_res.content, last_dt_res.status_code
-
-
-def last_date_get_req(instrument_one, instrument_two):
-    last_date_res = requests.get(
-        f'http://{env.API_HOST}:{env.API_PORT}{env.API_URL}/price/date?symbol1={instrument_one}&symbol2={instrument_two}'
-    )
-    return last_date_res.content, last_date_res.status_code
-
-
 if __name__ == '__main__':
     base_logger = set_up_logger('base', f'{env.DAL_LOG_FILE_PATH}log.log')
     critical_logger = set_up_logger('critical', f'{env.DAL_LOG_FILE_PATH_CRITICAL}log_critical.log')
@@ -264,21 +258,21 @@ if __name__ == '__main__':
     futures_symbols_list = get_futures_symbols_list()
 
     exchanges_dict = {
-        'omxs': {
-            'name': 'OMXS',
-            'currency': 'SEK',
-            'symbols': omxs_stock_symbols_list
-        },
+        # 'omxs': {
+        #     'name': 'OMXS',
+        #     'currency': 'SEK',
+        #     'symbols': omxs_stock_symbols_list
+        # },
         'stock indices': {
             'name': 'Stock indices',
             'currency': 'USD',
             'symbols': stock_indices_symbols_list
         },
-        'futures': {
-            'name': 'Futures',
-            'currency': 'USD',
-            'symbols': futures_symbols_list
-        }
+        # 'futures': {
+        #     'name': 'Futures',
+        #     'currency': 'USD',
+        #     'symbols': futures_symbols_list
+        # }
     }
 
     last_inserted_date_res_content, last_inserted_date_res_status = last_date_get_req('^OMX', '^SPX')
@@ -320,6 +314,10 @@ if __name__ == '__main__':
                     critical_logger.info(
                         f'\nBAD REQUEST - Exchange post request failed for {exchange} with status code {exchange_post_res_status}'
                     )
+                    continue
+                else:
+                    exchange_get_res_content, exchange_get_res_status = exchange_get_req(exchange)
+            exchange_get_res_json = json.loads(exchange_get_res_content)
 
             end_date_today_check = dt_now.year == end_date.year and \
                 dt_now.month == end_date.month and \
@@ -344,7 +342,7 @@ if __name__ == '__main__':
                     )
 
             post_daily_data(
-                exchange_data.get('symbols'), exchange,
+                exchange_data.get('symbols'), exchange_get_res_json.get('id'),
                 start_date=start_date, end_date=end_date,
                 omxs_stock=omxs_stock
             )
