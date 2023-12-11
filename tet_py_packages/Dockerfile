@@ -5,9 +5,6 @@ RUN apt-get update && apt-get install -y cron
 WORKDIR /app
 
 #ENV PATH /usr/local/bin:$PATH
-#ENV VIRTUAL_ENV "/venv"
-#RUN python -m venv $VIRTUAL_ENV
-#ENV PATH "$VIRTUAL_ENV/bin:$PATH"
 
 COPY . /app
 
