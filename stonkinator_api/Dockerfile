@@ -1,13 +1,33 @@
-FROM node:bullseye-slim
+FROM golang:1.21 AS build
 
 WORKDIR /app
 
-COPY ["package.json", "package-lock.json*", "./"]
+COPY go.mod go.sum /app/
 
-RUN npm install
+RUN go mod download
 
-COPY . .
+COPY . /app/
 
-EXPOSE 4000
+# RUN go build -o /bin/tet_api
+RUN CGO_ENABLED=0 GOOS=linux go build -o /tet_api
 
-CMD ["node", "api/server.js"]
+CMD ["/tet_api"]
+
+# FROM scratch
+# COPY --from=build /bin/app /bin/app
+# ENTRYPOINT ["/bin/app"]
+# CMD ["--help"]
+
+# FROM build AS run
+#
+# FROM gcr.io/distroless/base-debian11 AS build-release
+#
+# WORKDIR /
+#
+# COPY --from=build /app /app
+#
+# EXPOSE 5800
+#
+# USER nonroot:nonroot
+#
+# ENTRYPOINT ["/tet_api"]

@@ -13,18 +13,60 @@ type Price struct {
 	InstrumentId string `json:"instrument_id,omitempty"`
 	Index int64 `json:"index,omitempty"`
 	Symbol string `json:"symbol"`
-	Date string `json:"date"`
+	Date time.Time `json:"date"`
 	Open float64 `json:"open"`
 	High float64 `json:"high"`
 	Low float64 `json:"low"`
 	Close float64 `json:"close"`
-	Volume int64 `json:"volume"`
+	Volume float64 `json:"volume"`
 }
 
 type PriceInsertResponse struct {
 	Success bool `json:"success"`
 	Result string `json:"result"`
 	PrevExistingDates []string `json:"prevExistingDates"`
+}
+
+type PriceList []Price
+
+func(pl *PriceList) UnmarshalJSON(data []byte) error {
+	var auxSlice []struct {
+		InstrumentId string `json:"instrument_id,omitempty"`
+		Index int64 `json:"index,omitempty"`
+		Symbol string `json:"symbol"`
+		DateTime string `json:"date"`
+		Open float64 `json:"open"`
+		High float64 `json:"high"`
+		Low float64 `json:"low"`
+		Close float64 `json:"close"`
+		Volume float64 `json:"volume"`
+	}
+
+	if err := json.Unmarshal(data, &auxSlice); err != nil {
+		return err
+	}
+
+	for _, aux := range auxSlice {
+		strippedDate := aux.DateTime[:10]
+		date, err := time.Parse("2006-01-02", strippedDate)
+		if err != nil {
+			return err
+		}
+
+		*pl = append(*pl, Price {
+			InstrumentId: aux.InstrumentId,
+			Index: aux.Index,
+			Symbol: aux.Symbol,
+			Date: date,
+			Open: aux.Open,
+			High: aux.High,
+			Low: aux.Low,
+			Close: aux.Close,
+			Volume: aux.Volume,
+		})
+	}
+
+	return nil
 }
 
 func priceDataAction(w http.ResponseWriter, r *http.Request) {
@@ -43,7 +85,7 @@ func priceDataAction(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 
-			var priceData []Price
+			var priceData PriceList
 			if err := json.NewDecoder(r.Body).Decode(&priceData); err != nil {
 				http.Error(w, "Invalid request", http.StatusBadRequest)
 				return
@@ -105,7 +147,7 @@ func getPriceData(symbol string, start string, end string, w http.ResponseWriter
 	w.Write(jsonPriceData)
 }
 
-func insertPriceData(id string, priceData []Price, w http.ResponseWriter, r *http.Request) {
+func insertPriceData(id string, priceData PriceList, w http.ResponseWriter, r *http.Request) {
 	var existingDates []string
 	var priceDataInserts int64
 	priceDataInserts = 0
@@ -130,7 +172,7 @@ func insertPriceData(id string, priceData []Price, w http.ResponseWriter, r *htt
 		}
 
 		if dateExists > 0 {
-			existingDates = append(existingDates, price.Date)
+			existingDates = append(existingDates, price.Date.String())
 		} else {
 			result, err := pgPool.Exec(
 				context.Background(),

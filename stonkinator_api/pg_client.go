@@ -17,9 +17,7 @@ func initPgPool() {
 		os.Getenv("PG_DB_USER"),
 		os.Getenv("PG_DB_PASSWORD"),
 		os.Getenv("PG_DB_SERVICE"),
-		// "0.0.0.0",
 		os.Getenv("PG_DB_PORT"),
-		// os.Getenv("PG_DB_PORT_EXP"),
 		os.Getenv("PG_DB_NAME"),
 	)
 

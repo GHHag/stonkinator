@@ -1,4 +1,5 @@
 const puppeteer = require('puppeteer');
+// add import for dotenv
 
 async function scrapePrice(url, props) {
     const browser = await puppeteer.launch();
