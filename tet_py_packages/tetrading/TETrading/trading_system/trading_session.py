@@ -46,8 +46,8 @@ class TradingSession:
     def __call__(
         self, *args, entry_args=None, exit_args=None, 
         max_req_periods_feature=TradingSystemAttributes.REQ_PERIOD_ITERS, 
-        datetime_col_name='Date',
-        close_price_col_name='Close', open_price_col_name='Open',
+        datetime_col_name='date',
+        close_price_col_name='close', open_price_col_name='open',
         fixed_position_size=True, capital=10000, commission_pct_cost=0.0,
         market_state_null_default=False,
         generate_signals=False, plot_positions=False, 
@@ -77,13 +77,13 @@ class TradingSession:
             generate signals from the data. Default value='req_period_iters'
         :param datetime_col_name:
             Keyword arg 'str' : The column of the objects __dataframe that
-            contains time and date data. Default value='Date'
+            contains time and date data. Default value='date'
         :param close_price_col_name:
             Keyword arg 'str' : The column of the objects __dataframe that
-            contains values for close prices. Default value='Close'
+            contains values for close prices. Default value='close'
         :param open_price_col_name:
             Keyword arg 'str' : The column of the objects __dataframe that
-            contains values for open prices. Default value='Open'
+            contains values for open prices. Default value='open'
         :param fixed_position_size:
             Keyword arg 'bool' : True/False decides whether the capital
             used for positions generated should be at a fixed amount or not.

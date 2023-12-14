@@ -6,7 +6,7 @@ from tet_trading_systems.trading_system_development.data_utils.indicator_feature
 
 
 def apply_pct_over_n_sma(
-    df, sma_period_param, ticker_list, col_name='Close', 
+    df, sma_period_param, ticker_list, col_name='close', 
     func_apply_sma=False, suffix=''
 ):
     """
@@ -43,7 +43,7 @@ def apply_pct_over_n_sma(
     df[f'%_over_SMA_{sma_period_param}{suffix}'] = pct_over_sma_list
 
 
-def apply_ad_line(df, ticker_list, col_name='Close', suffix=''):
+def apply_ad_line(df, ticker_list, col_name='close', suffix=''):
     """
     Apply advance/decline line indicator to given Pandas DataFrame.
     :param df: Pandas DataFrame object
@@ -71,7 +71,7 @@ def apply_ad_line(df, ticker_list, col_name='Close', suffix=''):
     df[f'AD_line{suffix}'] = ad
 
 
-def apply_highs_v_lows(df, ticker_list, period_param=63, col_name='Close', suffix=''):
+def apply_highs_v_lows(df, ticker_list, period_param=63, col_name='close', suffix=''):
 
     highs_v_lows = []
 

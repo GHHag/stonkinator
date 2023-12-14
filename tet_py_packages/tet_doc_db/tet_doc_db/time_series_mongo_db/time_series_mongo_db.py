@@ -22,7 +22,7 @@ class TimeSeriesMongoDb(ITimeSeriesDocumentDatabase):
 
     def insert_pandas_time_series_data(
         self, collection_name, time_series_data, 
-        time_field='timestamp', timestamp_key='Date'
+        time_field='timestamp', timestamp_key='date'
     ):
         time_series_data = json.loads(time_series_data)
         self.__client[collection_name].drop()

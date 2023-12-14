@@ -28,8 +28,8 @@ def candlestick_plot(
     """
 
     df = df_og.copy(deep=True)
-    df.set_index(pd.to_datetime(df['Date']), inplace=True)
-    df.drop(['Date'], axis=1, inplace=True)
+    df.set_index(pd.to_datetime(df['date']), inplace=True)
+    df.drop(['date'], axis=1, inplace=True)
     df['Entry_date'] = df.index == entry_date
     df['Exit_date'] = df.index == exit_date
     df['Entry_date'].replace({False: np.nan}, inplace=True)

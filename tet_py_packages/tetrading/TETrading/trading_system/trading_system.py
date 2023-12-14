@@ -197,10 +197,10 @@ class TradingSystem:
 
         for instrument, data in self.__data_dict.items():
             try:
-                if 'Close' in data:
-                    asset_price_series = [float(close) for close in data['Close']]
-                elif f'Close_{instrument}' in data:
-                    asset_price_series = [float(close) for close in data[f'Close_{instrument}']]
+                if 'close' in data:
+                    asset_price_series = [float(close) for close in data['close']]
+                elif f'close_{instrument}' in data:
+                    asset_price_series = [float(close) for close in data[f'close_{instrument}']]
                 else:
                     raise Exception('Column missing in DataFrame')
             except TypeError:

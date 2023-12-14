@@ -101,12 +101,12 @@ func priceDataAction(w http.ResponseWriter, r *http.Request) {
 func getPriceData(symbol string, start string, end string, w http.ResponseWriter, r *http.Request) {
 	query, err := pgPool.Query(
 		context.Background(),
-		`
+	`
 			SELECT instruments.id, instruments.symbol,
-				price_data.open_price AS "Open", price_data.high_price AS "High",
-				price_data.low_price AS "Low", price_data.close_price AS "Close",
-				price_data.volume AS "Volume",
-				price_data.date_time AT TIME ZONE 'UTC' AS "Date"
+				price_data.open_price AS "open", price_data.high_price AS "high",
+				price_data.low_price AS "low", price_data.close_price AS "close",
+				price_data.volume AS "volume",
+				price_data.date_time AT TIME ZONE 'UTC' AS "date"
 			FROM instruments, price_data
 			WHERE instruments.id = price_data.instrument_id
 			AND UPPER(instruments.symbol) = $1

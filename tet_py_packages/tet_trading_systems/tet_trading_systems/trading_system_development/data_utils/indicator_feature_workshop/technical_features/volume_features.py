@@ -2,11 +2,11 @@ import numpy as np
 import pandas as pd
 
 
-def apply_avg_volume(df, period_param, col_name='Volume', suffix=''):
+def apply_avg_volume(df, period_param, col_name='volume', suffix=''):
     df[f'Avg_vol_({period_param}){suffix}'] = df[col_name].rolling(period_param).mean()
 
 
-def apply_rvol(df, period_param=10, col_name='Volume', suffix=''):
+def apply_rvol(df, period_param=10, col_name='volume', suffix=''):
     apply_avg_volume(df, period_param, col_name=col_name)
 
     rvol_list = []
@@ -31,7 +31,7 @@ def apply_rvol(df, period_param=10, col_name='Volume', suffix=''):
 
 
 def apply_volume_balance(
-    df, period_param=20, col_name_price='Close', col_name_volume='Volume', 
+    df, period_param=20, col_name_price='close', col_name_volume='volume', 
     suffix=''
 ):
     volume_balance_list = []
@@ -58,7 +58,7 @@ def apply_volume_balance(
 
 def apply_vwap(
     df: pd.DataFrame, period_param, 
-    col_name_price='Close', col_name_volume='Volume', suffix=''
+    col_name_price='close', col_name_volume='volume', suffix=''
 ):
     vwap_list = []
     
@@ -79,7 +79,7 @@ def apply_vwap(
 
 def apply_vwap_from_n_period_low(
     df: pd.DataFrame, period_param, 
-    col_name_price='Close', col_name_volume='Volume', suffix=''
+    col_name_price='close', col_name_volume='volume', suffix=''
 ):
     vwap_list = []
     

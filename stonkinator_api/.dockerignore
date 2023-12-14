@@ -11,7 +11,3 @@ Dockerfile
 
 # Ignore build artifacts
 /build/
-
-# Ignore files generated during the build
-/go.mod
-/go.sum
