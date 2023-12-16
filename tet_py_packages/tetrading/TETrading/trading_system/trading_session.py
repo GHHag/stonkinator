@@ -202,7 +202,8 @@ class TradingSession:
             return
         if position.active_position and generate_signals:
             position.update(Decimal(self.__dataframe[close_price_col_name].iloc[-1]))
-            position.print_position_status()
+            if print_data:
+                position.print_position_status()
             self.__signal_handler.handle_active_position(
                 self.__symbol, {
                     TradingSystemAttributes.SIGNAL_INDEX: len(self.__dataframe), 

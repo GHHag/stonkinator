@@ -112,7 +112,10 @@ class TetSystemsMongoDb(ITetSystemsDocumentDatabase):
         if not system_id:
             self._insert_system(system_name)
             system_id = self._get_system_id(system_name)
-        for data_p in data['data']:
+        ts_data = data.get('data')
+        if not ts_data:
+            return False
+        for data_p in ts_data:
             assert isinstance(data_p, dict)
             data_p.update({self.__SYSTEM_ID_FIELD: system_id})
             if self.__MARKET_STATE_FIELD in data_p and \

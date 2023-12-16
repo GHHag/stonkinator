@@ -166,7 +166,7 @@ def monte_carlo_simulations_plot(
         Default value=None
     """
 
-    plt.style.use('seaborn')
+    plt.style.use('seaborn-v0_8')
     fig, axs = plt.subplots(nrows=3, ncols=1, figsize=(9, 9.5))
     fig.tight_layout()
 
