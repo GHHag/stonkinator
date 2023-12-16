@@ -70,9 +70,7 @@ class TradingSystem:
 
         self.__signal_handler = SignalHandler()
 
-        self.__metrics_df: pd.DataFrame = pd.DataFrame(
-            columns=TradingSystemMetrics.cls_attrs
-        )
+        self.__metrics_df: pd.DataFrame = pd.DataFrame()
         self.__monte_carlo_simulations_df: pd.DataFrame = pd.DataFrame(
             columns=TradingSystemSimulationAttributes.cls_attrs
         )
@@ -257,10 +255,11 @@ class TradingSystem:
 
             if len(pos_manager.position_list) and not run_from_latest_exit:
                 # write trading system data and stats to DataFrame
-                self.__metrics_df: pd.DataFrame = pd.concat(
-                    [self.__metrics_df, pd.DataFrame([pos_manager.metrics.summary_data_dict])], 
-                    ignore_index=True
-                )
+                df_to_concat = pd.DataFrame([pos_manager.metrics.summary_data_dict])
+                if self.__metrics_df.empty:
+                    self.__metrics_df = df_to_concat
+                else:
+                    self.__metrics_df = pd.concat([self.__metrics_df, df_to_concat], ignore_index=True)
 
                 # run Monte Carlo simulations, plot and write stats to DataFrame
                 if run_monte_carlo_sims:
