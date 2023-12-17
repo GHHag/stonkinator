@@ -58,6 +58,9 @@ def monte_carlo_simulate_returns(
         'list'
     """
 
+    if not int(len(positions) * data_amount_used):
+        return None
+
     monte_carlo_sims_data = []
     equity_curves_list = []
     final_equity_list = []

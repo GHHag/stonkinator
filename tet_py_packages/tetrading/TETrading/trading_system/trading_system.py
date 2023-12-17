@@ -71,9 +71,7 @@ class TradingSystem:
         self.__signal_handler = SignalHandler()
 
         self.__metrics_df: pd.DataFrame = pd.DataFrame()
-        self.__monte_carlo_simulations_df: pd.DataFrame = pd.DataFrame(
-            columns=TradingSystemSimulationAttributes.cls_attrs
-        )
+        self.__monte_carlo_simulations_df: pd.DataFrame = pd.DataFrame()
 
     @property
     def total_period_len(self):
@@ -272,13 +270,18 @@ class TradingSystem:
                         print_dataframe=print_monte_carlo_df,
                         plot_fig=plot_monte_carlo, save_fig_to_path=save_summary_plot_to_path
                     )
-                    monte_carlo_summary_data_dict = monte_carlo_simulation_summary_data(
-                        monte_carlo_sims_data_dicts_list
-                    )
-                    self.__monte_carlo_simulations_df: pd.DataFrame = pd.concat(
-                        [self.__monte_carlo_simulations_df, pd.DataFrame([monte_carlo_summary_data_dict])], 
-                        ignore_index=True
-                    )
+                    if monte_carlo_sims_data_dicts_list:
+                        monte_carlo_summary_data_dict = monte_carlo_simulation_summary_data(
+                            monte_carlo_sims_data_dicts_list
+                        )
+                        df_to_concat = pd.DataFrame([monte_carlo_summary_data_dict])
+                        if self.__monte_carlo_simulations_df.empty:
+                            self.__monte_carlo_simulations_df = df_to_concat
+                        else:
+                            self.__monte_carlo_simulations_df = pd.concat(
+                                [self.__monte_carlo_simulations_df, df_to_concat],
+                                ignore_index=True
+                            )
 
                 if insert_data_to_db_bool:
                     self.__systems_db.insert_single_symbol_position_list(
