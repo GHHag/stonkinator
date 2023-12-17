@@ -40,7 +40,7 @@ def entry_logic_example(df, *args, entry_args=None):
     """
 
     entry_period_param = TradingSystemAttributes.ENTRY_PERIOD_LOOKBACK
-    return df['Close'].iloc[-1] >= max(df['Close'].iloc[-entry_args[entry_period_param]:]), \
+    return df['close'].iloc[-1] >= max(df['close'].iloc[-entry_args[entry_period_param]:]), \
         'long'
 
 
@@ -76,7 +76,7 @@ def exit_logic_example(
     """
 
     exit_period_param = TradingSystemAttributes.EXIT_PERIOD_LOOKBACK
-    return df['Close'].iloc[-1] <= min(df['Close'].iloc[-exit_args[exit_period_param]:]), \
+    return df['close'].iloc[-1] <= min(df['close'].iloc[-exit_args[exit_period_param]:]), \
         trail, trailing_exit_price
 
 
@@ -85,67 +85,45 @@ def preprocess_data(
     entry_args, exit_args, start_dt, end_dt,
     latest_position_dts=False
 ):
-    dt_strf = '%Y-%m-%dT%H:%M:%S'
-    if not latest_position_dts:
-        df_dict = {
-            symbol: pd.json_normalize(
-                get_data_function(symbol, start_dt, end_dt)['data']
-            )
-            for symbol in symbols_list
-        }
-    else:
-        latest_position_dts = {
-            symbol: dt.datetime.strptime(pos_dt['$date'].replace('Z', ''), dt_strf)
-            if pos_dt else start_dt
-            for symbol, pos_dt in latest_position_dts.items()
-        }
-        req_period_iters_dts = {
-            symbol: pos_dt - dt.timedelta(entry_args.get(TradingSystemAttributes.REQ_PERIOD_ITERS) * 2)
-            for symbol, pos_dt in latest_position_dts.items()
-        }
-        df_dict = {
-            symbol: pd.json_normalize(
-                get_data_function(symbol, req_period_iters_dts[symbol], end_dt)['data']
-            )
-            for symbol in symbols_list
-        }
+    df_dict = {}
+    for symbol in symbols_list:
+        response_data, response_status = get_data_function(symbol, start_dt, end_dt)
+        if response_status == 200:
+            df_dict[symbol] = pd.json_normalize(json.loads(response_data))
 
     benchmark_col_suffix = '_benchmark'
-    df_benchmark = pd.json_normalize(
-        get_data_function(benchmark_symbol, start_dt, end_dt)['data']
-    ).rename(
-        columns={
-            'Open': f'Open{benchmark_col_suffix}', 
-            'High': f'High{benchmark_col_suffix}', 
-            'Low': f'Low{benchmark_col_suffix}', 
-            'Close': f'Close{benchmark_col_suffix}',
-            'Volume': f'Volume{benchmark_col_suffix}', 
-            'symbol': f'symbol{benchmark_col_suffix}'
-        }
-    )
+    response_data, response_status = get_data_function(benchmark_symbol, start_dt, end_dt)
+    if response_status == 200:
+        df_benchmark = pd.json_normalize(json.loads(response_data))
+        df_benchmark.rename(
+            columns={
+                'open': f'open{benchmark_col_suffix}', 
+                'high': f'high{benchmark_col_suffix}', 
+                'low': f'low{benchmark_col_suffix}', 
+                'close': f'close{benchmark_col_suffix}',
+                'volume': f'volume{benchmark_col_suffix}', 
+                'symbol': f'symbol{benchmark_col_suffix}'
+            },
+            inplace=True
+        )
 
     for symbol, data in dict(df_dict).items():
         if data.empty or len(data) < entry_args[TradingSystemAttributes.REQ_PERIOD_ITERS]:
             print(symbol, 'DataFrame empty')
             del df_dict[symbol]
         else:
-            df_dict[symbol] = pd.merge_ordered(data, df_benchmark, on='Date', how='inner')
-            df_dict[symbol].fillna(method='ffill', inplace=True)
-            df_dict[symbol]['Date'] = pd.to_datetime(df_dict[symbol]['Date'])
-            df_dict[symbol].set_index('Date', inplace=True)
-            #df_dict[symbol] = pd.concat([data, df_benchmark], axis=1)
-            #df_dict[symbol].fillna(method='ffill', inplace=True)
+            df_benchmark['date'] = pd.to_datetime(df_benchmark['date'])
+            df_dict[symbol]['date'] = pd.to_datetime(df_dict[symbol]['date'])
+            
+            df_dict[symbol] = pd.merge_ordered(data, df_benchmark, on='date', how='inner')
+            df_dict[symbol].ffill(inplace=True)
+            df_dict[symbol]['date'] = pd.to_datetime(df_dict[symbol]['date'])
+            df_dict[symbol].set_index('date', inplace=True)
 
             # apply indicators/features to dataframe
-            df_dict[symbol]['SMA'] = df_dict[symbol]['Close'].rolling(20).mean()
+            df_dict[symbol]['SMA'] = df_dict[symbol]['close'].rolling(20).mean()
 
             df_dict[symbol].dropna(inplace=True)
-
-            if latest_position_dts:
-                df = df_dict[symbol].loc[latest_position_dts[symbol] + dt.timedelta(1):]
-                if len(df) < entry_args[TradingSystemAttributes.REQ_PERIOD_ITERS]:
-                    df = df_dict[symbol].loc[latest_position_dts[symbol] - dt.timedelta(entry_args.get(TradingSystemAttributes.REQ_PERIOD_ITERS)):]
-                df_dict[symbol] = df
 
     return df_dict, None
 

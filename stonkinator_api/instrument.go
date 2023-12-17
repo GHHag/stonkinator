@@ -464,7 +464,7 @@ func getMarketLists(w http.ResponseWriter, r *http.Request) {
 	collection := mdb.Collection(MARKET_LISTS_COLLECTION)
 
 	var results []bson.M
-	cursor, err := collection.Find(context.Background(), bson.D{})
+	cursor, err := collection.Find(context.Background(), bson.M{})
 	if err != nil {
 		http.Error(w, "Failed to execute query", http.StatusInternalServerError)
 		return

@@ -28,7 +28,7 @@ func getSystems(w http.ResponseWriter, r *http.Request) {
 
 	var results []bson.M
 	// var results []TradingSystem - define TradingSystem struct?
-	cursor, err := collection.Find(context.Background(), bson.D{})
+	cursor, err := collection.Find(context.Background(), bson.M{})
 	if err != nil {
 		http.Error(w, "Failed to execute query", http.StatusInternalServerError)
 		return
