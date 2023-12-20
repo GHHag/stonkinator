@@ -7,8 +7,7 @@ export default defineConfig({
     port: 3000,
     proxy: {
       '/api': {
-        //target: 'http://backend:8000',
-        target: 'http://localhost:4000',
+        target: 'http://tet_api:4001',
         changeOrigin: true,
         secure: false
       }

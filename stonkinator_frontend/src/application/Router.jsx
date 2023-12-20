@@ -1,9 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
-import Home from './pages/Home'
-import Header from './components/Header';
-import './App.css';
-import TradingSystems from './pages/TradingSystems';
+import Home from '../pages/Home'
+import Header from '../components/Header';
+import '../App.css';
+import TradingSystems from '../pages/TradingSystems';
 
 function App() {
   const [user, setUser] = useState(null);

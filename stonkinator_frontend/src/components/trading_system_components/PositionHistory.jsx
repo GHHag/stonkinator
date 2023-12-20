@@ -26,11 +26,9 @@ const PositionHistory = ({positions}) => {
   }, []);
 
   return (
-    <>
-      <Card>
+    <Card>
 
-      </Card>
-    </>
+    </Card>
   );
 }
 

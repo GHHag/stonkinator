@@ -39,6 +39,16 @@ services:
       - ./${LIVE_SYSTEMS_DIR}:/${LIVE_SYSTEMS_DIR_TARGET}
       - ./tet_py_packages:/app
 
+  frontend:
+    depends_on:
+      - ${TET_API_SERVICE}
+    build: ./stonkinator_frontend
+    ports:
+      # - ${}:${}
+      - 3000:3000
+    volumes:
+      - ./stonkinator_frontend/src:/app/src
+
 volumes:
   securities_data:
   tet_data:

@@ -7,20 +7,20 @@ const Header = ({ user, setUserCallback }) => {
 
   return (
     <>
-      <Row className='p-2 m-2'>
+      <Row className='p-2 m-2 text-center'>
         <Col>
-          <Link to='/'><div className='header-link-div'>🏠 Home</div></Link>
+          <Link className='header-link' to='/'><div className='header-link-div'>🏠 Home</div></Link>
         </Col>
         {
           !user &&
           <Col>
-            <Link to='/login'><div className='header-link-div'>➡️ Log in</div></Link>
+            <Link className='header-link' to='/login'><div className='header-link-div'>➡️ Log in</div></Link>
           </Col>
         }
         {
           user &&
           <Col>
-            <Link to='/'>
+            <Link className='header-link' to='/'>
               <div onClick={() => {
                 fetch(`api/user/logout`, { method: 'DELETE' });
                 setUserCallback(null);
@@ -40,12 +40,12 @@ const Header = ({ user, setUserCallback }) => {
         {
           !user &&
           <Col>
-            <Link to='/register'><div className='header-link-div'>Register</div></Link>
+            <Link className='header-link' to='/register'><div className='header-link-div'>Register</div></Link>
           </Col>
         }
         {
           <Col>
-            <Link to='/trading-systems'><div className='header-link-div'>Trading Systems</div></Link>
+            <Link className='header-link' to='/trading-systems'><div className='header-link-div'>Trading Systems</div></Link>
           </Col>
         }
       </Row>

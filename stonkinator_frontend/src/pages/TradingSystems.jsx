@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import Card from 'react-bootstrap/Card';
 import SideBar from '../components/SideBar';
-import TradingSystemHistory from '../components/TradingSystemHistory';
-import PositionHistory from '../components/PositionHistory';
+import TradingSystemHistory from '../components/trading_system_components/TradingSystemHistory';
+import PositionHistory from '../components/trading_system_components/PositionHistory';
 
 const url = 'http://localhost:3000/api';
 
@@ -15,7 +15,6 @@ const TradingSystems = () => {
   const [selectedInstrument, setSelectedInstrument] = useState('')
   const [marketState, setMarketState] = useState(null);
   const [marketStates, setMarketStates] = useState([]);
-  const [position, setPosition] = useState([]);
   const [positions, setPositions] = useState([]);
 
   useEffect(() => {
@@ -29,7 +28,7 @@ const TradingSystems = () => {
       { method: 'GET' },
     )
       .then((res) => res.json())
-      .then((data) => setSystems(data.result))
+      .then((data) => setSystems(data))
       .catch((err) => console.log(err.message));
   }
 
@@ -39,47 +38,47 @@ const TradingSystems = () => {
       { method: 'GET' },
     )
       .then((res) => res.json())
-      .then((data) => setMarketLists(data.result))
+      .then((data) => setMarketLists(data))
       .catch((err) => console.log(err.message));
   }
 
   const getInstrumentsData = async (marketListId) => {
     await fetch(
-      `${url}/instruments/${marketListId}`,
+      `${url}/instruments?id=${marketListId}`,
       { method: 'GET' },
     )
       .then((res) => res.json())
-      .then((data) => setInstruments(data.result[0])) // FIX RETURN TO NOT BE ARRAY AND REMOVE 0 index when setInstruments
+      .then((data) => setInstruments(data['market_list_instruments']))
       .catch((err) => console.log(err.message));
   }
 
   const getMarketStateData = async (systemId, symbol) => {
     await fetch(
-      `${url}/systems/market-state?systemId=${systemId}&symbol=${symbol}`,
+      `${url}/systems/market-state?id=${systemId}&symbol=${symbol}`,
       { method: 'GET' },
     )
       .then((res) => res.json())
-      .then((data) => setMarketState(data.result))
+      .then((data) => setMarketState(data))
       .catch((err) => console.log(err.message));
   }
 
   const getMarketStatesData = async (systemId) => {
     await fetch(
-      `${url}/systems/market-states/${systemId}`,
+      `${url}/systems/market-states?id=${systemId}`,
       { method: 'GET' },
     )
       .then((res) => res.json())
-      .then((data) => setMarketStates(data.result))
+      .then((data) => setMarketStates(data))
       .catch((err) => console.log(err.message));
   }
 
   const getPositionsData = async (systemId, symbol) => {
     await fetch(
-      `${url}/systems/positions?systemId=${systemId}&symbol=${symbol}`,
+      `${url}/systems/positions?id=${systemId}&symbol=${symbol}`,
       { method: 'GET' },
     )
       .then((res) => res.json())
-      .then((data) => setPositions(data.result))
+      .then((data) => setPositions(data['position_list_json']))
       .catch((err) => console.log(err.message));
   }
 
@@ -92,7 +91,7 @@ const TradingSystems = () => {
     setSelectedMarketList(event.target.value);
     await getInstrumentsData(event.target.value);
   }
-  
+
   const handleSelectInstrument = async (event) => {
     setSelectedInstrument(event.target.value);
     await getMarketStateData(selectedSystem, event.target.value);
@@ -100,63 +99,57 @@ const TradingSystems = () => {
   }
 
   return (
-    <>
+    <main className="trading-systems-container">
       {
-        systems && 
-        <SideBar sideBarContent={systems} itemKey={'name'} selectedItemCallback={systemSelected}/>
+        systems &&
+        <SideBar sideBarContent={systems} itemKey={'name'} selectedItemCallback={systemSelected} />
       }
-
-      {
-        selectedSystem &&
-        <Card>
-          <div>
-            <select value={selectedMarketList} onChange={handleSelectMarketList}>
-              <option value="" disabled>Select Market List</option>
-              {
-                marketLists &&
-                marketLists.map((item, index) => (
-                  <option key={index} value={item._id}>
-                    {item.market_list.replace(/_/g, ' ').toUpperCase()}
-                  </option>
-                ))
-              }
-            </select>
-          </div>
-          <div>
-            <select value={selectedInstrument} onChange={handleSelectInstrument}>
-              <option value="" disabled>Select Instrument</option>
-              {
-                instruments.market_list_instruments &&
-                instruments.market_list_instruments.map((item, index) => (
-                  <option key={index} value={item.symbol}>
-                    {item.symbol.replace(/_/g, ' ').toUpperCase()}
-                  </option>
-                ))
-              }
-            </select>
-          </div>
-        </Card>
-      }
-
-      {
-        marketState &&
-        <Card>
-            <div>
-              {/* {console.log(marketState)} */}
+      <Card className="trading-systems-card">
+        <Card.Body>
+          {
+            selectedSystem &&
+            <div className="custom-select-wrapper">
+              <div>
+                <select value={selectedMarketList} onChange={handleSelectMarketList} className="custom-select">
+                  <option value="" disabled>Select Market List</option>
+                  {
+                    marketLists &&
+                    marketLists.map((item, index) => (
+                      <option key={index} value={item._id}>
+                        {item.market_list.replace(/_/g, ' ').toUpperCase()}
+                      </option>
+                    ))
+                  }
+                </select>
+              </div>
+              <div>
+                <select value={selectedInstrument} disabled={!selectedMarketList} onChange={handleSelectInstrument} className="custom-select">
+                  <option value="" disabled>Select Instrument</option>
+                  {
+                    instruments &&
+                    instruments.map((item, index) => (
+                      <option key={index} value={item.symbol}>
+                        {item.symbol.replace(/_/g, ' ').toUpperCase()}
+                      </option>
+                    ))
+                  }
+                </select>
+              </div>
             </div>
-        </Card>
-      }
+          }
 
-      {
-        positions.position_list_json &&
-        <PositionHistory positions={positions.position_list_json}/>
-      }
+          {
+            positions &&
+            <TradingSystemHistory positions={positions} />
+          }
 
-      {
-        positions.position_list_json &&
-        <TradingSystemHistory positions={positions.position_list_json}/>
-      }
-    </>
+          {
+            positions &&
+            <PositionHistory positions={positions} />
+          }
+        </Card.Body>
+      </Card>
+    </main>
   );
 }
 
