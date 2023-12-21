@@ -26,8 +26,8 @@ const PositionHistory = ({positions}) => {
   }, []);
 
   return (
-    <Card>
-
+    <Card className="position-history-container">
+      <h5>Position History</h5>
     </Card>
   );
 }

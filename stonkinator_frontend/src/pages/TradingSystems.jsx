@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import Card from 'react-bootstrap/Card';
 import SideBar from '../components/SideBar';
-import TradingSystemHistory from '../components/trading_system_components/TradingSystemHistory';
+import TradingSystemHistory from '../components/trading_system_components/trading_system_history/TradingSystemHistory';
 import PositionHistory from '../components/trading_system_components/PositionHistory';
+import LatestPosition from '../components/trading_system_components/LatestPosition';
 
 const url = 'http://localhost:3000/api';
 
@@ -106,47 +107,59 @@ const TradingSystems = () => {
       }
       <Card className="trading-systems-card">
         <Card.Body>
-          {
-            selectedSystem &&
-            <div className="custom-select-wrapper">
-              <div>
-                <select value={selectedMarketList} onChange={handleSelectMarketList} className="custom-select">
-                  <option value="" disabled>Select Market List</option>
-                  {
-                    marketLists &&
-                    marketLists.map((item, index) => (
-                      <option key={index} value={item._id}>
-                        {item.market_list.replace(/_/g, ' ').toUpperCase()}
-                      </option>
-                    ))
-                  }
-                </select>
+          <div className="trading-systems-upper-container">
+            <div className="trading-system-history-wrapper">
+            {
+              selectedSystem &&
+              <div className="custom-select-wrapper">
+                <div>
+                  <select value={selectedMarketList} onChange={handleSelectMarketList} className="custom-select">
+                    <option value="" disabled>Select Market List</option>
+                    {
+                      marketLists &&
+                      marketLists.map((item, index) => (
+                        <option key={index} value={item._id}>
+                          {item.market_list.replace(/_/g, ' ').toUpperCase()}
+                        </option>
+                      ))
+                    }
+                  </select>
+                </div>
+                <div>
+                  <select value={selectedInstrument} disabled={!selectedMarketList} onChange={handleSelectInstrument} className="custom-select">
+                    <option value="" disabled>Select Instrument</option>
+                    {
+                      instruments &&
+                      instruments.map((item, index) => (
+                        <option key={index} value={item.symbol}>
+                          {item.symbol.replace(/_/g, ' ').toUpperCase()}
+                        </option>
+                      ))
+                    }
+                  </select>
+                </div>
               </div>
-              <div>
-                <select value={selectedInstrument} disabled={!selectedMarketList} onChange={handleSelectInstrument} className="custom-select">
-                  <option value="" disabled>Select Instrument</option>
-                  {
-                    instruments &&
-                    instruments.map((item, index) => (
-                      <option key={index} value={item.symbol}>
-                        {item.symbol.replace(/_/g, ' ').toUpperCase()}
-                      </option>
-                    ))
-                  }
-                </select>
-              </div>
+            }
+              {
+                positions &&
+                <TradingSystemHistory positions={positions} />
+              }
             </div>
-          }
-
-          {
-            positions &&
-            <TradingSystemHistory positions={positions} />
-          }
-
-          {
-            positions &&
-            <PositionHistory positions={positions} />
-          }
+          </div>
+          <div className="trading-systems-lower-container">
+            <div className="position-history-wrapper">
+              {
+                positions &&
+                <PositionHistory positions={positions} />
+              }
+            </div>
+            <div className="latest-position-wrapper">
+              {
+                positions &&
+                <LatestPosition marketState={marketState} />
+              }
+            </div>
+          </div>
         </Card.Body>
       </Card>
     </main>
