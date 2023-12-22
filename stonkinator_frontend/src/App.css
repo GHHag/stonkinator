@@ -1,14 +1,18 @@
 body, html {
-    background-color: #2a3236;
+    background-color: #1b212b;
     margin: 0;
     padding: 0;
     min-height: 100%;
 }
 
 main {
-    background-color: #2a3236;
+    background-color: #1b212b;
     margin: 0;
     padding: 0;
+}
+
+h5 {
+    text-align: center;
 }
 
 .header-link {
@@ -17,7 +21,7 @@ main {
 
 .header-link-div {
     font-size: 20px;
-    color: rgb(184, 184, 184);
+    color: #b8b8b8;
 }
 
 .header-link-div:hover {
@@ -31,18 +35,27 @@ main {
     left: 0;
     width: 200px;
     background-color: #1a1c1f;
-    color: rgb(184, 184, 184);
+    color: #b8b8b8;
     box-sizing: border-box;
 }
 
 .side-bar-list-item {
     font-size: 16px;
-    color: rgb(184, 184, 184);
+    color: #b8b8b8;
 }
 
 .side-bar-list-item:hover {
     cursor: pointer;
     font-weight: bold;
+}
+
+.side-bar-list-item-selected {
+    color: #007bff;
+    font-weight: bold;
+
+    &:hover {
+        cursor: auto;
+    }
 }
 
 .custom-select-wrapper {
@@ -58,13 +71,17 @@ main {
     padding: 5px;
     border-radius: 4px;
     border: 2px solid;
-    border-color: #1a1c1f;
-    background-color: #1a1c1f;
+    border-color: #1b212b;
+    background-color: #1b212b;
     font-size: 14px;
-    color: rgb(184, 184, 184);
+    color: #b8b8b8;
     cursor: pointer;
     outline: none;
     text-align: center;
+}
+
+.custom-select-selected {
+    border-color: #007bff;
 }
 
 .custom-select::after {
@@ -78,7 +95,7 @@ main {
 
 .custom-select:hover,
 .custom-select:focus {
-    border-color: #007BFF;
+    border-color: #007bff;
 }
 
 .trading-systems-container {
@@ -93,31 +110,26 @@ main {
 .trading-systems-upper-container {
     height: 50%;
     display: flex;
-    border: 1px solid black;
 }
 
 .trading-systems-lower-container {
     height: 50%;
     display: flex;
-    border: 1px solid black;
 }
 
 .trading-system-history-wrapper {
     flex: 1;
     height: 100%;
-    border: 1px solid black;
 }
 
 .position-history-wrapper {
-    flex: 2;
+    flex: 1;
     height: 100%;
-    border: 1px solid black;
 }
 
 .latest-position-wrapper {
-    flex: 1;
+    flex: 2;
     height: 100%;
-    border: 1px solid black;
 }
 
 .trading-system-history-container {
@@ -126,8 +138,35 @@ main {
 
 .position-history-container {
     height: 100%;
+    background-color: #1a1c1f;
 }
 
 .latest-position-container {
     height: 100%;
+}
+
+.position-history-year-list {
+    max-height: 100%;
+    overflow-x: hidden;
+    overflow-y: auto;
+    scrollbar-width: thin;
+}
+
+.position-history-year-wrapper-even {
+    background-color: #1b212b;
+}
+
+.position-history-year-wrapper-uneven {
+    background-color: #1a1c1f;
+}
+
+.position-history-year-wrapper-even,
+.position-history-year-wrapper-uneven {
+    font-size: 14px;
+    padding: 5px;
+}
+
+.position-history-year-wrapper-even:hover,
+.position-history-year-wrapper-uneven:hover {
+    color: #ffffff;
 }

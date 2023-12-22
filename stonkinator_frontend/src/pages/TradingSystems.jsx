@@ -10,12 +10,13 @@ const url = 'http://localhost:3000/api';
 const TradingSystems = () => {
   const [systems, setSystems] = useState([]);
   const [selectedSystem, setSelectedSystem] = useState('');
+  // const [selectedSystemName, setSelectedSystemName] = useState('');
   const [marketLists, setMarketLists] = useState([]);
   const [selectedMarketList, setSelectedMarketList] = useState('');
   const [instruments, setInstruments] = useState([]);
   const [selectedInstrument, setSelectedInstrument] = useState('')
   const [marketState, setMarketState] = useState(null);
-  const [marketStates, setMarketStates] = useState([]);
+  // const [marketStates, setMarketStates] = useState([]);
   const [positions, setPositions] = useState([]);
 
   useEffect(() => {
@@ -63,15 +64,15 @@ const TradingSystems = () => {
       .catch((err) => console.log(err.message));
   }
 
-  const getMarketStatesData = async (systemId) => {
-    await fetch(
-      `${url}/systems/market-states?id=${systemId}`,
-      { method: 'GET' },
-    )
-      .then((res) => res.json())
-      .then((data) => setMarketStates(data))
-      .catch((err) => console.log(err.message));
-  }
+  // const getMarketStatesData = async (systemId) => {
+  //   await fetch(
+  //     `${url}/systems/market-states?id=${systemId}`,
+  //     { method: 'GET' },
+  //   )
+  //     .then((res) => res.json())
+  //     .then((data) => setMarketStates(data))
+  //     .catch((err) => console.log(err.message));
+  // }
 
   const getPositionsData = async (systemId, symbol) => {
     await fetch(
@@ -85,7 +86,13 @@ const TradingSystems = () => {
 
   const systemSelected = async (systemId) => {
     setSelectedSystem(systemId);
-    await getMarketStatesData(systemId);
+    // setSelectedSystemName(systemName);
+    setSelectedMarketList('');
+    setInstruments([]);
+    setSelectedInstrument('');
+    setMarketState(null);
+    setPositions([]);
+    // await getMarketStatesData(systemId);
   }
 
   const handleSelectMarketList = async (event) => {
@@ -105,63 +112,75 @@ const TradingSystems = () => {
         systems &&
         <SideBar sideBarContent={systems} itemKey={'name'} selectedItemCallback={systemSelected} />
       }
-      <Card className="trading-systems-card">
-        <Card.Body>
-          <div className="trading-systems-upper-container">
-            <div className="trading-system-history-wrapper">
-            {
-              selectedSystem &&
-              <div className="custom-select-wrapper">
-                <div>
-                  <select value={selectedMarketList} onChange={handleSelectMarketList} className="custom-select">
-                    <option value="" disabled>Select Market List</option>
-                    {
-                      marketLists &&
-                      marketLists.map((item, index) => (
-                        <option key={index} value={item._id}>
-                          {item.market_list.replace(/_/g, ' ').toUpperCase()}
-                        </option>
-                      ))
-                    }
-                  </select>
-                </div>
-                <div>
-                  <select value={selectedInstrument} disabled={!selectedMarketList} onChange={handleSelectInstrument} className="custom-select">
-                    <option value="" disabled>Select Instrument</option>
-                    {
-                      instruments &&
-                      instruments.map((item, index) => (
-                        <option key={index} value={item.symbol}>
-                          {item.symbol.replace(/_/g, ' ').toUpperCase()}
-                        </option>
-                      ))
-                    }
-                  </select>
-                </div>
+      {
+        selectedSystem &&
+        <Card className="trading-systems-card" style={{ backgroundColor: '#1a1c1f' }}>
+          <Card.Body>
+            <div className="trading-systems-upper-container">
+              <div className="trading-system-history-wrapper">
+                {
+                  selectedSystem &&
+                  <div className="custom-select-wrapper">
+                    <div>
+                      <select
+                        value={selectedMarketList}
+                        onChange={handleSelectMarketList}
+                        className={`custom-select ${selectedMarketList ? 'custom-select-selected' : ''}`}
+                      >
+                        <option value="" disabled>Select Market List</option>
+                        {
+                          marketLists &&
+                          marketLists.map((item, index) => (
+                            <option key={index} value={item._id}>
+                              {item.market_list.replace(/_/g, ' ').toUpperCase()}
+                            </option>
+                          ))
+                        }
+                      </select>
+                    </div>
+                    <div>
+                      <select
+                        value={selectedInstrument}
+                        disabled={!selectedMarketList}
+                        onChange={handleSelectInstrument}
+                        className={`custom-select ${selectedInstrument ? 'custom-select-selected' : ''}`}
+                      >
+                        <option value="" disabled>Select Instrument</option>
+                        {
+                          instruments &&
+                          instruments.map((item, index) => (
+                            <option key={index} value={item.symbol}>
+                              {item.symbol.replace(/_/g, ' ').toUpperCase()}
+                            </option>
+                          ))
+                        }
+                      </select>
+                    </div>
+                  </div>
+                }
+                {
+                  positions && positions.length > 0 &&
+                  <TradingSystemHistory tradingSystemName={selectedSystem} positions={positions} marketState={marketState} />
+                }
               </div>
-            }
-              {
-                positions &&
-                <TradingSystemHistory positions={positions} />
-              }
             </div>
-          </div>
-          <div className="trading-systems-lower-container">
-            <div className="position-history-wrapper">
-              {
-                positions &&
-                <PositionHistory positions={positions} />
-              }
+            <div className="trading-systems-lower-container">
+              <div className="position-history-wrapper">
+                {
+                  positions && positions.length > 0 &&
+                  <PositionHistory positions={positions} />
+                }
+              </div>
+              <div className="latest-position-wrapper">
+                {
+                  positions && positions.length > 0 &&
+                  <LatestPosition position={positions[positions.length - 1]} />
+                }
+              </div>
             </div>
-            <div className="latest-position-wrapper">
-              {
-                positions &&
-                <LatestPosition marketState={marketState} />
-              }
-            </div>
-          </div>
-        </Card.Body>
-      </Card>
+          </Card.Body>
+        </Card>
+      }
     </main>
   );
 }
