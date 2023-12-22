@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Card, Col, Row } from 'react-bootstrap';
 
-const PositionHistory = ({ positions }) => {
+const PositionHistory = ({ positions, positionSelected }) => {
   const [formattedPositions, setFormattedPositions] = useState(null);
   const [expandedYears, setExpandedYears] = useState([]);
 
@@ -64,7 +64,7 @@ const PositionHistory = ({ positions }) => {
                   <div>
                     {
                       formattedPositions.get(year).map((position, index) => (
-                        <Row key={index}>
+                        <Row key={index} onClick={() => positionSelected(position)}>
                           <Col></Col>
                           <Col>{new Date(position.entry_dt).toISOString().split('T')[0]}</Col>
                           <Col>{position.position_return}%</Col>

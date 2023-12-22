@@ -18,6 +18,7 @@ const TradingSystems = () => {
   const [marketState, setMarketState] = useState(null);
   // const [marketStates, setMarketStates] = useState([]);
   const [positions, setPositions] = useState([]);
+  const [selectedPosition, setSelectedPosition] = useState(null);
 
   useEffect(() => {
     getSystemsData();
@@ -82,6 +83,7 @@ const TradingSystems = () => {
       .then((res) => res.json())
       .then((data) => setPositions(data['position_list_json']))
       .catch((err) => console.log(err.message));
+
   }
 
   const systemSelected = async (systemId) => {
@@ -92,6 +94,7 @@ const TradingSystems = () => {
     setSelectedInstrument('');
     setMarketState(null);
     setPositions([]);
+    setSelectedPosition(null);
     // await getMarketStatesData(systemId);
   }
 
@@ -101,9 +104,19 @@ const TradingSystems = () => {
   }
 
   const handleSelectInstrument = async (event) => {
+    setSelectedPosition(null);
     setSelectedInstrument(event.target.value);
     await getMarketStateData(selectedSystem, event.target.value);
-    await getPositionsData(selectedSystem, event.target.value);
+    await getPositionsData(selectedSystem, event.target.value);//.then(() => {
+    //   // Fix setting state to update correctly
+    //   setSelectedPosition(positions[positions.length - 1]);
+    //   if (positions.length > 0) {
+    //     setSelectedPosition(positions[positions.length - 1]);
+    //   }
+    //   else {
+    //     setSelectedPosition(null);
+    //   }
+    // });
   }
 
   return (
@@ -168,13 +181,13 @@ const TradingSystems = () => {
               <div className="position-history-wrapper">
                 {
                   positions && positions.length > 0 &&
-                  <PositionHistory positions={positions} />
+                  <PositionHistory positions={positions} positionSelected={setSelectedPosition} />
                 }
               </div>
               <div className="latest-position-wrapper">
                 {
-                  positions && positions.length > 0 &&
-                  <LatestPosition position={positions[positions.length - 1]} />
+                  selectedPosition &&
+                  <LatestPosition position={selectedPosition} />
                 }
               </div>
             </div>
