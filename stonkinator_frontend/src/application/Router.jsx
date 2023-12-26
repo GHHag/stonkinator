@@ -9,17 +9,15 @@ function App() {
   const [user, setUser] = useState(null);
 
   return (
-    <main>
-      <BrowserRouter>
-        <Header user={user} setUserCallback={setUser}/>
-        <Routes>
-          <Route path='/' element={<Home/>}/>
-          <Route path='/login'/>
-          <Route path='/register'/>
-          <Route path='/trading-systems' element={<TradingSystems/>}/>
-        </Routes>
-      </BrowserRouter>
-    </main>
+    <BrowserRouter>
+      <Header user={user} setUserCallback={setUser}/>
+      <Routes>
+        <Route path='/' element={<Home/>}/>
+        <Route path='/login'/>
+        <Route path='/register'/>
+        <Route path='/trading-systems' element={<TradingSystems/>}/>
+      </Routes>
+    </BrowserRouter>
   );
 }
 

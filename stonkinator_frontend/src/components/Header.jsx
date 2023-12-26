@@ -7,7 +7,7 @@ const Header = ({ user, setUserCallback }) => {
 
   return (
     <>
-      <Row className='p-2 m-2 text-center'>
+      <Row className='header p-2 text-center'>
         <Col>
           <Link className='header-link' to='/'><div className='header-link-div'>🏠 Home</div></Link>
         </Col>
