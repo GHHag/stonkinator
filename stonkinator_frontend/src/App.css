@@ -122,26 +122,17 @@ h5 {
     height: 100%;
 }
 
+.trading-system-history-container {
+    height: 100%;
+}
+
 .position-history-wrapper {
     flex: 1;
     height: 100%;
 }
 
-.latest-position-wrapper {
+.position-wrapper {
     flex: 2;
-    height: 100%;
-}
-
-.trading-system-history-container {
-    height: 100%;
-}
-
-.position-history-container {
-    height: 100%;
-    background-color: #1a1c1f;
-}
-
-.latest-position-container {
     height: 100%;
 }
 
