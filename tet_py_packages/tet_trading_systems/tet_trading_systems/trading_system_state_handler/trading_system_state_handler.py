@@ -20,20 +20,19 @@ class TradingSystemStateHandler:
     # __data_handler = nets.DataHandler()
     
     def __init__(
-        self, system_name: str, ts_properties: TradingSystemProperties, 
+        self, ts_properties: TradingSystemProperties, 
         systems_db: ITetSystemsDocumentDatabase, client_db: ITetSystemsDocumentDatabase,
         start_dt: dt.datetime, end_dt: dt.datetime
     ):
-        self.__system_name: str = system_name
         self.__ts_properties = ts_properties
         self.__trading_system = TradingSystem(
-            self.__system_name,
+            self.__ts_properties.system_name,
             self.__ts_properties.entry_logic_function, 
             self.__ts_properties.exit_logic_function,
             systems_db, client_db
         )
         self.__systems_db: ITetSystemsDocumentDatabase = systems_db
-        # self.__client_db: ITetSystemsDocumentDatabase = client_db
+        self.__client_db: ITetSystemsDocumentDatabase = client_db
         self.__start_dt: dt.datetime = start_dt
         self.__end_dt: dt.datetime = end_dt
         self.__preprocess_data(self.__start_dt, self.__end_dt)
@@ -66,8 +65,6 @@ class TradingSystemStateHandler:
         pos_list_slice_years_est=2,
         **kwargs
     ):
-        print(capital_fraction)
-        input('capital fraction _run_trading_system')
         self.__trading_system(
             self.__data,
             capital=capital,
@@ -99,32 +96,27 @@ class TradingSystemStateHandler:
             pos_list_slice_years_est=pos_list_slice_years_est
         )
 
-    def _handle_trading_system(
-        self, time_series_db=None, insert_into_db=False, plot_fig=False, **kwargs
-    ):
+    def _handle_trading_system(self, time_series_db=None, insert_into_db=False, **kwargs):
         system_position_sizer: IPositionSizer = self.__ts_properties.position_sizer(
             *self.__ts_properties.position_sizer_args
         )
 
         for i in range(self.__ts_properties.required_runs):
             insert_data = True if (i + 1) == self.__ts_properties.required_runs and insert_into_db else False
-            print(system_position_sizer.position_sizer_data_dict)
-            input('pos sizer data dict')
             self._run_trading_system(
-                plot_fig=plot_fig, 
                 insert_into_db=insert_data,
                 **system_position_sizer.position_sizer_data_dict
             )
             market_states_data: list[dict] = json.loads(
-                self.__systems_db.get_market_state_data(
+                self.__client_db.get_market_state_data(
                     self.__ts_properties.system_name, MarketState.ENTRY.value
                 )
             )
 
             for data_dict in market_states_data:
                 position_list, num_of_periods = self.__systems_db.get_single_symbol_position_list(
-                    self.__system_props.system_name, data_dict[TradingSystemAttributes.SYMBOL],
-                    return_num_of_periods=True
+                    self.__ts_properties.system_name, data_dict[TradingSystemAttributes.SYMBOL],
+                    serialized_format=True, return_num_of_periods=True
                 )
                 system_position_sizer(
                     position_list, num_of_periods,
@@ -135,13 +127,13 @@ class TradingSystemStateHandler:
                 )
 
         pos_sizer_data_dict = system_position_sizer.get_position_sizer_data_dict()
-        self.__systems_db.insert_market_state_data(
+        self.__client_db.update_market_state_data(
             self.__ts_properties.system_name, json.dumps(pos_sizer_data_dict)
         )
 
     def __call__(
         self, date: dt.datetime,
-        time_series_db=None, insert_into_db=False, plot_fig=False, **kwargs
+        time_series_db=None, insert_into_db=False, **kwargs
     ):
         # make some date check on given date against last date of self.__data
         # call reprocess_data if new data is available
@@ -149,6 +141,6 @@ class TradingSystemStateHandler:
 
         self._handle_trading_system(
             time_series_db=time_series_db, 
-            insert_into_db=insert_into_db, plot_fig=plot_fig,
+            insert_into_db=insert_into_db, # plot_fig=plot_fig,
             **kwargs
         )
