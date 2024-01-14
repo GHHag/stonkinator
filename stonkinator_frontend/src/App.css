@@ -26,9 +26,9 @@ h5 {
   border-bottom: 1px solid black;
 } */
 
-.header-link {
+/* .header-link {
     text-decoration: none;
-}
+} */
 
 .header-link-div {
     font-size: 20px;
@@ -110,9 +110,28 @@ h5 {
 }
 
 .trading-systems-container {
-    display: flex;
+    /* display: flex; */
     height: calc(100vh - 50px);
   }
+
+.trading-systems-wrapper {
+  display: flex;
+}
+  
+.trading-systems-selector-wrapper {
+  flex: 1;
+  display: flex;
+  padding: 10px;
+}
+
+.trading-systems-history-wrapper {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  color: #fff;
+}
+
 
 .trading-systems-card {
     flex: 1;
@@ -128,10 +147,10 @@ h5 {
     display: flex;
 }
 
-.trading-system-history-wrapper {
+/* .trading-system-history-wrapper {
     flex: 1;
     height: 100%;
-}
+} */
 
 .position-history-wrapper {
     flex: 1;
@@ -144,7 +163,7 @@ h5 {
 }
 
 .trading-system-history-container {
-    height: 100%;
+    /* height: 100%; */
 }
 
 .position-history-container {

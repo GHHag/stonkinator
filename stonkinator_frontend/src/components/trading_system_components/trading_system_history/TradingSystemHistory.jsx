@@ -6,7 +6,7 @@ const TradingSystemHistory = ({ tradingSystemName, positions, marketState }) => 
   console.log('TradingSystemHistory', marketState);
 
   return (
-    <Card className="trading-system-history-container" style={{ backgroundColor: '#1a1c1f' }}>
+    <Card className="trading-system-history-container" >
       {
         <h5>Trading System History - {tradingSystemName}</h5>
       }

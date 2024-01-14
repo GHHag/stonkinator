@@ -4,6 +4,8 @@ import SideBar from '../components/SideBar';
 import TradingSystemHistory from '../components/trading_system_components/trading_system_history/TradingSystemHistory';
 import PositionHistory from '../components/trading_system_components/PositionHistory';
 import LatestPosition from '../components/trading_system_components/LatestPosition';
+import PageNavigation from '../components/PageNavigation/PageNavigation';
+import Select from '../components/Select/Select';
 
 const url = 'http://localhost:3000/api';
 
@@ -103,6 +105,11 @@ const TradingSystems = () => {
     await getInstrumentsData(event.target.value);
   }
 
+  const handleMarketListSelection = async (value) => {
+    setSelectedMarketList(value);
+    await getInstrumentsData(value);
+  }
+
   const handleSelectInstrument = async (event) => {
     setSelectedPosition(null);
     setSelectedInstrument(event.target.value);
@@ -119,19 +126,79 @@ const TradingSystems = () => {
     // });
   }
 
+  const handleInstrumentSelection = async (value) => {
+    setSelectedPosition(null);
+    setSelectedInstrument(value);
+    await getMarketStateData(selectedSystem, value);
+    await getPositionsData(selectedSystem, value);
+  }
+
   return (
     <main className="trading-systems-container">
-      {
+      {/* {
         systems &&
         <SideBar sideBarContent={systems} itemKey={'name'} selectedItemCallback={systemSelected} />
+      } */}
+      {
+        systems && <PageNavigation items={systems} selectedItemCallback={systemSelected} />
       }
       {
+        selectedSystem &&
+        <>
+          <div className="trading-systems-wrapper">
+            <div className="trading-systems-selector-wrapper">
+              <Select
+                id="market-list-select"
+                name="market-list-select"
+                label="Select Market List"
+                value={selectedMarketList}
+                valueKey="_id"
+                onChange={handleMarketListSelection}
+                options={marketLists}
+                textKey="market_list"
+              />
+              <Select
+                disabled={!selectedMarketList}
+                id="instrument-select"
+                name="instrument-select"
+                label="Select Instrument"
+                value={selectedInstrument}
+                valueKey="symbol"
+                onChange={handleInstrumentSelection}
+                options={instruments}
+                textKey="instrument"
+              />
+            </div>
+            <div className="trading-systems-history-wrapper">
+              {
+                positions && positions.length > 0 &&
+                <TradingSystemHistory tradingSystemName={selectedSystem} positions={positions} marketState={marketState} />
+              }
+            </div>
+          </div>
+
+          <div className="trading-systems-lower-container">
+            <div className="position-history-wrapper">
+              {
+                positions && positions.length > 0 &&
+                <PositionHistory positions={positions} positionSelected={setSelectedPosition} />
+              }
+            </div>
+            <div className="latest-position-wrapper">
+              {
+                selectedPosition && <LatestPosition position={selectedPosition} />
+              }
+            </div>
+          </div>
+        </>
+      }
+      {/* {
         selectedSystem &&
         <Card className="trading-systems-card" style={{ backgroundColor: '#1a1c1f' }}>
           <Card.Body>
             <div className="trading-systems-upper-container">
               <div className="trading-system-history-wrapper">
-                {
+                {/* {
                   selectedSystem &&
                   <div className="custom-select-wrapper">
                     <div>
@@ -170,12 +237,12 @@ const TradingSystems = () => {
                       </select>
                     </div>
                   </div>
-                }
-                {
+                } */}
+                {/* {
                   positions && positions.length > 0 &&
                   <TradingSystemHistory tradingSystemName={selectedSystem} positions={positions} marketState={marketState} />
-                }
-              </div>
+                } */}
+              {/* </div>
             </div>
             <div className="trading-systems-lower-container">
               <div className="position-history-wrapper">
@@ -191,9 +258,9 @@ const TradingSystems = () => {
                 }
               </div>
             </div>
-          </Card.Body>
-        </Card>
-      }
+          </Card.Body> */}
+        {/* </Card> */}
+      {/* } */}
     </main>
   );
 }

@@ -1,12 +1,9 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import Row from 'react-bootstrap/Row';
-import Col from 'react-bootstrap/Col';
 
 import './Header.css';
 
 function Header({ user, setUserCallback }) {
-
   return (
     <header className='header'>
       <div className='header-item'>
