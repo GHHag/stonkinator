@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Card, Col, Row } from 'react-bootstrap';
 
-const PositionHistory = ({ positions, positionSelected }) => {
+function PositionHistory({ positions, positionSelected }) {
   const [formattedPositions, setFormattedPositions] = useState(null);
   const [expandedYears, setExpandedYears] = useState([]);
 

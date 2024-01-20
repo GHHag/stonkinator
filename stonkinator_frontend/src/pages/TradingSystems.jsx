@@ -6,6 +6,7 @@ import PositionHistory from '../components/trading_system_components/PositionHis
 import LatestPosition from '../components/trading_system_components/LatestPosition';
 import PageNavigation from '../components/PageNavigation/PageNavigation';
 import Select from '../components/Select/Select';
+import PositionHistoryClone from '../components/TradingSystem/PositionHistory/PositionHistory';
 
 const url = 'http://localhost:3000/api';
 
@@ -178,12 +179,10 @@ const TradingSystems = () => {
           </div>
 
           <div className="trading-systems-lower-container">
-            <div className="position-history-wrapper">
-              {
-                positions && positions.length > 0 &&
-                <PositionHistory positions={positions} positionSelected={setSelectedPosition} />
-              }
-            </div>
+            {
+              positions && positions.length > 0 &&
+              <PositionHistoryClone positions={positions} positionSelected={setSelectedPosition} />
+            }
             <div className="latest-position-wrapper">
               {
                 selectedPosition && <LatestPosition position={selectedPosition} />
