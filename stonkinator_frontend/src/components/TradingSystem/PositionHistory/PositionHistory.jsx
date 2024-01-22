@@ -43,8 +43,8 @@ function PositionHistory({ positions, positionSelected }) {
       <div className="position-history-list-wrapper">
         {
           formattedPositions && Array.from(formattedPositions.keys()).map((key) => (
-            <div key={key} className="position-history-list-item" onClick={() => handleYearClick(key)}>
-              <div className={`position-history-list-item-title ${selectedYear === key && 'position-history-list-item-title--selected'}`}>{key}</div>
+            <div key={key} className="position-history-list-item">
+              <div className={`position-history-list-item-title ${selectedYear === key && 'position-history-list-item-title--selected'}`}  onClick={() => handleYearClick(key)}>{key}</div>
               <div className={`position-history-list-item-content ${selectedYear === key && 'position-history-list-item-content--expanded'}`}>
                 {
                   formattedPositions.get(key).map((position, index) => (

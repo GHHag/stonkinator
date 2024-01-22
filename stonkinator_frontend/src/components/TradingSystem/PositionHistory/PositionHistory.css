@@ -21,11 +21,11 @@
 
 .position-history-list-item {
   padding: 15px;
-  cursor: pointer;
 }
 
 .position-history-list-item-title {
   border-bottom: 1px solid #b8b8b8;
+  cursor: pointer;
 }
 .position-history-list-item-title--selected {
   font-weight: 700;
@@ -46,4 +46,5 @@
   display: flex;
   justify-content: space-between;
   padding: 10px 15px;
+  cursor: pointer;
 }
