@@ -3,6 +3,7 @@ import Card from 'react-bootstrap/Card';
 import SideBar from '../components/SideBar';
 import TradingSystemHistory from '../components/trading_system_components/trading_system_history/TradingSystemHistory';
 import PositionHistory from '../components/trading_system_components/PositionHistory';
+import Position from '../components/trading_system_components/Position';
 import LatestPosition from '../components/trading_system_components/LatestPosition';
 import PageNavigation from '../components/PageNavigation/PageNavigation';
 import Select from '../components/Select/Select';
@@ -252,10 +253,10 @@ const TradingSystems = () => {
                   <PositionHistory positions={positions} positionSelected={setSelectedPosition} />
                 }
               </div>
-              <div className="latest-position-wrapper">
+              <div className="position-wrapper">
                 {
                   selectedPosition &&
-                  <LatestPosition position={selectedPosition} />
+                  <Position position={selectedPosition} />
                 }
               </div>
             </div>

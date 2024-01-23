@@ -1,12 +1,10 @@
 import os
 from inspect import isfunction
-from typing import Callable, Dict
 
 import pandas as pd
 import numpy as np
 
 from TETrading.data.metadata.trading_system_metrics import TradingSystemMetrics
-from TETrading.data.metadata.trading_system_simulation_attributes import TradingSystemSimulationAttributes
 from TETrading.position.position import Position
 from TETrading.position.position_manager import PositionManager
 from TETrading.trading_system.trading_session import TradingSession
@@ -27,9 +25,6 @@ class TradingSystem:
     ----------
     system_name : 'str'
         The name of the system. Will be used to identify it.
-    data_dict : 'dict'
-        A dict with key: symbol, value: Pandas DataFrame with data for the
-        assets used in the system.
     entry_logic_function : 'function'
         The logic used for entering a position.
     exit_logic_function : 'function'
@@ -43,14 +38,11 @@ class TradingSystem:
     """
 
     def __init__(
-        self, system_name, data_dict: Dict[str, pd.DataFrame], 
-        entry_logic_function: Callable, exit_logic_function: Callable,
+        self, system_name, 
+        entry_logic_function: callable, exit_logic_function: callable,
         systems_db: ITetSystemsDocumentDatabase, client_db: ITetSystemsDocumentDatabase
     ):
         self.__system_name = system_name
-        assert isinstance(data_dict, dict), \
-            "Parameter 'data_dict' must be a dict with format key 'Symbol' (str): value (Pandas.DataFrame)"
-        self.__data_dict = data_dict
         assert isfunction(entry_logic_function), \
             "Parameter 'entry_logic_function' must be a function."
         self.__entry_logic_function = entry_logic_function
@@ -95,7 +87,8 @@ class TradingSystem:
         )
 
     def __call__(
-        self, *args, capital=10000, capital_fraction=None, avg_yearly_periods=251,
+        self, data_dict: dict[str, pd.DataFrame], *args, capital=10000, 
+        capital_fraction=None, avg_yearly_periods=251,
         system_evaluation_fields=TradingSystemMetrics.system_evaluation_fields,
         market_state_null_default=False,
         plot_performance_summary=False, save_summary_plot_to_path: str=None, 
@@ -115,6 +108,9 @@ class TradingSystem:
 
         Parameters
         ----------
+        :param data_dict:
+            'dict' : A dict with key: symbol, value: Pandas DataFrame with data
+            for the assets used in the system.
         :param args:
             'tuple' : Args to pass along to PositionManager.generate_positions().
         :param capital:
@@ -191,7 +187,7 @@ class TradingSystem:
             PositionManager.generate_positions().
         """
 
-        for instrument, data in self.__data_dict.items():
+        for instrument, data in data_dict.items():
             try:
                 if 'close' in data:
                     asset_price_series = [float(close) for close in data['close']]
@@ -351,7 +347,7 @@ class TradingSystem:
         if insert_data_to_db_bool:
             self.__signal_handler.insert_into_db(self.__client_db, self.__system_name)
 
-        if not run_from_latest_exit and len(self.__data_dict) > 1:
+        if not run_from_latest_exit and len(data_dict) > 1:
             num_of_pos_insert_multiplier = pos_list_slice_years_est * 1.5
             sorted_pos_lists = sorted(self.__pos_lists, key=len, reverse=True)
             position_list_lengths = (
@@ -359,7 +355,7 @@ class TradingSystem:
                 if len(self.__pos_lists) > 1
                 else [len(sorted_pos_lists[0])]
             )
-            data_periods = [len(v) for k, v in self.__data_dict.items()][:int(len(self.__data_dict) / 4 + 0.5)]
+            data_periods = [len(v) for k, v in data_dict.items()][:int(len(data_dict) / 4 + 0.5)]
             avg_yearly_positions = (
                 ## error prone if data used to calculate is NaN TODO: handle exception
                 int(np.mean(position_list_lengths) / (np.mean(data_periods) / avg_yearly_periods) + 0.5)
