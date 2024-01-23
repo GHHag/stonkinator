@@ -1,11 +1,10 @@
 import { useEffect, useRef } from 'react';
-// import Card from 'react-bootstrap/Card';
 import { Bar } from 'react-chartjs-2';
 import Chart from 'chart.js/auto';
 
-import './LatestPosition.css';
+import './Position.css';
 
-function LatestPosition({ position }) {
+function Position({ position }) {
   const chartRef = useRef(null);
 
   useEffect(() => {
@@ -61,4 +60,4 @@ function LatestPosition({ position }) {
   );
 }
 
-export default LatestPosition;
+export default Position;

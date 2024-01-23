@@ -1,14 +1,9 @@
-import React, { useEffect, useState } from 'react';
-import Card from 'react-bootstrap/Card';
-import SideBar from '../components/SideBar';
+import { useEffect, useState } from 'react';
 import TradingSystemHistory from '../components/trading_system_components/trading_system_history/TradingSystemHistory';
-import PositionHistory from '../components/trading_system_components/PositionHistory';
-import Position from '../components/trading_system_components/Position';
-import LatestPosition from '../components/trading_system_components/LatestPosition';
 import PageNavigation from '../components/PageNavigation/PageNavigation';
 import Select from '../components/Select/Select';
-import PositionHistoryClone from '../components/TradingSystem/PositionHistory/PositionHistory';
-import LatestPositionClone from '../components/TradingSystem/LatestPosition/LatestPosition';
+import PositionHistory from '../components/TradingSystem/PositionHistory/PositionHistory';
+import Position from '../components/TradingSystem/Position/Position';
 
 const url = 'http://localhost:3000/api';
 
@@ -103,30 +98,9 @@ const TradingSystems = () => {
     // await getMarketStatesData(systemId);
   }
 
-  const handleSelectMarketList = async (event) => {
-    setSelectedMarketList(event.target.value);
-    await getInstrumentsData(event.target.value);
-  }
-
   const handleMarketListSelection = async (value) => {
     setSelectedMarketList(value);
     await getInstrumentsData(value);
-  }
-
-  const handleSelectInstrument = async (event) => {
-    setSelectedPosition(null);
-    setSelectedInstrument(event.target.value);
-    await getMarketStateData(selectedSystem, event.target.value);
-    await getPositionsData(selectedSystem, event.target.value);//.then(() => {
-    //   // Fix setting state to update correctly
-    //   setSelectedPosition(positions[positions.length - 1]);
-    //   if (positions.length > 0) {
-    //     setSelectedPosition(positions[positions.length - 1]);
-    //   }
-    //   else {
-    //     setSelectedPosition(null);
-    //   }
-    // });
   }
 
   const handleInstrumentSelection = async (value) => {
@@ -138,10 +112,6 @@ const TradingSystems = () => {
 
   return (
     <main className="trading-systems-container">
-      {/* {
-        systems &&
-        <SideBar sideBarContent={systems} itemKey={'name'} selectedItemCallback={systemSelected} />
-      } */}
       {
         systems && <PageNavigation items={systems} selectedItemCallback={systemSelected} />
       }
@@ -183,86 +153,14 @@ const TradingSystems = () => {
           <div className="trading-systems-lower-container">
             {
               positions && positions.length > 0 &&
-              <PositionHistoryClone positions={positions} positionSelected={setSelectedPosition} />
+              <PositionHistory positions={positions} positionSelected={setSelectedPosition} />
             }
-            {/* <div className="latest-position-wrapper"> */}
-              {
-                // selectedPosition && <LatestPosition position={selectedPosition} />
-                <LatestPositionClone position={selectedPosition} />
-              }
-            {/* </div> */}
+            {
+              <Position position={selectedPosition} />
+            }
           </div>
         </>
       }
-      {/* {
-        selectedSystem &&
-        <Card className="trading-systems-card" style={{ backgroundColor: '#1a1c1f' }}>
-          <Card.Body>
-            <div className="trading-systems-upper-container">
-              <div className="trading-system-history-wrapper">
-                {/* {
-                  selectedSystem &&
-                  <div className="custom-select-wrapper">
-                    <div>
-                      <select
-                        value={selectedMarketList}
-                        onChange={handleSelectMarketList}
-                        className={`custom-select ${selectedMarketList ? 'custom-select-selected' : ''}`}
-                      >
-                        <option value="" disabled>Select Market List</option>
-                        {
-                          marketLists &&
-                          marketLists.map((item, index) => (
-                            <option key={index} value={item._id}>
-                              {item.market_list.replace(/_/g, ' ').toUpperCase()}
-                            </option>
-                          ))
-                        }
-                      </select>
-                    </div>
-                    <div>
-                      <select
-                        value={selectedInstrument}
-                        disabled={!selectedMarketList}
-                        onChange={handleSelectInstrument}
-                        className={`custom-select ${selectedInstrument ? 'custom-select-selected' : ''}`}
-                      >
-                        <option value="" disabled>Select Instrument</option>
-                        {
-                          instruments &&
-                          instruments.map((item, index) => (
-                            <option key={index} value={item.symbol}>
-                              {item.symbol.replace(/_/g, ' ').toUpperCase()}
-                            </option>
-                          ))
-                        }
-                      </select>
-                    </div>
-                  </div>
-                } */}
-                {/* {
-                  positions && positions.length > 0 &&
-                  <TradingSystemHistory tradingSystemName={selectedSystem} positions={positions} marketState={marketState} />
-                } */}
-              {/* </div>
-            </div>
-            <div className="trading-systems-lower-container">
-              <div className="position-history-wrapper">
-                {
-                  positions && positions.length > 0 &&
-                  <PositionHistory positions={positions} positionSelected={setSelectedPosition} />
-                }
-              </div>
-              <div className="position-wrapper">
-                {
-                  selectedPosition &&
-                  <Position position={selectedPosition} />
-                }
-              </div>
-            </div>
-          </Card.Body> */}
-        {/* </Card> */}
-      {/* } */}
     </main>
   );
 }
