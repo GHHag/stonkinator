@@ -1,4 +1,4 @@
-version: "2.16"
+version: "3"
 
 services:
   postgres:
@@ -29,8 +29,6 @@ services:
     build: ./stonkinator_api
     ports:
       - ${TET_API_PORT_EXP}:${TET_API_PORT}
-    env_file:
-      - .env
 
   tet_py_packages:
     depends_on:
@@ -40,6 +38,15 @@ services:
     volumes:
       - ./${LIVE_SYSTEMS_DIR}:/${LIVE_SYSTEMS_DIR_TARGET}
       - ./tet_py_packages:/app
+
+  frontend:
+    depends_on:
+      - ${TET_API_SERVICE}
+    build: ./stonkinator_frontend
+    volumes:
+      - ./stonkinator_frontend/src:/app/src
+    ports:
+      - ${FRONTEND_PORT}:${FRONTEND_PORT}
 
 volumes:
   securities_data:

@@ -44,7 +44,7 @@ def system_metrics_summary_plot(
         save the plot as a file. Default value=None
     """
 
-    plt.style.use('seaborn')
+    plt.style.use('seaborn-v0_8')
 
     fig, axs = plt.subplots(nrows=2, ncols=4, figsize=(18, 8.5))
     fig.tight_layout()
@@ -228,7 +228,7 @@ def returns_distribution_plot(
         save the plot as a file. Default value=None
     """
 
-    plt.style.use('seaborn')
+    plt.style.use('seaborn-v0_8')
 
     fig, ax = plt.subplots(3, 1, figsize=(9, 9))
 

@@ -194,6 +194,7 @@ class Position:
             'entry_dt': self.entry_dt,
             'exit_signal_dt': self.exit_signal_dt,
             'returns_list': [float(x) for x in self.returns_list],
+            'mtm_returns_list': [float(x) for x in self.market_to_market_returns_list],
             'position_return': float(self.position_return),
             'net_result': float(self.net_result),
             'gross_result': float(self.gross_result),

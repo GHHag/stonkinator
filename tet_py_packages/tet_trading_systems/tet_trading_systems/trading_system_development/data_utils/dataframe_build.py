@@ -21,8 +21,8 @@ def build_dataframe(
             benchmark_data_retrieve_func(benchmark_symbol, *args, **kwargs)['data']
         )
         benchmark_df.drop('symbol', axis=1, inplace=True)
-        benchmark_df['Date'] = pd.to_datetime(benchmark_df['Date'])
-        benchmark_df.set_index('Date', inplace=True)
+        benchmark_df['date'] = pd.to_datetime(benchmark_df['date'])
+        benchmark_df.set_index('date', inplace=True)
         complete_df = benchmark_df
     else:
         complete_df = pd.DataFrame()
@@ -33,19 +33,19 @@ def build_dataframe(
             symbols_list.pop(symbols_list.index(symbol))
             continue
         else:
-            symbol_df['Date'] = pd.to_datetime(symbol_df['Date'])
-            symbol_df.set_index('Date', inplace=True)
+            symbol_df['date'] = pd.to_datetime(symbol_df['date'])
+            symbol_df.set_index('date', inplace=True)
             if 'symbol' in symbol_df:
                 symbol_df.drop('symbol', axis=1, inplace=True)
             if benchmark_symbol and benchmark_data_retrieve_func and \
                 isinstance(benchmark_df, pd.DataFrame):
                 symbol_df = pd.merge_ordered(
-                    benchmark_df, symbol_df, on='Date', how='outer', 
+                    benchmark_df, symbol_df, on='date', how='outer', 
                     suffixes=('', f'_{symbol}')
                 )
             complete_df = pd.merge_ordered(
                 complete_df, symbol_df, 
-                on=['Date', 'Open', 'High', 'Low', 'Close', 'Volume'], how='outer'
+                on=['date', 'open', 'high', 'low', 'close', 'volume'], how='outer'
             )
     complete_df.fillna(method='ffill', inplace=True)
 
@@ -84,7 +84,7 @@ def get_crypto_data(symbol, start_dt, end_dt, interval='1h', limit=1000):
 
     json_df = pd.read_json(requests.get(url, params=reg_params).text)
     json_df = json_df.iloc[:, 0:6]
-    json_df.columns = ['Date', 'Open', 'High', 'Low', 'Close', 'Volume']
+    json_df.columns = ['date', 'open', 'high', 'low', 'close', 'volume']
     json_df.index = [dt.datetime.fromtimestamp(x / 1000.0) for x in json_df.Date]
 
     return json_df
@@ -138,8 +138,8 @@ def build_crypto_dataframe(
         slice_end_dt = slice_end_dt + dt.timedelta(period_slice / (24 / slice_day))
 
     full_df = pd.concat(df_list)
-    full_df.drop('Date', axis=1, inplace=True)
-    full_df.index.name = 'Date'
+    full_df.drop('date', axis=1, inplace=True)
+    full_df.index.name = 'date'
 
     return full_df
 

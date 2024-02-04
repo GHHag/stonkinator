@@ -1,16 +1,16 @@
 import numpy as np
 
 
-def apply_sma(df, period_param, col_name='Close', suffix=''):
+def apply_sma(df, period_param, col_name='close', suffix=''):
     df[f'SMA_{period_param}{suffix}'] = df[col_name].rolling(period_param).mean()
 
 
-def apply_ema(df, period_param, col_name='Close', suffix=''):
+def apply_ema(df, period_param, col_name='close', suffix=''):
     df[f'EMA_{period_param}{suffix}'] = df[col_name].ewm(span=period_param, adjust=False).mean()
 
 
 def apply_atr(
-    df, period_param=14, col_name_high='High', col_name_low='Low', col_name_close='Close', 
+    df, period_param=14, col_name_high='high', col_name_low='low', col_name_close='close', 
     suffix=''
 ):
     tr = []
@@ -31,7 +31,7 @@ def apply_atr(
 
 
 def apply_adr(
-    df, period_param=14, col_name_high='High', col_name_low='Low', col_name_close='Close', 
+    df, period_param=14, col_name_high='high', col_name_low='low', col_name_close='close', 
     func_apply_atr=False, suffix=''
 ):
     if func_apply_atr:
@@ -44,7 +44,7 @@ def apply_adr(
     df[f'ADR{suffix}'] = (df['ATR'] / df[col_name_close]) * 100
 
 
-def apply_rsi(df, period_param=14, col_name='Close', suffix=''):
+def apply_rsi(df, period_param=14, col_name='close', suffix=''):
     def calc_rsi(array, deltas, avg_gain, avg_loss, n):
         # Use Wilder smoothing method
         up = lambda x:  x if x > 0 else 0
@@ -79,7 +79,7 @@ def apply_rsi(df, period_param=14, col_name='Close', suffix=''):
 
 def apply_keltner_channels(
     df, ema_period_param=20, atr_period_param=20, multiplier=1,
-    col_name_high='High', col_name_low='Low', col_name_close='Close', suffix=''
+    col_name_high='high', col_name_low='low', col_name_close='close', suffix=''
 ):
     apply_ema(df, ema_period_param, col_name=col_name_high)
     apply_atr(
@@ -98,7 +98,7 @@ def apply_keltner_channels(
 
 
 def apply_bollinger_bands(
-    df, ma_period_param=20, sd_multiplier=2, col_name='Close', suffix=''
+    df, ma_period_param=20, sd_multiplier=2, col_name='close', suffix=''
 ):
     stdevs, bb_upper, bb_lower = [], [], []
     apply_sma(df, ma_period_param, col_name=col_name, suffix=suffix)

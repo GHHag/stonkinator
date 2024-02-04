@@ -58,6 +58,9 @@ def monte_carlo_simulate_returns(
         'list'
     """
 
+    if not int(len(positions) * data_amount_used):
+        return None
+
     monte_carlo_sims_data = []
     equity_curves_list = []
     final_equity_list = []
@@ -166,7 +169,7 @@ def monte_carlo_simulations_plot(
         Default value=None
     """
 
-    plt.style.use('seaborn')
+    plt.style.use('seaborn-v0_8')
     fig, axs = plt.subplots(nrows=3, ncols=1, figsize=(9, 9.5))
     fig.tight_layout()
 

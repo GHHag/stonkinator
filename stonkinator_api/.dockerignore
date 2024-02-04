@@ -3,11 +3,11 @@
 .gitignore
 .gitattributes
 
-# docker
+# Ignore Docker-related files
 docker-compose.yml
-Dockerfile
 .docker
+Dockerfile
 .dockerignore
 
-# js
-node_modules
+# Ignore build artifacts
+/build/

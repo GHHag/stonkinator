@@ -112,7 +112,10 @@ class TetSystemsMongoDb(ITetSystemsDocumentDatabase):
         if not system_id:
             self._insert_system(system_name)
             system_id = self._get_system_id(system_name)
-        for data_p in data['data']:
+        ts_data = data.get('data')
+        if not ts_data:
+            return False
+        for data_p in ts_data:
             assert isinstance(data_p, dict)
             data_p.update({self.__SYSTEM_ID_FIELD: system_id})
             if self.__MARKET_STATE_FIELD in data_p and \
@@ -154,6 +157,27 @@ class TetSystemsMongoDb(ITetSystemsDocumentDatabase):
                     if existing_doc is None:
                         self.__market_states.insert_one(data_p)
         return True
+
+    def update_market_state_data(self, system_name, data):
+        data = json.loads(data)
+        system_id = self._get_system_id(system_name)
+        if not system_id:
+            return False
+        ts_data = data.get('data')
+        if not ts_data:
+            return False
+        successful_updates = 0
+        for data_p in ts_data:
+            assert isinstance(data_p, dict)
+            result = self.__market_states.update_one(
+                {
+                    self.__SYSTEM_ID_FIELD: system_id, 
+                    self.__SYMBOL_FIELD: data_p[TradingSystemAttributes.SYMBOL]
+                },
+                {'$set': data_p}
+            )
+            successful_updates += result.modified_count
+        return successful_updates == len(ts_data)
 
     def get_market_state_data(self, system_name, market_state):
         system_id = self._get_system_id(system_name)
@@ -375,7 +399,11 @@ class TetSystemsMongoDb(ITetSystemsDocumentDatabase):
                 },
                 {f'{self.__POSITION_LIST_FIELD}_json': 1, self.__NUMBER_OF_PERIODS_FIELD: 1}
             )
-            return json.dumps(query, default=json_util.default)
+            if return_num_of_periods:
+                return json.dumps(query, default=json_util.default), \
+                    query[self.__NUMBER_OF_PERIODS_FIELD]
+            else:
+                return json.dumps(query, default=json_util.default)
 
     def get_latest_position_dts(self, system_name, symbols_list):
         system_id = self._get_system_id(system_name)

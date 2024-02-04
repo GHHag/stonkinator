@@ -73,7 +73,7 @@ def evaluate_monte_carlo_simulations(csv_file_path, plot=True):
     pd.set_option("display.max_rows", None, "display.max_columns", None)
     print(mc_sims_df.to_string())
 
-    plt.style.use('seaborn')
+    plt.style.use('seaborn-v0_8')
     fig, axs = plt.subplots(nrows=2, ncols=4, figsize=(14, 6))
     fig.tight_layout()
 
