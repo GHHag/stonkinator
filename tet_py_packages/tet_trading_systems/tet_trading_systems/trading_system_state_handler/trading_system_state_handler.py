@@ -17,7 +17,6 @@ from tet_doc_db.doc_database_meta_classes.tet_systems_doc_db import ITetSystemsD
 class TradingSystemStateHandler:
     
     __data: dict[str, pd.DataFrame] = {}
-    # __data_handler = nets.DataHandler()
     
     def __init__(
         self, ts_properties: TradingSystemProperties, 
@@ -136,11 +135,12 @@ class TradingSystemStateHandler:
         time_series_db=None, insert_into_db=False, **kwargs
     ):
         # make some date check on given date against last date of self.__data
+
         # call reprocess_data if new data is available
         # self.reprocess_data(date)
 
         self._handle_trading_system(
             time_series_db=time_series_db, 
-            insert_into_db=insert_into_db, # plot_fig=plot_fig,
+            insert_into_db=insert_into_db,
             **kwargs
         )

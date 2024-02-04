@@ -13,10 +13,11 @@ from tet_doc_db.instruments_mongo_db.instruments_mongo_db import InstrumentsMong
 from tet_trading_systems.trading_system_development.trading_systems.trading_system_properties.trading_system_properties \
     import TradingSystemProperties
 from tet_trading_systems.trading_system_development.trading_systems.trading_system_handler \
-    import handle_trading_system, run_trading_system
-from tet_trading_systems.trading_system_management.position_sizer.safe_f_position_sizer import SafeFPositionSizer
-from tet_trading_systems.trading_system_state_handler.trad_trading_system_state_handler import TradingSystemStateHandler
-from tet_trading_systems.trading_system_state_handler.instrument_selection.pd_instrument_selector import PdInstrumentSelector
+    import run_trading_system
+from tet_trading_systems.trading_system_management.position_sizer.safe_f_position_sizer \
+    import SafeFPositionSizer
+from tet_trading_systems.trading_system_state_handler.instrument_selection.pd_instrument_selector \
+    import PdInstrumentSelector
 
 
 def entry_logic_example(df, *args, entry_args=None):
@@ -161,26 +162,20 @@ def get_props(instruments_db: InstrumentsMongoDb, import_instruments=False, path
 
     return TradingSystemProperties(
         system_name, 2,
+        symbols_list,
         preprocess_data,
         (
             benchmark_symbol, price_data_get_req,
             entry_args, exit_args
         ),
-        handle_trading_system,
-        TradingSystemStateHandler, (system_name, None),
-        (
-            run_trading_system,
-            entry_logic_example, exit_logic_example,
-            entry_args, exit_args
-        ),
-        {'run_monte_carlo_sims': False, 'num_of_sims': 1000},
+        entry_logic_example, exit_logic_example,
+        entry_args, exit_args,
         None, (), (),
         SafeFPositionSizer, (20, 0.8), (),
         {
             'plot_fig': False,
             'num_of_sims': 500
-        },
-        symbols_list
+        }
     )
 
 
