@@ -1,6 +1,6 @@
 FROM python:3.10-slim-bullseye
 
-RUN apt-get update && apt-get install -y cron
+RUN apt-get update && apt-get install -y cron git
 
 WORKDIR /app
 

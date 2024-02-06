@@ -12,5 +12,8 @@ setup(
     author='GHHag',
     packages=find_packages(),
     include_package_data=True,
-    install_requires=['pandas', 'numpy', 'matplotlib', 'scikit-learn']
+    install_requires=[
+        'pandas', 'numpy', 'matplotlib', 'scikit-learn',
+        'sterunets @ git+https://github.com/GHHag/sterunets.git'
+    ]
 )
