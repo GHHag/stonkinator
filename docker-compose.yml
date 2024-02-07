@@ -29,6 +29,13 @@ services:
     build: ./stonkinator_api
     ports:
       - ${TET_API_PORT_EXP}:${TET_API_PORT}
+    develop:
+      watch:
+        - action: rebuild
+          files:
+            - ./app/*.go
+            - ./go.mod
+            - ./go.sum
 
   tet_py_packages:
     depends_on:

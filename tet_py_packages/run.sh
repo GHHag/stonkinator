@@ -17,13 +17,17 @@ if [ -f .env ]; then
         if [ -n "$key" ] && [ -n "$value" ]; then
             export "$key"="$value"
         else
-            echo "run.sh - Empty key or value, skipping line."
+            echo "$0 - Empty key or value, skipping line."
         fi
     done < .env
 else
-    echo "run.sh - Error: .env file not found"
+    echo "$0 - Error: .env file not found"
     exit 1
 fi
 
-cd "$TS_HANDLER_DIR_TARGET"
-/usr/local/bin/python trading_system_handler.py --trading-systems-dir="$LIVE_SYSTEMS_RELATIVE_DIR"
+if [ -n "$TS_HANDLER_DIR_TARGET" ] && [ -n "$LIVE_SYSTEMS_RELATIVE_DIR" ]; then
+    cd "$TS_HANDLER_DIR_TARGET"
+    /usr/local/bin/python trading_system_handler.py --trading-systems-dir="$LIVE_SYSTEMS_RELATIVE_DIR"
+else
+    echo "$0 - Error: Missing values for TS_HANDLER_DIR_TARGET or LIVE_SYSTEMS_RELATIVE_DIR variables."
+fi

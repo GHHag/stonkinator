@@ -1,9 +1,10 @@
 package main
 
-import(
-	"net/http"
+import (
 	"encoding/json"
 	"fmt"
+	"net/http"
+
 	"github.com/GHHag/gobware"
 )
 
@@ -14,6 +15,8 @@ func testGobware() gobware.ACL {
 
 func register(port string, api_url string) {
 	http.HandleFunc(fmt.Sprintf("%s/health-check", api_url), healthCheck)
+
+	http.HandleFunc(fmt.Sprintf("%s/user", api_url), RegisterUser)
 
 	http.HandleFunc(fmt.Sprintf("%s/exchange", api_url), exchangeAction)
 
@@ -48,7 +51,7 @@ func register(port string, api_url string) {
 func healthCheck(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
-	response := map[string]interface{} {
+	response := map[string]interface{}{
 		"message": "Health OK",
 	}
 

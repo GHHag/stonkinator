@@ -41,3 +41,6 @@ FRONTEND_PORT = 3000
 
 LIVE_SYSTEMS_DIR = 'tet_py_packages/tet_trading_systems/tet_trading_systems/trading_system_development/trading_systems/live_systems'
 LIVE_SYSTEMS_DIR_TARGET = 'app/tet_trading_systems/tet_trading_systems/trading_system_development/trading_systems/live_systems'
+
+TS_HANDLER_DIR_TARGET = '/app/tet_trading_systems/tet_trading_systems/trading_system_development/trading_systems'
+LIVE_SYSTEMS_RELATIVE_DIR = 'live_systems'

@@ -17,7 +17,7 @@ CREATE TABLE IF NOT EXISTS public.instruments
     id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
     exchange_id uuid,
     instrument_name VARCHAR(100) NOT NULL,
-    symbol VARCHAR(20) UNIQUE NOT NULL,
+    symbol VARCHAR(20) UNIQUE NOT NULL, --create index on symbol col? partition instruments + price_data table based on first letter of symbol?
     industry VARCHAR(100),
     CONSTRAINT exchange_id_fk FOREIGN KEY(exchange_id) REFERENCES exchanges(id)
 );
@@ -89,6 +89,9 @@ CREATE TABLE IF NOT EXISTS public.user_roles
 ALTER TABLE IF EXISTS public.user_roles
     OWNER to postgres;
 
+INSERT INTO public.user_roles(role_name)
+VALUES('admin'), ('user');
+
 
 ---------------------------------------------------------------------------
 
@@ -97,7 +100,7 @@ CREATE TABLE IF NOT EXISTS public.users
 (
     id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
     user_role_id uuid,
-    username VARCHAR(100) NOT NULL,
+    username VARCHAR(100) UNIQUE NOT NULL,
     user_password VARCHAR(100) NOT NULL,
     CONSTRAINT user_role_id_fk FOREIGN KEY(user_role_id) REFERENCES user_roles(id)
 );
