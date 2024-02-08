@@ -39,7 +39,7 @@ function PositionHistory({ positions, positionSelected }) {
 
   return (
     <div className="position-history-wrapper">
-      <h5 className="position-history-title">Position History</h5>
+      <h4 className="position-history-title">Position History</h4>
       <div className="position-history-list-wrapper">
         {
           formattedPositions && Array.from(formattedPositions.keys()).map((key) => (

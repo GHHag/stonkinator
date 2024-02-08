@@ -9,7 +9,7 @@ function Select({ id, label, name, options, value, valueKey, textKey, onChange, 
       <select id={id} name={name} className="select" value={value} onChange={(event) => onChange(event.target.value)} disabled={disabled}>
         {options.map((option) => (
           <option key={option._id} value={option[valueKey]} className="select-option">
-            {option[textKey]}
+            {option[textKey].toUpperCase().replaceAll("_", " ")}
           </option>
         ))}
       </select>

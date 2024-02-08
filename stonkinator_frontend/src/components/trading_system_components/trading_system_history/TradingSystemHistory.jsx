@@ -7,7 +7,6 @@ const TradingSystemHistory = ({ tradingSystemName, positions, marketState }) => 
   const [returnHistory, setReturnHistory] = useState([]);
 
   useEffect(() => {
-    console.log(positions);
     const posReturns = positions.flatMap((pos) => pos.mtm_returns_list);
 
     setReturnHistory(posReturns);

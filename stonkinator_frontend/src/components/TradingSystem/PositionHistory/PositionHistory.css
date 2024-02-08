@@ -4,18 +4,16 @@
   display: flex;
   flex-direction: column;
   padding: 10px;
-  /* background-color: #1a1c1f; */
   color: #b8b8b8;
 }
 
 .position-history-title {
   margin: 0;
   padding: 10px;
-  text-align: left;
+  text-align: center;
 }
 
 .position-history-list-wrapper {
-  /* padding: 10px; */
   overflow: scroll;
 }
 
@@ -47,4 +45,7 @@
   justify-content: space-between;
   padding: 10px 15px;
   cursor: pointer;
+}
+.position-history-list-item-position:hover {
+  color: #007bff;
 }
