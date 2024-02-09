@@ -39,6 +39,7 @@ class Position:
         self.__returns_list = np.array([])
         self.__market_to_market_returns_list = np.array([])
         self.__position_profit_loss_list = np.array([])
+        self.__price_data_json = None
 
     @property
     def entry_price(self):
@@ -193,6 +194,8 @@ class Position:
         return {
             'entry_dt': self.entry_dt,
             'exit_signal_dt': self.exit_signal_dt,
+            'entry_price': float(self.entry_price),
+            'exit_price': float(self.__exit_price),
             'returns_list': [float(x) for x in self.returns_list],
             'mtm_returns_list': [float(x) for x in self.market_to_market_returns_list],
             'position_return': float(self.position_return),
@@ -201,7 +204,21 @@ class Position:
             'profit_loss': float(self.profit_loss),
             'mae': float(self.mae),
             'mfe': float(self.mfe),
+            'price_data': self.__price_data_json
        }
+
+    def set_price_data_json(self, price_data_json):
+        """
+        Sets the value __price_data_json property.
+
+        Parameters
+        ----------
+        :param price_data_json:
+            'json': Price data of the time series that the position has
+            been held through.
+        """
+
+        self.__price_data_json = price_data_json
 
     def enter_market(self, entry_price, direction, entry_dt):
         """

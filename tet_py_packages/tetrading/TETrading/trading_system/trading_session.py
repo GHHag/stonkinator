@@ -145,6 +145,10 @@ class TradingSession:
                         self.__dataframe[open_price_col_name].iloc[index], 
                         self.__dataframe[datetime_col_name].iloc[index-1]
                     )
+                    position.set_price_data_json(
+                        self.__dataframe.iloc[(index-len(position.returns_list)-15):(index+15)]
+                            [['open', 'high', 'low', 'close', 'volume', 'date']].to_json()
+                    )
                     if print_data:
                         position.print_position_stats()
                         print(
