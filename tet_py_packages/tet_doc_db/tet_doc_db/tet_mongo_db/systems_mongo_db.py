@@ -1,6 +1,5 @@
 import json
 import pickle
-from typing import Dict, List
 
 from pymongo.mongo_client import MongoClient
 from pymongo.collection import Collection
@@ -69,7 +68,7 @@ class TetSystemsMongoDb(ITetSystemsDocumentDatabase):
         )
         return json.dumps(list(query), default=json_util.default)
 
-    def insert_system_metrics(self, system_name, metrics: Dict, *args):
+    def insert_system_metrics(self, system_name, metrics: dict, *args):
         system_id = self._get_system_id(system_name)
         if not system_id:
             return False
@@ -197,7 +196,7 @@ class TetSystemsMongoDb(ITetSystemsDocumentDatabase):
             return json.dumps(query, default=json_util.default)
 
     def insert_position_list(
-        self, system_name, position_list: List[Position], num_of_periods,
+        self, system_name, position_list: list[Position], num_of_periods,
         serialized_format=False, json_format=False
     ):
         system_id = self._get_system_id(system_name)
@@ -295,7 +294,7 @@ class TetSystemsMongoDb(ITetSystemsDocumentDatabase):
             return json.dumps(query, default=json_util.default)
 
     def insert_single_symbol_position_list(
-        self, system_name, symbol, position_list: List[Position], num_of_periods,
+        self, system_name, symbol, position_list: list[Position], num_of_periods,
         serialized_format=False, json_format=False
     ):
         system_id = self._get_system_id(system_name)

@@ -174,11 +174,11 @@ class TradingSession:
                     yield position
                 continue
 
-            # Instantiate a Position object if the position.active_position 
-            # field is False and a call to entry_logic_func returns True.
             entry_signal, direction = self.__entry_logic_function(
                 self.__dataframe.iloc[:index], entry_args=entry_args
             )
+            # Instantiate a Position object if the position.active_position 
+            # field is False and a call to entry_logic_func returns True.
             if not position.active_position and entry_signal:
                 position = Position(
                     capital, fixed_position_size=fixed_position_size, 

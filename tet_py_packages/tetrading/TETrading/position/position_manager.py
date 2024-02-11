@@ -75,8 +75,9 @@ class PositionManager:
     def generate_positions(self, trading_logic, *args, **kwargs):
         """
         Calls the trading_logic function to generate positions.
-        Then calls _create_metrics to calculate metrics and
-        statistics.
+        Creates an instance of the Metrics class, passing it the
+         __generated_positions, __start_capital and
+         __num_testing_periods.
 
         Parameters
         ----------
@@ -93,15 +94,6 @@ class PositionManager:
         self.__generated_positions = trading_logic(
             *args, capital=self.__safe_f_capital, **kwargs
         )
-        self._create_metrics()
-
-    def _create_metrics(self):
-        """
-        Creates an instance of the Metrics class, passing it the
-        __generated_positions, __start_capital and
-        __num_testing_periods.
-        """
-
         if not self.__generated_positions:
             print('No positions generated.')
         else:
