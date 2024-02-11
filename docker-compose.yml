@@ -50,10 +50,10 @@ services:
     depends_on:
       - ${TET_API_SERVICE}
     build: ./stonkinator_frontend
-    volumes:
-      - ./stonkinator_frontend/src:/app/src
     ports:
       - ${FRONTEND_PORT}:${FRONTEND_PORT}
+    volumes:
+      - ./stonkinator_frontend/src:/app/src
 
 volumes:
   securities_data:

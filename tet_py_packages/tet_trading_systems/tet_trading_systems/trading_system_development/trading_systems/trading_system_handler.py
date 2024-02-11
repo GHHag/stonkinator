@@ -17,10 +17,8 @@ from tet_trading_systems.trading_system_management.position_sizer.position_sizer
 
 from tet_doc_db.doc_database_meta_classes.tet_signals_doc_db import ITetSignalsDocumentDatabase
 from tet_doc_db.doc_database_meta_classes.tet_systems_doc_db import ITetSystemsDocumentDatabase
-from tet_doc_db.doc_database_meta_classes.tet_portfolio_doc_db import ITetPortfolioDocumentDatabase
 from tet_doc_db.doc_database_meta_classes.time_series_doc_db import ITimeSeriesDocumentDatabase
 from tet_doc_db.tet_mongo_db.systems_mongo_db import TetSystemsMongoDb
-from tet_doc_db.tet_mongo_db.portfolio_mongo_db import TetPortfolioMongoDb
 from tet_doc_db.time_series_mongo_db.time_series_mongo_db import TimeSeriesMongoDb
 from tet_doc_db.instruments_mongo_db.instruments_mongo_db import InstrumentsMongoDb
 import tet_trading_systems.trading_system_development.trading_systems.env as env
@@ -36,8 +34,6 @@ INSTRUMENTS_DB = InstrumentsMongoDb(env.ATLAS_MONGO_DB_URL, env.CLIENT_DB)
 #TIME_SERIES_DB = TimeSeriesMongoDb(env.ATLAS_MONGO_DB_URL, env.CLIENT_DB)
 #SYSTEMS_DB = TetSystemsMongoDb(env.ATLAS_MONGO_DB_URL, env.CLIENT_DB)
 #CLIENT_DB = TetSystemsMongoDb(env.ATLAS_MONGO_DB_URL, env.CLIENT_DB)
-
-PORTFOLIOS_DB = TetPortfolioMongoDb(env.LOCALHOST_MONGO_DB_URL, env.CLIENT_DB)
 
 
 class TradingSystemsHandler:
@@ -225,22 +221,6 @@ def handle_ml_trading_system(
     )
 
 
-def handle_trading_system_portfolio(
-    system_props: TradingSystemProperties,
-    client_db: ITetSignalsDocumentDatabase,
-    portfolio_db: ITetPortfolioDocumentDatabase,
-    insert_into_db=False
-):
-    portfolio = system_props.portfolio(
-        *system_props.portfolio_args, 
-        client_db, portfolio_db
-    )
-    portfolio(
-        *system_props.portfolio_call_args, 
-        insert_into_db=insert_into_db
-    )
-
-
 if __name__ == '__main__':
     import tet_trading_systems.trading_system_development.trading_systems.env as env
 
@@ -287,13 +267,10 @@ if __name__ == '__main__':
     #start_dt = dt.datetime(1999, 1, 1)
     #end_dt = dt.datetime(2011, 1, 1)
     start_dt = dt.datetime(2015, 9, 16)
-    #end_dt = dt.datetime.now()
-    #end_dt = dt.datetime(2023, 2, 24)
-    end_dt = dt.datetime(2023, 3, 1)
+    end_dt = dt.datetime.now()
+    # end_dt = dt.datetime(2023, 3, 2)
 
     ts_handler = TradingSystemsHandler(trading_system_properties_list, start_dt, end_dt)
-    ts_handler(end_dt)
-    end_dt = dt.datetime(2023, 3, 2)
     ts_handler(end_dt)
 
     # instead of this scheduling, the system should listen for the data retrieving

@@ -3,8 +3,6 @@
 # the specified python binary path /usr/local/bin/python is customized 
 # for the python bullseye Docker image
 
-/usr/local/bin/python /app/securities_db_py_dal/securities_db_py_dal/dal.py
-
 if [ -f .env ]; then
     while IFS='=' read -r key value; do
         if [[ $key == \#* ]]; then
@@ -24,6 +22,16 @@ else
     echo "$0 - Error: .env file not found"
     exit 1
 fi
+
+# default to some directory if DAL_LOG_FILE_PATH and DAL_LOG_FILE_PATH_CRITICAL
+# variables are not found
+if [[ -n "$DAL_LOG_FILE_PATH" && ! -d "$DAL_LOG_FILE_PATH" ]]; then
+	mkdir "$DAL_LOG_FILE_PATH"
+fi
+if [[ -n "$DAL_LOG_FILE_PATH_CRITICAL" && ! -d "$DAL_LOG_FILE_PATH_CRITICAL" ]]; then
+	mkdir "$DAL_LOG_FILE_PATH_CRITICAL"
+fi
+/usr/local/bin/python /app/securities_db_py_dal/securities_db_py_dal/dal.py
 
 if [ -n "$TS_HANDLER_DIR_TARGET" ] && [ -n "$LIVE_SYSTEMS_RELATIVE_DIR" ]; then
     cd "$TS_HANDLER_DIR_TARGET"

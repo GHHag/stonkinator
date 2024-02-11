@@ -33,8 +33,8 @@ TET_API_PORT_EXP = 4000
 # securities db py dal
 API_HOST = TET_API_SERVICE
 API_PORT = TET_API_PORT
-DAL_LOG_FILE_PATH = '/app/securities_db_py_dal/logs/'
-DAL_LOG_FILE_PATH_CRITICAL = '/app/securities_db_py_dal/logs/'
+DAL_LOG_FILE_PATH = '/var/log/stonkinator/'
+DAL_LOG_FILE_PATH_CRITICAL = '/var/log/stonkinator/'
 
 # frontend
 FRONTEND_PORT = 3000

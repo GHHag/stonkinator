@@ -22,7 +22,6 @@ class TetSystemsMongoDb(ITetSystemsDocumentDatabase):
     __SYMBOL_FIELD = TradingSystemAttributes.SYMBOL
     __METRICS_FIELD = TradingSystemAttributes.METRICS
     __MARKET_STATE_FIELD = TradingSystemAttributes.MARKET_STATE
-    __PORTFOLIO_CREATION_DATA_FIELD = 'portfolio_creation_data'
     __NUMBER_OF_PERIODS_FIELD = TradingSystemAttributes.NUMBER_OF_PERIODS
     __POSITION_LIST_FIELD = TradingSystemAttributes.POSITION_LIST
     __ML_MODEL_FIELD = TradingSystemAttributes.ML_MODEL
@@ -96,14 +95,6 @@ class TetSystemsMongoDb(ITetSystemsDocumentDatabase):
             }
         )
         return json.dumps(query, default=json_util.default)
-
-    def get_system_portfolio_creation_data(self, system_name):
-        system_id = self._get_system_id(system_name)
-        query = self.__systems.find_one(
-            {self.__ID_FIELD: system_id, self.__NAME_FIELD: system_name},
-            {self.__ID_FIELD: 0, self.__PORTFOLIO_CREATION_DATA_FIELD: 1}
-        )
-        return json.dumps(query[self.__PORTFOLIO_CREATION_DATA_FIELD])
 
     def insert_market_state_data(self, system_name, data):
         data = json.loads(data)

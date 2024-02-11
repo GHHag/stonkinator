@@ -170,7 +170,6 @@ def get_props(instruments_db: InstrumentsMongoDb, import_instruments=False, path
         ),
         entry_logic_example, exit_logic_example,
         entry_args, exit_args,
-        None, (), (),
         SafeFPositionSizer, (20, 0.8), (),
         {
             'plot_fig': False,

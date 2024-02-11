@@ -13,5 +13,5 @@ setup(
     author='GHHag',
     packages=find_packages(),
     include_package_data=True,
-    install_requires=['yahooquery', 'pandas']
+    install_requires=['yahooquery', 'pandas', 'requests']
 )

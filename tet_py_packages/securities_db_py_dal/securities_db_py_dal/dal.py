@@ -1,9 +1,9 @@
 import json
 import datetime as dt
 import pytz
-import requests
 import logging
 
+import requests
 from yahooquery import Ticker
 import pandas as pd
 

@@ -1,17 +1,15 @@
-from typing import Dict, List
-
 import pandas as pd
 
 from TETrading.data.metadata.trading_system_attributes import TradingSystemAttributes
 
 
-class SystemSignals:
+class TradingSystemSignals:
     """
     Handles data for signals.
     """
 
     def __init__(self):
-        self.__data_list: List[Dict] = []
+        self.__data_list: list[dict] = []
 
     @property
     def dataframe(self):
@@ -66,7 +64,7 @@ class SystemSignals:
             {TradingSystemAttributes.SYMBOL: symbol, 'data': data_dict}
         )
 
-    def add_evaluation_data(self, evaluation_data_dict: Dict):
+    def add_evaluation_data(self, evaluation_data_dict: dict):
         """
         Iterates over the __data_list member and if a value
         of the 'symbol' key matches a value in the given
