@@ -2,6 +2,7 @@ import datetime as dt
 import json
 
 import pandas as pd
+from sterunets.data_handler import FeatureBlueprint, TimeSeriesDataHandler
 
 from TETrading.data.metadata.trading_system_attributes import TradingSystemAttributes
 from TETrading.data.metadata.market_state_enum import MarketState
@@ -16,11 +17,13 @@ from tet_doc_db.doc_database_meta_classes.tet_systems_doc_db import ITetSystemsD
 
 class TradingSystemStateHandler:
     
+    # __data: dict[str, TimeSeriesDataHandler] = {}
     __data: dict[str, pd.DataFrame] = {}
     
     def __init__(
         self, ts_properties: TradingSystemProperties, 
-        systems_db: ITetSystemsDocumentDatabase, client_db: ITetSystemsDocumentDatabase,
+        systems_db: ITetSystemsDocumentDatabase, 
+        client_db: ITetSystemsDocumentDatabase,
         start_dt: dt.datetime, end_dt: dt.datetime
     ):
         self.__ts_properties = ts_properties
@@ -46,20 +49,14 @@ class TradingSystemStateHandler:
     def reprocess_data(self, end_dt: dt.datetime):
         pass
 
-    # new_data, should it be pd.DataFrame or json?
-    def add_data(self, new_data: pd.DataFrame):
-        # self.__data = nets.DataHandler(new_data)
-        pass
-
     def _run_trading_system(
-        self,
+        self, full_run,
         capital=10000, capital_fraction=1.0, avg_yearly_periods=251,  
         market_state_null_default=False, run_monte_carlo_sims=False, num_of_sims=2500,
         print_dataframe=False, plot_fig=False, plot_positions=False, write_to_file_path=None,
         save_summary_plot_to_path=False, system_analysis_to_csv_path=None,
         plot_returns_distribution=False,
         print_data=False,
-        run_from_latest_exit=False,
         insert_into_db=False,
         pos_list_slice_years_est=2,
         **kwargs
@@ -90,12 +87,17 @@ class TradingSystemStateHandler:
             plot_positions=plot_positions,
             save_position_figs_path=None,
             write_signals_to_file_path=write_to_file_path,
-            run_from_latest_exit=run_from_latest_exit,
+            # rename and pass as positional arg instead of kwarg
+            run_from_latest_exit=full_run,
             insert_data_to_db_bool=insert_into_db,
             pos_list_slice_years_est=pos_list_slice_years_est
         )
 
-    def _handle_trading_system(self, time_series_db=None, insert_into_db=False, **kwargs):
+    def _handle_trading_system(
+        self, full_run: bool,
+        time_series_db=None, insert_into_db=False, 
+        **kwargs
+    ):
         system_position_sizer: IPositionSizer = self.__ts_properties.position_sizer(
             *self.__ts_properties.position_sizer_args
         )
@@ -103,9 +105,12 @@ class TradingSystemStateHandler:
         for i in range(self.__ts_properties.required_runs):
             insert_data = True if (i + 1) == self.__ts_properties.required_runs and insert_into_db else False
             self._run_trading_system(
+                full_run,
                 insert_into_db=insert_data,
                 **system_position_sizer.position_sizer_data_dict
             )
+            # not optimal for TradingSystem class to insert market state data and
+            # positions to database and then reading it back into the application here
             market_states_data: list[dict] = json.loads(
                 self.__client_db.get_market_state_data(
                     self.__ts_properties.system_name, MarketState.ENTRY.value
@@ -114,13 +119,14 @@ class TradingSystemStateHandler:
 
             for data_dict in market_states_data:
                 position_list, num_of_periods = self.__systems_db.get_single_symbol_position_list(
-                    self.__ts_properties.system_name, data_dict[TradingSystemAttributes.SYMBOL],
+                    self.__ts_properties.system_name, 
+                    data_dict.get(TradingSystemAttributes.SYMBOL),
                     serialized_format=True, return_num_of_periods=True
                 )
                 system_position_sizer(
                     position_list, num_of_periods,
                     *self.__ts_properties.position_sizer_call_args,
-                    symbol=data_dict[TradingSystemAttributes.SYMBOL], 
+                    symbol=data_dict.get(TradingSystemAttributes.SYMBOL), 
                     **self.__ts_properties.position_sizer_call_kwargs,
                     **system_position_sizer.position_sizer_data_dict
                 )
@@ -131,15 +137,18 @@ class TradingSystemStateHandler:
         )
 
     def __call__(
-        self, date: dt.datetime,
+        self, date: dt.datetime, full_run: bool,
         time_series_db=None, insert_into_db=False, **kwargs
     ):
+        # get new data here and append it to __data member
+
         # make some date check on given date against last date of self.__data
 
         # call reprocess_data if new data is available
         # self.reprocess_data(date)
 
         self._handle_trading_system(
+            full_run,
             time_series_db=time_series_db, 
             insert_into_db=insert_into_db,
             **kwargs
