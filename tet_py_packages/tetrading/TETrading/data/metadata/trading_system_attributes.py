@@ -11,6 +11,7 @@ class TradingSystemAttributes:
     __SYMBOL = 'symbol'
     __DIRECTION = 'direction'
     __PERIODS_IN_POSITION = 'periods_in_position'
+    __CURRENT_POSITION = 'current_position'
     __UNREALISED_RETURN = 'unrealised_return'
     __ID = '_id'
     __SYSTEM_ID = 'system_id'
@@ -56,6 +57,10 @@ class TradingSystemAttributes:
     @classproperty
     def PERIODS_IN_POSITION(cls):
         return cls.__PERIODS_IN_POSITION
+
+    @classproperty
+    def CURRENT_POSITION(cls):
+        return cls.__CURRENT_POSITION
 
     @classproperty
     def UNREALISED_RETURN(cls):

@@ -44,7 +44,11 @@ class ITetSystemsDocumentDatabase(ITetSignalsDocumentDatabase):
         ...
 
     @abstractmethod
-    def get_latest_position_dts(self):
+    def insert_current_position(self):
+        ...
+
+    @abstractmethod
+    def get_current_position(self):
         ...
 
     @abstractmethod
