@@ -21,13 +21,16 @@ class Position:
         Default value=0.0
     """
 
-    def __init__(self, capital, fixed_position_size=True, commission_pct_cost=0.0):
+    def __init__(
+        self, capital, direction,
+        fixed_position_size=True, commission_pct_cost=0.0
+    ):
         self.__entry_price = None
         self.__exit_price = None
         self.__position_size = None
-        self.__direction = None
         self.__entry_dt, self.__exit_signal_dt = None, None
         self.__capital = Decimal(capital)
+        self.__direction = direction
         self.__uninvested_capital = 0
         self.__fixed_position_size = fixed_position_size
         self.__commission_pct_cost = Decimal(commission_pct_cost)
@@ -40,6 +43,8 @@ class Position:
         self.__market_to_market_returns_list = np.array([])
         self.__position_profit_loss_list = np.array([])
         self.__price_data_json = None
+        self.trailing_exit = False
+        self.trailing_exit_price = None
 
     @property
     def entry_price(self):
@@ -68,6 +73,10 @@ class Position:
     @property
     def capital(self):
         return self.__capital
+
+    @property
+    def direction(self):
+        return self.__direction
 
     @property
     def fixed_position_size(self):
@@ -220,18 +229,15 @@ class Position:
 
         self.__price_data_json = price_data_json
 
-    def enter_market(self, entry_price, direction, entry_dt):
+    def enter_market(self, entry_price, entry_dt):
         """
-        Enters market at the given price in the given direction.
+        Enters market at the given price.
 
         Parameters
         ----------
         :param entry_price:
             'int/float/Decimal' : The price of the asset when entering
             the market.
-        :param direction:
-            'str' : A string with 'long' or 'short', the direction that
-            the position should be entered in.
         :param entry_dt:
             'Pandas Timestamp/Datetime' : Time and date when entering
             the market.
@@ -240,14 +246,6 @@ class Position:
         assert (self.__active_position is False), 'A position is already active'
 
         self.__entry_price = Decimal(entry_price)
-
-        if direction not in ['long', 'short']:
-            raise ValueError(
-                'Direction of position specified incorrectly, make sure it is a string '
-                f'with a value of either "long" or "short".\nGiven value: {direction}'
-            )
-
-        self.__direction = direction
         self.__position_size = int(self.__capital / self.__entry_price)
         self.__uninvested_capital = self.__capital - (self.__position_size * self.__entry_price)
         self.__commission = (self.__position_size * self.__entry_price) * self.__commission_pct_cost

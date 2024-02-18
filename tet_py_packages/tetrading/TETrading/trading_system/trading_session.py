@@ -43,9 +43,9 @@ class TradingSessionAlt:
         self.__market_state_column = TradingSystemAttributes.MARKET_STATE
 
     def __call__(
-        self, *args, entry_args=None, exit_args=None, 
+        self, dataframe: pd.DataFrame, position: Position,
+        *args, entry_args=None, exit_args=None, 
         max_req_periods_feature=TradingSystemAttributes.REQ_PERIOD_ITERS, 
-        dataframe: pd.DataFrame, position: Position, current_index,
         datetime_col_name='date',
         close_price_col_name='close', open_price_col_name='open',
         fixed_position_size=True, capital=10000, commission_pct_cost=0.0,
@@ -118,136 +118,125 @@ class TradingSessionAlt:
             'dict' : A dictionary with keyword arguments.
         """
 
-        # implement these variables as fields in Position, to be persisted
-        # in database object too?
-        # trailing_exit, trailing_exit_price = False, None 
+        if position is None:
+            position = Position(-1, None)
 
-        if position.active_position is True:
-            position.update(
-                Decimal(dataframe[close_price_col_name].iloc[-1])
+        # make sure exit_signal_dt has the same value as the penultimate value
+        # of dataframe datetime column
+        if position.active_position is True and position.exit_signal_dt:
+        # if position.active_position is True and position.exit_signal_dt:
+        # if position.active_position is True and position.exit_signal_given:
+            # position.update(
+            #     Decimal(dataframe[close_price_col_name].iloc[-1])
+            # )
+
+            capital = position.exit_market(
+                dataframe[open_price_col_name].iloc[-1], 
+                dataframe.index[-1]
             )
-
-            if position.exit_signal_dt:
-            # if position.exit_signal_given:
-                capital = position.exit_market(
-                    dataframe[open_price_col_name].iloc[-1], 
-                    dataframe[datetime_col_name].iloc[-1]
+            position.set_price_data_json(
+                dataframe.iloc[-len(position.returns_list)-15:]
+                [[open_price_col_name, 'high', 'low', close_price_col_name, 'volume', datetime_col_name]].to_json()
+            )
+            if print_data:
+                position.print_position_stats()
+                print(
+                    f'Exit index: {dataframe.index[-1]}: '
+                    f'{format(dataframe[open_price_col_name].iloc[-1], ".3f")}, '
+                    f'{dataframe.index[-1]}\n'
+                    f'Realised return: {position.position_return}'
                 )
-                position.set_price_data_json(
-                    dataframe.iloc[-len(position.returns_list)-15:]
-                    [[open_price_col_name, 'high', 'low', close_price_col_name, 'volume', datetime_col_name]].to_json()
-                )
-                if print_data:
-                    position.print_position_stats()
-                    print(
-                        f'Exit index {current_index}: '
-                        f'{format(dataframe[open_price_col_name].iloc[-1], ".3f")}, '
-                        f'{dataframe[datetime_col_name].iloc[-1]}\n'
-                        f'Realised return: {position.position_return}'
-                    )
-                # if plot_positions:
-                #     if save_position_figs_path is not None:
-                #         position_figs_path = save_position_figs_path + (
-                #             fr'\{dataframe.iloc[(current_index - len(position.returns_list))].Date.strftime("%Y-%m-%d")}.jpg'
-                #         )
-                #     else:
-                #         position_figs_path = save_position_figs_path
-                #     candlestick_plot(
-                #         dataframe.iloc[
-                #             (current_index-len(position.returns_list)-20):(current_index+15)
-                #         ],
-                #         position.entry_dt, position.entry_price, 
-                #         dataframe[datetime_col_name].iloc[current_index], 
-                #         dataframe[open_price_col_name].iloc[current_index], 
-                #         save_fig_to_path=position_figs_path
-                #     )
-                return position
+            return position
 
-        if not position.active_position and not position.entry_dt:
+        # need another condition to check if entry signal has been given?
+        if position.active_position is False and not position.entry_dt:
             position.enter_market(
-                dataframe[open_price_col_name].iloc[-1], direction, 
-                dataframe[datetime_col_name].iloc[-1]
+                dataframe[open_price_col_name].iloc[-1],
+                dataframe.index[-1]
             )
             if print_data:
                 print(
-                    f'\nEntry index {len(dataframe)}: '
+                    f'\nEntry index: {dataframe.index[-1]}: '
                     f'{format(dataframe[open_price_col_name].iloc[-1], ".3f")}, '
-                    f'{dataframe[datetime_col_name].iloc[-1]}'
+                    f'{dataframe.index[-1]}'
                 )
 
+        position.print_position_stats()
+
         # Handle the trading sessions current market state/events/signals.
-        if market_state_null_default and generate_signals:
-            self.__signal_handler.handle_entry_signal(
-                self.__symbol, {
-                    TradingSystemAttributes.SIGNAL_DT: dataframe[datetime_col_name].iloc[-1],
-                    self.__market_state_column: 'null'
-                }
-            )
-            return
-        if position.active_position and generate_signals:
+        # if market_state_null_default and generate_signals:
+        #     self.__signal_handler.handle_entry_signal(
+        #         self.__symbol, {
+        #             TradingSystemAttributes.SIGNAL_DT: dataframe[datetime_col_name].iloc[-1],
+        #             self.__market_state_column: 'null'
+        #         }
+        #     )
+        #     return
+
+        if position.active_position is True:
             position.update(Decimal(dataframe[close_price_col_name].iloc[-1]))
             if print_data:
                 position.print_position_status()
             self.__signal_handler.handle_active_position(
                 self.__symbol, {
-                    TradingSystemAttributes.SIGNAL_INDEX: len(dataframe), 
-                    TradingSystemAttributes.SIGNAL_DT: 
-                        dataframe[datetime_col_name].iloc[-1], 
+                    TradingSystemAttributes.SIGNAL_INDEX: dataframe.index[-1], 
+                    TradingSystemAttributes.SIGNAL_DT: dataframe.index[-1],
                     TradingSystemAttributes.SYMBOL: self.__symbol, 
-                    TradingSystemAttributes.DIRECTION: direction,
-                    TradingSystemAttributes.PERIODS_IN_POSITION: 
-                        len(position.returns_list), 
+                    TradingSystemAttributes.DIRECTION: position.direction,
+                    TradingSystemAttributes.PERIODS_IN_POSITION: len(position.returns_list), 
                     TradingSystemAttributes.UNREALISED_RETURN: position.unrealised_return,
                     self.__market_state_column: MarketState.ACTIVE.value
                 }
             )
-            exit_condition, trailing_exit_price, trailing_exit = self.__exit_logic_function(
-                dataframe, trailing_exit, trailing_exit_price, 
+            exit_condition, position.trailing_exit_price, position.trailing_exit = self.__exit_logic_function(
+                dataframe, position.trailing_exit, position.trailing_exit_price, 
                 position.entry_price, len(position.returns_list), 
                 position.unrealised_return, exit_args=exit_args
             )
-            if exit_condition:
+            if exit_condition == True:
                 # set some property on Position object to indicate exit signal is given
-                position.exit_signal_dt = dataframe[datetime_col_name].iloc[-1]
+                # position.exit_signal_dt = dataframe[datetime_col_name].iloc[-1]
+                position.exit_signal_dt = dataframe.index[-1]
                 # position.exit_signal_given = True
                 self.__signal_handler.handle_exit_signal(
                     self.__symbol, {
-                        TradingSystemAttributes.SIGNAL_INDEX: len(dataframe), 
-                        TradingSystemAttributes.SIGNAL_DT: 
-                            dataframe[datetime_col_name].iloc[-1], 
+                        TradingSystemAttributes.SIGNAL_INDEX: dataframe.index[-1], 
+                        TradingSystemAttributes.SIGNAL_DT: dataframe.index[-1],
                         TradingSystemAttributes.SYMBOL: self.__symbol, 
-                        TradingSystemAttributes.DIRECTION: direction,
-                        TradingSystemAttributes.PERIODS_IN_POSITION: 
-                            len(position.returns_list),
-                        TradingSystemAttributes.UNREALISED_RETURN: 
-                            position.unrealised_return,
+                        TradingSystemAttributes.DIRECTION: position.direction,
+                        TradingSystemAttributes.PERIODS_IN_POSITION: len(position.returns_list),
+                        TradingSystemAttributes.UNREALISED_RETURN: position.unrealised_return,
                         self.__market_state_column: MarketState.EXIT.value
                     }
                 )
                 if print_data: 
-                    print(f'\nExit signal, exit next open\nIndex {len(dataframe)}')
-        elif not position.active_position and generate_signals:
+                    print(f'\nExit signal, exit next open\nIndex: {dataframe.index[-1]}')
+            # return position
+        elif position.active_position is False:  # position.active_position is False / == False
             entry_signal, direction = self.__entry_logic_function(
                 dataframe, entry_args=entry_args
             )
-            if entry_signal:
+            if entry_signal == True:
                 position = Position(
-                    capital, fixed_position_size=fixed_position_size, 
+                    capital, direction, 
+                    fixed_position_size=fixed_position_size, 
                     commission_pct_cost=commission_pct_cost
                 )
                 self.__signal_handler.handle_entry_signal(
                     self.__symbol, {
-                        TradingSystemAttributes.SIGNAL_INDEX: len(dataframe), 
-                        TradingSystemAttributes.SIGNAL_DT: 
-                            dataframe[datetime_col_name].iloc[-1], 
+                        TradingSystemAttributes.SIGNAL_INDEX: dataframe.index[-1], 
+                        TradingSystemAttributes.SIGNAL_DT: dataframe.index[-1],
                         TradingSystemAttributes.SYMBOL: self.__symbol,
                         TradingSystemAttributes.DIRECTION: direction,
                         self.__market_state_column: MarketState.ENTRY.value
                     }
                 )
                 if print_data: 
-                    print(f'\nEntry signal, buy next open\nIndex {len(dataframe)}')
-                return position
+                    print(f'\nEntry signal, buy next open\nIndex {dataframe.index[-1]}')
+                # return position
+        # always return position, either as the position passed into this method, or
+        # as the re-assigned new position object
+        return position
 
 # from decimal import Decimal
 
@@ -369,8 +358,7 @@ class TradingSession:
             'dict' : A dictionary with keyword arguments.
         """
 
-        position = Position(-1)
-        trailing_exit, trailing_exit_price = False, None 
+        position = Position(-1, None)
 
         if isinstance(self.__dataframe.index, pd.DatetimeIndex):
             self.__dataframe.reset_index(level=0, inplace=True)
@@ -381,17 +369,18 @@ class TradingSession:
             if index <= entry_args[max_req_periods_feature]:
                 continue
 
-            if position and position.active_position is True:
+            if position.active_position is True:
                 position.update(
                     Decimal(self.__dataframe[close_price_col_name].iloc[index-1])
                 )
-                # Call the exit logic function, passing required arguments.
-                exit_condition, trailing_exit, trailing_exit_price = \
+                exit_condition, position.trailing_exit, position.trailing_exit_price = \
                     self.__exit_logic_function(
-                        self.__dataframe.iloc[:index], trailing_exit, trailing_exit_price, 
-                        position.entry_price, len(position.returns_list), exit_args=exit_args
+                        self.__dataframe.iloc[:index], 
+                        position.trailing_exit, position.trailing_exit_price, 
+                        position.entry_price, len(position.returns_list), 
+                        exit_args=exit_args
                     )
-                if exit_condition:
+                if exit_condition == True:
                     capital = position.exit_market(
                         self.__dataframe[open_price_col_name].iloc[index], 
                         self.__dataframe[datetime_col_name].iloc[index-1]
@@ -425,26 +414,26 @@ class TradingSession:
                     yield position
                 continue
 
-            entry_signal, direction = self.__entry_logic_function(
-                self.__dataframe.iloc[:index], entry_args=entry_args
-            )
-            # Instantiate a Position object if the position.active_position 
-            # field is False and a call to entry_logic_func returns True.
-            if not position.active_position and entry_signal:
-                position = Position(
-                    capital, fixed_position_size=fixed_position_size, 
-                    commission_pct_cost=commission_pct_cost
+            if position.active_position is False:
+                entry_signal, direction = self.__entry_logic_function(
+                    self.__dataframe.iloc[:index], entry_args=entry_args
                 )
-                position.enter_market(
-                    self.__dataframe[open_price_col_name].iloc[index], direction, 
-                    self.__dataframe[datetime_col_name].iloc[index]
-                )
-                if print_data:
-                    print(
-                        f'\nEntry index {index}: '
-                        f'{format(self.__dataframe[open_price_col_name].iloc[index], ".3f")}, '
-                        f'{self.__dataframe[datetime_col_name].iloc[index]}'
+                if entry_signal == True:
+                    position = Position(
+                        capital, direction, 
+                        fixed_position_size=fixed_position_size, 
+                        commission_pct_cost=commission_pct_cost
                     )
+                    position.enter_market(
+                        self.__dataframe[open_price_col_name].iloc[index],
+                        self.__dataframe[datetime_col_name].iloc[index]
+                    )
+                    if print_data:
+                        print(
+                            f'\nEntry index {index}: '
+                            f'{format(self.__dataframe[open_price_col_name].iloc[index], ".3f")}, '
+                            f'{self.__dataframe[datetime_col_name].iloc[index]}'
+                        )
 
         # Handle the trading sessions current market state/events/signals.
         if market_state_null_default and generate_signals:
@@ -455,55 +444,49 @@ class TradingSession:
                 }
             )
             return
-        if position.active_position and generate_signals:
+        if position.active_position is True and generate_signals:
             position.update(Decimal(self.__dataframe[close_price_col_name].iloc[-1]))
             if print_data:
                 position.print_position_status()
             self.__signal_handler.handle_active_position(
                 self.__symbol, {
                     TradingSystemAttributes.SIGNAL_INDEX: len(self.__dataframe), 
-                    TradingSystemAttributes.SIGNAL_DT: 
-                        self.__dataframe[datetime_col_name].iloc[-1], 
+                    TradingSystemAttributes.SIGNAL_DT: self.__dataframe[datetime_col_name].iloc[-1], 
                     TradingSystemAttributes.SYMBOL: self.__symbol, 
-                    TradingSystemAttributes.DIRECTION: direction,
-                    TradingSystemAttributes.PERIODS_IN_POSITION: 
-                        len(position.returns_list), 
+                    TradingSystemAttributes.DIRECTION: position.direction,
+                    TradingSystemAttributes.PERIODS_IN_POSITION: len(position.returns_list), 
                     TradingSystemAttributes.UNREALISED_RETURN: position.unrealised_return,
                     self.__market_state_column: MarketState.ACTIVE.value
                 }
             )
-            exit_condition, trailing_exit_price, trailing_exit = self.__exit_logic_function(
-                self.__dataframe, trailing_exit, trailing_exit_price, 
+            exit_condition, position.trailing_exit_price, position.trailing_exit = self.__exit_logic_function(
+                self.__dataframe, position.trailing_exit, position.trailing_exit_price, 
                 position.entry_price, len(position.returns_list), 
                 position.unrealised_return, exit_args=exit_args
             )
-            if exit_condition:
+            if exit_condition == True:
                 self.__signal_handler.handle_exit_signal(
                     self.__symbol, {
                         TradingSystemAttributes.SIGNAL_INDEX: len(self.__dataframe), 
-                        TradingSystemAttributes.SIGNAL_DT: 
-                            self.__dataframe[datetime_col_name].iloc[-1], 
+                        TradingSystemAttributes.SIGNAL_DT: self.__dataframe[datetime_col_name].iloc[-1], 
                         TradingSystemAttributes.SYMBOL: self.__symbol, 
-                        TradingSystemAttributes.DIRECTION: direction,
-                        TradingSystemAttributes.PERIODS_IN_POSITION: 
-                            len(position.returns_list),
-                        TradingSystemAttributes.UNREALISED_RETURN: 
-                            position.unrealised_return,
+                        TradingSystemAttributes.DIRECTION: position.direction,
+                        TradingSystemAttributes.PERIODS_IN_POSITION: len(position.returns_list),
+                        TradingSystemAttributes.UNREALISED_RETURN: position.unrealised_return,
                         self.__market_state_column: MarketState.EXIT.value
                     }
                 )
                 if print_data: 
                     print(f'\nExit signal, exit next open\nIndex {len(self.__dataframe)}')
-        elif not position.active_position and generate_signals:
+        elif position.active_position is False and generate_signals:
             entry_signal, direction = self.__entry_logic_function(
                 self.__dataframe, entry_args=entry_args
             )
-            if entry_signal:
+            if entry_signal == True:
                 self.__signal_handler.handle_entry_signal(
                     self.__symbol, {
                         TradingSystemAttributes.SIGNAL_INDEX: len(self.__dataframe), 
-                        TradingSystemAttributes.SIGNAL_DT: 
-                            self.__dataframe[datetime_col_name].iloc[-1], 
+                        TradingSystemAttributes.SIGNAL_DT: self.__dataframe[datetime_col_name].iloc[-1], 
                         TradingSystemAttributes.SYMBOL: self.__symbol,
                         TradingSystemAttributes.DIRECTION: direction,
                         self.__market_state_column: MarketState.ENTRY.value
