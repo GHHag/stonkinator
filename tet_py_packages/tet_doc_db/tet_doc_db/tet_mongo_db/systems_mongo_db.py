@@ -415,7 +415,8 @@ class TetSystemsMongoDb(ITetSystemsDocumentDatabase):
             {
                 self.__SYSTEM_ID_FIELD: system_id, 
                 self.__SYSTEM_NAME_FIELD: system_name,
-                self.__SYMBOL_FIELD: symbol
+                self.__SYMBOL_FIELD: symbol,
+                self.__CURRENT_POSITION_FIELD: {'$exists': True}
             },
             {
                 self.__ID_FIELD: 0, self.__SYSTEM_ID_FIELD: 1, 

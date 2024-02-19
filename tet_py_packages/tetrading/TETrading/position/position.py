@@ -45,6 +45,8 @@ class Position:
         self.__price_data_json = None
         self.trailing_exit = False
         self.trailing_exit_price = None
+        self.entry_signal_given = False
+        self.exit_signal_given = False
 
     @property
     def entry_price(self):
@@ -246,6 +248,7 @@ class Position:
         assert (self.__active_position is False), 'A position is already active'
 
         self.__entry_price = Decimal(entry_price)
+        self.entry_signal_given = False
         self.__position_size = int(self.__capital / self.__entry_price)
         self.__uninvested_capital = self.__capital - (self.__position_size * self.__entry_price)
         self.__commission = (self.__position_size * self.__entry_price) * self.__commission_pct_cost

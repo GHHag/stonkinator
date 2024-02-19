@@ -7,7 +7,7 @@ import numpy as np
 from TETrading.data.metadata.trading_system_metrics import TradingSystemMetrics
 from TETrading.position.position import Position
 from TETrading.position.position_manager import PositionManager
-from TETrading.trading_system.trading_session import TradingSession
+from TETrading.trading_system.trading_session import TradingSession, TradingSessionAlt
 from TETrading.signal_events.signal_handler import SignalHandler
 from TETrading.utils.monte_carlo_functions import monte_carlo_simulate_returns, \
     monte_carlo_simulation_summary_data
@@ -53,29 +53,17 @@ class TradingSystem:
         self.__systems_db = systems_db
         self.__client_db = client_db
 
+        # should maybe also be defined in "run_trading_system_backtest method" 
+        # and localized to a current run
         self.__total_period_len = 0
         self.__full_pos_list: list[Position] = []
-        self.__pos_lists: list[Position] = []
+        self.__pos_lists: list[list[Position]] = []
         self.__full_market_to_market_returns_list = np.array([])
         self.__full_mae_list = np.array([])
         self.__full_mfe_list = np.array([])
 
-        self.__signal_handler = SignalHandler()
-
         self.__metrics_df: pd.DataFrame = pd.DataFrame()
         self.__monte_carlo_simulations_df: pd.DataFrame = pd.DataFrame()
-
-    @property
-    def total_period_len(self):
-        return self.__total_period_len
-
-    @property
-    def full_pos_list(self):
-        return self.__full_pos_list
-
-    @property
-    def pos_lists(self):
-        return self.__pos_lists
 
     def _print_metrics_df(self):
         print('\nSystem performance summary: \n', self.__metrics_df.to_string())
@@ -86,7 +74,7 @@ class TradingSystem:
             self.__monte_carlo_simulations_df.to_string()
         )
 
-    def __call__(
+    def run_trading_system_backtest(
         self, data_dict: dict[str, pd.DataFrame], *args, capital=10000, 
         capital_fraction=None, avg_yearly_periods=251,
         system_evaluation_fields=TradingSystemMetrics.system_evaluation_fields,
@@ -98,7 +86,6 @@ class TradingSystem:
         plot_monte_carlo=False, print_monte_carlo_df=False, 
         monte_carlo_analysis_to_csv_path: str=None, write_signals_to_file_path: str=None, 
         print_data=False,
-        run_from_latest_exit=False,
         insert_data_to_db_bool=False,
         pos_list_slice_years_est=2, **kwargs
     ):
@@ -172,10 +159,6 @@ class TradingSystem:
             Keyword arg 'bool' : True/False decides if data for positions, trading system
             and trading signals should be printed out to the console or not. 
             Default value=False
-        :param run_from_latest_exit:
-            Keyword arg 'bool' : True/False decides if the trading system should be run
-            starting at the date and time of the latest historic position or over the
-            entire historic data. Default value=False
         :param insert_data_to_db_bool:
             Keyword arg 'bool' : True/False decides whether or not data should be 
             inserted into database or not. Default value=False
@@ -186,6 +169,8 @@ class TradingSystem:
             'dict' : Dictionary with keyword arguments to pass along to
             PositionManager.generate_positions().
         """
+
+        signal_handler = SignalHandler()
 
         for instrument, data in data_dict.items():
             try:
@@ -216,7 +201,7 @@ class TradingSystem:
             )
             trading_session = TradingSession(
                 self.__entry_logic_function, self.__exit_logic_function, data,
-                self.__signal_handler, symbol=instrument
+                signal_handler, symbol=instrument
             )
             pos_manager.generate_positions(
                 trading_session, *args,
@@ -225,7 +210,7 @@ class TradingSystem:
             )
 
             # summary output of the trading system
-            if not pos_manager.metrics:
+            if not len(pos_manager.position_list) > 0:
                 print(f'\nNo positions generated for {pos_manager.symbol}')
                 continue
             else:
@@ -242,12 +227,12 @@ class TradingSystem:
                     print('ValueError')
 
             # add system evaluation data to the SignalHandler
-            if self.__signal_handler.entry_signal_given or market_state_null_default:
-                self.__signal_handler.add_system_evaluation_data(
+            if signal_handler.entry_signal_given is True or market_state_null_default:
+                signal_handler.add_system_evaluation_data(
                     pos_manager.metrics.summary_data_dict, system_evaluation_fields
                 )
 
-            if len(pos_manager.position_list) and not run_from_latest_exit:
+            if len(pos_manager.position_list) > 0:
                 # write trading system data and stats to DataFrame
                 df_to_concat = pd.DataFrame([pos_manager.metrics.summary_data_dict])
                 if self.__metrics_df.empty:
@@ -295,7 +280,7 @@ class TradingSystem:
                 self.__pos_lists.append(pos_manager.position_list[:])
                 self.__total_period_len += len(data)
 
-                if len(pos_manager.metrics.market_to_market_returns_list):
+                if len(pos_manager.metrics.market_to_market_returns_list) > 0:
                     self.__full_market_to_market_returns_list = np.concatenate(
                         (
                             self.__full_market_to_market_returns_list,
@@ -308,26 +293,6 @@ class TradingSystem:
                     self.__full_mfe_list = np.concatenate(
                         (self.__full_mfe_list, pos_manager.metrics.mfe_list), axis=0                    
                     )
-            elif (
-                len(pos_manager.position_list) and 
-                pos_manager.position_list[-1].exit_signal_dt and
-                insert_data_to_db_bool and run_from_latest_exit
-            ):
-                self.__systems_db.insert_single_symbol_position(
-                    self.__system_name, instrument, 
-                    pos_manager.position_list[-1], len(data),
-                    serialized_format=True
-                )
-                self.__client_db.insert_single_symbol_position(
-                    self.__system_name, instrument,
-                    pos_manager.position_list[-1], len(data), json_format=True
-                )
-                self.__systems_db.insert_position(
-                    self.__system_name, pos_manager.position_list[-1], serialized_format=True
-                )
-                self.__client_db.insert_position(
-                    self.__system_name, pos_manager.position_list[-1], json_format=True
-                )
 
         if print_data: self._print_metrics_df()
 
@@ -339,15 +304,15 @@ class TradingSystem:
         if system_analysis_to_csv_path and system_analysis_to_csv_path.endswith('.csv'):
             self.__metrics_df.to_csv(system_analysis_to_csv_path)
 
-        if print_data: print(self.__signal_handler)
+        if print_data: print(signal_handler)
 
         if write_signals_to_file_path:
-            self.__signal_handler.write_to_csv(write_signals_to_file_path, self.__system_name)
+            signal_handler.write_to_csv(write_signals_to_file_path, self.__system_name)
 
         if insert_data_to_db_bool:
-            self.__signal_handler.insert_into_db(self.__client_db, self.__system_name)
+            signal_handler.insert_into_db(self.__client_db, self.__system_name)
 
-        if not run_from_latest_exit and len(data_dict) > 1:
+        if len(data_dict) > 1:
             num_of_pos_insert_multiplier = pos_list_slice_years_est * 1.5
             sorted_pos_lists = sorted(self.__pos_lists, key=len, reverse=True)
             position_list_lengths = (
@@ -357,7 +322,7 @@ class TradingSystem:
             )
             data_periods = [len(v) for k, v in data_dict.items()][:int(len(data_dict) / 4 + 0.5)]
             avg_yearly_positions = (
-                ## error prone if data used to calculate is NaN TODO: handle exception
+                # error prone if data used to calculate is NaN TODO: handle exception
                 int(np.mean(position_list_lengths) / (np.mean(data_periods) / avg_yearly_periods) + 0.5)
                 * num_of_pos_insert_multiplier
             )
@@ -366,7 +331,7 @@ class TradingSystem:
             sliced_pos_list: list[Position] = sorted_full_pos_list[-full_pos_list_slice_param:]
             num_of_periods = avg_yearly_periods * pos_list_slice_years_est * num_of_pos_insert_multiplier
 
-        if insert_data_to_db_bool and not run_from_latest_exit:
+        if insert_data_to_db_bool:
             self.__systems_db.insert_position_list(
                 self.__system_name, sliced_pos_list, num_of_periods,
                 serialized_format=True
@@ -376,8 +341,92 @@ class TradingSystem:
                 json_format=True
             )
 
-        if not run_from_latest_exit:
-            returns_distribution_plot(
-                self.__full_market_to_market_returns_list, self.__full_mae_list, self.__full_mfe_list,
-                plot_fig=plot_returns_distribution, save_fig_to_path=save_returns_distribution_plot_to_path
+        returns_distribution_plot(
+            self.__full_market_to_market_returns_list, self.__full_mae_list, self.__full_mfe_list,
+            plot_fig=plot_returns_distribution, save_fig_to_path=save_returns_distribution_plot_to_path
+        )
+
+
+    def run_trading_system(
+        self, data_dict: dict[str, pd.DataFrame], *args,
+        capital=10000, capital_fraction=None,
+        system_evaluation_fields=TradingSystemMetrics.system_evaluation_fields,
+        print_data=False,
+        write_signals_to_file_path: str=None, 
+        insert_data_to_db_bool=False,
+        **kwargs
+    ):
+        signal_handler = SignalHandler()
+
+        for instrument, data in data_dict.items():
+            if not 'close' in data and not f'close_{instrument}' in data:
+                raise ValueError(f'Column missing in DataFrame, instrument: {instrument}')
+
+            # if capital_fraction is a dict containing a key with the current value of
+            # 'instrument', its value will be assigned to 'capital_f'
+            if isinstance(capital_fraction, dict) and instrument in capital_fraction:
+                capital_f = capital_fraction[instrument]
+            # if capital_fraction is a float its value will be assigned to 'capital_f'
+            elif isinstance(capital_fraction, float):
+                capital_f = capital_fraction
+            else:
+                capital_f = 1.0
+
+            position = self.__systems_db.get_current_position(
+                self.__system_name, instrument
             )
+            print()
+            if position: position.print_position_status()
+            input('TradingSystem - before TradingSessionAlt run')
+
+            trading_session = TradingSessionAlt(
+                self.__entry_logic_function, self.__exit_logic_function,
+                signal_handler, symbol=instrument
+            )
+            position = trading_session(
+                data, position, *args,
+                print_data=print_data, **kwargs
+            )
+            print()
+            position.print_position_stats()
+            position.print_position_status()
+            input('TradingSystem - after TradingSessionAlt run')
+
+            if insert_data_to_db_bool:
+                print('insert')
+                self.__systems_db.insert_current_position(
+                    self.__system_name, instrument, position
+                )
+                input('inserted????')
+                # also insert position to client db?
+                # self.__client_db.insert_current_position(
+                #     self.__system_name, instrument, position
+                # )
+
+                # self.__total_period_len += len(data)
+
+            elif position.exit_signal_dt and insert_data_to_db_bool:
+                self.__systems_db.insert_single_symbol_position(
+                    self.__system_name, instrument, position, len(data),
+                    serialized_format=True
+                )
+                self.__client_db.insert_single_symbol_position(
+                    self.__system_name, instrument, position, len(data),
+                    json_format=True
+                )
+                self.__systems_db.insert_position(
+                    self.__system_name, position,
+                    serialized_format=True
+                )
+                self.__client_db.insert_position(
+                    self.__system_name, position,
+                    json_format=True
+                )
+
+        if print_data: print(signal_handler)
+
+        if write_signals_to_file_path:
+            signal_handler.write_to_csv(write_signals_to_file_path, self.__system_name)
+
+        if insert_data_to_db_bool:
+            signal_handler.insert_into_db(self.__client_db, self.__system_name)

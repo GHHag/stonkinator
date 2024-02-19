@@ -49,9 +49,6 @@ class TradingSessionAlt:
         datetime_col_name='date',
         close_price_col_name='close', open_price_col_name='open',
         fixed_position_size=True, capital=10000, commission_pct_cost=0.0,
-        market_state_null_default=False,
-        generate_signals=False, plot_positions=False, 
-        save_position_figs_path=None,
         print_data=False, **kwargs
     ):
         """
@@ -118,14 +115,12 @@ class TradingSessionAlt:
             'dict' : A dictionary with keyword arguments.
         """
 
-        if position is None:
+        if not position:
             position = Position(-1, None)
 
         # make sure exit_signal_dt has the same value as the penultimate value
         # of dataframe datetime column
-        if position.active_position is True and position.exit_signal_dt:
-        # if position.active_position is True and position.exit_signal_dt:
-        # if position.active_position is True and position.exit_signal_given:
+        if position.active_position is True and position.exit_signal_given is True:
             # position.update(
             #     Decimal(dataframe[close_price_col_name].iloc[-1])
             # )
@@ -148,8 +143,7 @@ class TradingSessionAlt:
                 )
             return position
 
-        # need another condition to check if entry signal has been given?
-        if position.active_position is False and not position.entry_dt:
+        if position.active_position is False and position.entry_signal_given is True:
             position.enter_market(
                 dataframe[open_price_col_name].iloc[-1],
                 dataframe.index[-1]
@@ -162,16 +156,6 @@ class TradingSessionAlt:
                 )
 
         position.print_position_stats()
-
-        # Handle the trading sessions current market state/events/signals.
-        # if market_state_null_default and generate_signals:
-        #     self.__signal_handler.handle_entry_signal(
-        #         self.__symbol, {
-        #             TradingSystemAttributes.SIGNAL_DT: dataframe[datetime_col_name].iloc[-1],
-        #             self.__market_state_column: 'null'
-        #         }
-        #     )
-        #     return
 
         if position.active_position is True:
             position.update(Decimal(dataframe[close_price_col_name].iloc[-1]))
@@ -194,10 +178,7 @@ class TradingSessionAlt:
                 position.unrealised_return, exit_args=exit_args
             )
             if exit_condition == True:
-                # set some property on Position object to indicate exit signal is given
-                # position.exit_signal_dt = dataframe[datetime_col_name].iloc[-1]
-                position.exit_signal_dt = dataframe.index[-1]
-                # position.exit_signal_given = True
+                position.exit_signal_given = True
                 self.__signal_handler.handle_exit_signal(
                     self.__symbol, {
                         TradingSystemAttributes.SIGNAL_INDEX: dataframe.index[-1], 
@@ -211,8 +192,7 @@ class TradingSessionAlt:
                 )
                 if print_data: 
                     print(f'\nExit signal, exit next open\nIndex: {dataframe.index[-1]}')
-            # return position
-        elif position.active_position is False:  # position.active_position is False / == False
+        elif position.active_position is False:
             entry_signal, direction = self.__entry_logic_function(
                 dataframe, entry_args=entry_args
             )
@@ -222,6 +202,7 @@ class TradingSessionAlt:
                     fixed_position_size=fixed_position_size, 
                     commission_pct_cost=commission_pct_cost
                 )
+                position.entry_signal_given = True
                 self.__signal_handler.handle_entry_signal(
                     self.__symbol, {
                         TradingSystemAttributes.SIGNAL_INDEX: dataframe.index[-1], 
@@ -233,9 +214,6 @@ class TradingSessionAlt:
                 )
                 if print_data: 
                     print(f'\nEntry signal, buy next open\nIndex {dataframe.index[-1]}')
-                # return position
-        # always return position, either as the position passed into this method, or
-        # as the re-assigned new position object
         return position
 
 # from decimal import Decimal
