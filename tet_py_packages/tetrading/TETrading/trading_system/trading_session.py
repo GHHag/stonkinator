@@ -9,7 +9,7 @@ from TETrading.signal_events.signal_handler import SignalHandler
 from TETrading.plots.candlestick_plots import candlestick_plot
 
 
-class TradingSessionAlt:
+class TradingSession:
     """
     A class that represents a trading session. By using the given
     dataframe together with the given entry and exit logic a
@@ -21,8 +21,6 @@ class TradingSessionAlt:
         A function with logic for when to enter a market.
     exit_logic_function: 'function'
         A function with logic for when to exit a market.
-    dataframe: 'Pandas.DataFrame'
-        Data in the form of a Pandas DataFrame.
     signal_handler: Keyword arg 'None/SignalHandler'
         An instance of the SignalHandler class. Handles
         data from generated events/signals.
@@ -43,11 +41,13 @@ class TradingSessionAlt:
         self.__market_state_column = TradingSystemAttributes.MARKET_STATE
 
     def __call__(
-        self, dataframe: pd.DataFrame, position: Position,
-        *args, entry_args=None, exit_args=None, 
-        max_req_periods_feature=TradingSystemAttributes.REQ_PERIOD_ITERS, 
-        datetime_col_name='date',
-        close_price_col_name='close', open_price_col_name='open',
+        self, dataframe: pd.DataFrame, position: Position, *args,
+        entry_args=None, exit_args=None,
+        open_price_col_name='open',
+        high_price_col_name='high',
+        low_price_col_name='low',
+        close_price_col_name='close', 
+        volume_price_col_name='volume', 
         fixed_position_size=True, capital=10000, commission_pct_cost=0.0,
         print_data=False, **kwargs
     ):
@@ -59,6 +59,11 @@ class TradingSessionAlt:
 
         Parameters
         ----------
+        :param dataframe: 
+            Pandas.DataFrame : Data in the form of a Pandas DataFrame.
+        :param position:
+            Position : Current or most recent position of an instrument
+            of the TradingSystem that creates this TradingSession instance.
         :param args:
             'tuple' : A tuple with arguments.
         :param entry_args:
@@ -67,20 +72,21 @@ class TradingSessionAlt:
         :param exit_args:
             Keyword arg 'None/dict' : Key-value pairs with parameters used 
             with the exit logic. Default value=None
-        :param max_req_periods_feature:
-            Keyword arg 'str' : A key contained in the entry_args dict 
-            that should have the value of the number of periods required 
-            for all features to be calculated before being able to 
-            generate signals from the data. Default value='req_period_iters'
-        :param datetime_col_name:
-            Keyword arg 'str' : The column of the objects __dataframe that
-            contains time and date data. Default value='date'
-        :param close_price_col_name:
-            Keyword arg 'str' : The column of the objects __dataframe that
-            contains values for close prices. Default value='close'
         :param open_price_col_name:
             Keyword arg 'str' : The column of the objects __dataframe that
             contains values for open prices. Default value='open'
+        :param high_price_col_name:
+            Keyword arg 'str' : The column of the objects __dataframe that
+            contains values for high prices. Default value='high'
+        :param low_price_col_name:
+            Keyword arg 'str' : The column of the objects __dataframe that
+            contains values for low prices. Default value='low'
+        :param close_price_col_name:
+            Keyword arg 'str' : The column of the objects __dataframe that
+            contains values for close prices. Default value='close'
+        :param volume_price_col_name:
+            Keyword arg 'str' : The column of the objects __dataframe that
+            contains values for volume. Default value='volume'
         :param fixed_position_size:
             Keyword arg 'bool' : True/False decides whether the capital
             used for positions generated should be at a fixed amount or not.
@@ -92,22 +98,6 @@ class TradingSessionAlt:
             Keyword arg 'float' : The transaction cost given as a percentage
             (a float from 0.0 to 1.0) of the total transaction.
             Default value=0.0
-        :param market_state_null_default:
-            Keyword arg 'bool' : True/False decides whether the market_state
-            property should be assigned a null value by default or not.
-            Default value=False
-        :param generate_signals:
-            Keyword arg 'bool' : True/False decides whether or not market
-            events/signals should be generated from the most recent data.
-            Default value=False
-        :param plot_positions:
-            Keyword arg 'bool' : True/False decides whether or not a plot of
-            a candlestick chart visualizing the points of buying and selling a
-            position should be displayed. Default value=False
-        :param save_position_figs_path:
-            Keyword arg 'None/str' : Provide a file path as a str to save a
-            candlestick chart visualizing the points of buying and selling a
-            position. Default value=None
         :param print_data:
             Keyword arg 'bool' : True/False decides whether to print data
             of positions and signals or not. Default value=False
@@ -118,12 +108,9 @@ class TradingSessionAlt:
         if not position:
             position = Position(-1, None)
 
-        # make sure exit_signal_dt has the same value as the penultimate value
-        # of dataframe datetime column
-        if position.active_position is True and position.exit_signal_given is True:
-            # position.update(
-            #     Decimal(dataframe[close_price_col_name].iloc[-1])
-            # )
+        if position.active_position is True and position.exit_signal_dt is not None:
+            if position.exit_signal_dt != dataframe.index[-2]:
+                return position
 
             capital = position.exit_market(
                 dataframe[open_price_col_name].iloc[-1], 
@@ -131,7 +118,8 @@ class TradingSessionAlt:
             )
             position.set_price_data_json(
                 dataframe.iloc[-len(position.returns_list)-15:]
-                [[open_price_col_name, 'high', 'low', close_price_col_name, 'volume', datetime_col_name]].to_json()
+                [[open_price_col_name, high_price_col_name, low_price_col_name, 
+                  close_price_col_name, volume_price_col_name]].to_json()
             )
             if print_data:
                 position.print_position_stats()
@@ -178,7 +166,7 @@ class TradingSessionAlt:
                 position.unrealised_return, exit_args=exit_args
             )
             if exit_condition == True:
-                position.exit_signal_given = True
+                position.exit_signal_dt = dataframe.index[-1]
                 self.__signal_handler.handle_exit_signal(
                     self.__symbol, {
                         TradingSystemAttributes.SIGNAL_INDEX: dataframe.index[-1], 
@@ -216,22 +204,12 @@ class TradingSessionAlt:
                     print(f'\nEntry signal, buy next open\nIndex {dataframe.index[-1]}')
         return position
 
-# from decimal import Decimal
 
-# import pandas as pd
-
-# from TETrading.data.metadata.market_state_enum import MarketState
-# from TETrading.data.metadata.trading_system_attributes import TradingSystemAttributes
-# from TETrading.position.position import Position
-# from TETrading.signal_events.signal_handler import SignalHandler
-# from TETrading.plots.candlestick_plots import candlestick_plot
-
-
-class TradingSession:
+class BacktestTradingSession:
     """
     A class that represents a trading session. By using the given
     dataframe together with the given entry and exit logic a
-    TradingSession instance generates Position objects.
+    BacktestTradingSession instance generates Position objects.
 
     Parameters
     ----------

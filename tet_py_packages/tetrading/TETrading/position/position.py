@@ -28,7 +28,8 @@ class Position:
         self.__entry_price = None
         self.__exit_price = None
         self.__position_size = None
-        self.__entry_dt, self.__exit_signal_dt = None, None
+        self.__entry_dt = None
+        self.exit_signal_dt = None
         self.__capital = Decimal(capital)
         self.__direction = direction
         self.__uninvested_capital = 0
@@ -46,7 +47,6 @@ class Position:
         self.trailing_exit = False
         self.trailing_exit_price = None
         self.entry_signal_given = False
-        self.exit_signal_given = False
 
     @property
     def entry_price(self):
@@ -67,10 +67,6 @@ class Position:
     @property
     def entry_dt(self):
         return self.__entry_dt
-
-    @property
-    def exit_signal_dt(self):
-        return self.__exit_signal_dt
 
     @property
     def capital(self):
@@ -278,7 +274,8 @@ class Position:
 
         self.__exit_price = Decimal(exit_price)
         self.update(self.__exit_price)
-        self.__exit_signal_dt = exit_signal_dt
+        if self.exit_signal_dt is None:
+            self.exit_signal_dt = exit_signal_dt
         self.__active_position = False
         self.__commission += (self.__position_size * self.__exit_price) * self.__commission_pct_cost
 
