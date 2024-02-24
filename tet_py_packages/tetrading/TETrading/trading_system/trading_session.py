@@ -113,10 +113,10 @@ class TradingSession:
                 return position
 
             capital = position.exit_market(
-                dataframe[open_price_col_name].iloc[-1], 
-                dataframe.index[-1]
+                dataframe[open_price_col_name].iloc[-1],
+                dataframe.index[-2]
             )
-            position.set_price_data_json(
+            position.price_data_json = (
                 dataframe.iloc[-len(position.returns_list)-15:]
                 [[open_price_col_name, high_price_col_name, low_price_col_name, 
                   close_price_col_name, volume_price_col_name]].to_json()
@@ -146,7 +146,10 @@ class TradingSession:
         position.print_position_stats()
 
         if position.active_position is True:
-            position.update(Decimal(dataframe[close_price_col_name].iloc[-1]))
+            position.update(
+                Decimal(dataframe[close_price_col_name].iloc[-1]),
+                dataframe.index[-1]
+            )
             if print_data:
                 position.print_position_status()
             self.__signal_handler.handle_active_position(
@@ -186,7 +189,8 @@ class TradingSession:
             )
             if entry_signal == True:
                 position = Position(
-                    capital, direction, 
+                    capital, direction,
+                    entry_signal_dt=dataframe.index[-1],
                     fixed_position_size=fixed_position_size, 
                     commission_pct_cost=commission_pct_cost
                 )
@@ -327,7 +331,8 @@ class BacktestTradingSession:
 
             if position.active_position is True:
                 position.update(
-                    Decimal(self.__dataframe[close_price_col_name].iloc[index-1])
+                    Decimal(self.__dataframe[close_price_col_name].iloc[index-1]),
+                    self.__dataframe[datetime_col_name].iloc[index-1]
                 )
                 exit_condition, position.trailing_exit, position.trailing_exit_price = \
                     self.__exit_logic_function(
@@ -341,7 +346,7 @@ class BacktestTradingSession:
                         self.__dataframe[open_price_col_name].iloc[index], 
                         self.__dataframe[datetime_col_name].iloc[index-1]
                     )
-                    position.set_price_data_json(
+                    position.price_data_json = (
                         self.__dataframe.iloc[(index-len(position.returns_list)-15):(index+15)]
                             [['open', 'high', 'low', 'close', 'volume', 'date']].to_json()
                     )
@@ -376,7 +381,7 @@ class BacktestTradingSession:
                 )
                 if entry_signal == True:
                     position = Position(
-                        capital, direction, 
+                        capital, direction,
                         fixed_position_size=fixed_position_size, 
                         commission_pct_cost=commission_pct_cost
                     )
@@ -396,12 +401,15 @@ class BacktestTradingSession:
             self.__signal_handler.handle_entry_signal(
                 self.__symbol, {
                     TradingSystemAttributes.SIGNAL_DT: self.__dataframe[datetime_col_name].iloc[-1],
-                    self.__market_state_column: 'null'
+                    self.__market_state_column: MarketState.NULL.value
                 }
             )
             return
         if position.active_position is True and generate_signals:
-            position.update(Decimal(self.__dataframe[close_price_col_name].iloc[-1]))
+            position.update(
+                Decimal(self.__dataframe[close_price_col_name].iloc[-1]),
+                self.__dataframe[datetime_col_name].iloc[-1]
+            )
             if print_data:
                 position.print_position_status()
             self.__signal_handler.handle_active_position(

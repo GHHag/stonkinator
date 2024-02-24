@@ -11,6 +11,12 @@ class Position:
     ----------
     capital : 'int/float/Decimal'
         The amount of capital to purchase assets with.
+    direction : 'str'
+        The direction of the Position. Expected value is either
+        'long' or 'short'.
+    entry_signal_dt : 'Pandas Timestamp/Datetime/None'
+        Time and date of the entry signal that the position was 
+        initialized upon. Default value=None
     fixed_position_size : Keyword arg 'bool'
         True/False decides if the position size should be the same
         fixed amount. The variable is used in the class' exit_market
@@ -23,15 +29,18 @@ class Position:
 
     def __init__(
         self, capital, direction,
+        entry_signal_dt=None,
         fixed_position_size=True, commission_pct_cost=0.0
     ):
         self.__entry_price = None
         self.__exit_price = None
         self.__position_size = None
         self.__entry_dt = None
-        self.exit_signal_dt = None
+        self.__current_dt = None
         self.__capital = Decimal(capital)
         self.__direction = direction
+        self.__entry_signal_dt = entry_signal_dt
+        self.__exit_signal_dt = None
         self.__uninvested_capital = 0
         self.__fixed_position_size = fixed_position_size
         self.__commission_pct_cost = Decimal(commission_pct_cost)
@@ -43,10 +52,10 @@ class Position:
         self.__returns_list = np.array([])
         self.__market_to_market_returns_list = np.array([])
         self.__position_profit_loss_list = np.array([])
+        self.__trailing_exit = False
+        self.__trailing_exit_price = None
+        self.__entry_signal_given = False
         self.__price_data_json = None
-        self.trailing_exit = False
-        self.trailing_exit_price = None
-        self.entry_signal_given = False
 
     @property
     def entry_price(self):
@@ -67,6 +76,22 @@ class Position:
     @property
     def entry_dt(self):
         return self.__entry_dt
+
+    @property
+    def current_dt(self):
+        return self.__current_dt
+
+    @property
+    def entry_signal_dt(self):
+        return self.__entry_signal_dt
+    
+    @property
+    def exit_signal_dt(self):
+        return self.__exit_signal_dt
+    
+    @exit_signal_dt.setter
+    def exit_signal_dt(self, value):
+        self.__exit_signal_dt = value
 
     @property
     def capital(self):
@@ -197,6 +222,38 @@ class Position:
         return self.__market_to_market_returns_list
 
     @property
+    def trailing_exit(self):
+        return self.__trailing_exit
+
+    @trailing_exit.setter
+    def trailing_exit(self, value):
+        self.__trailing_exit = value
+
+    @property
+    def trailing_exit_price(self):
+        return self.__trailing_exit_price
+
+    @trailing_exit_price.setter
+    def trailing_exit_price(self, value):
+        self.__trailing_exit_price = value
+
+    @property
+    def entry_signal_given(self):
+        return self.__entry_signal_given
+
+    @entry_signal_given.setter
+    def entry_signal_given(self, value):
+        self.__entry_signal_given = value
+
+    @property
+    def price_data_json(self):
+        return self.__price_data_json
+
+    @price_data_json.setter
+    def price_data_json(self, value):
+        self.__price_data_json = value
+
+    @property
     def as_dict(self):
         return {
             'entry_dt': self.entry_dt,
@@ -213,19 +270,6 @@ class Position:
             'mfe': float(self.mfe),
             'price_data': self.__price_data_json
        }
-
-    def set_price_data_json(self, price_data_json):
-        """
-        Sets the value __price_data_json property.
-
-        Parameters
-        ----------
-        :param price_data_json:
-            'json': Price data of the time series that the position has
-            been held through.
-        """
-
-        self.__price_data_json = price_data_json
 
     def enter_market(self, entry_price, entry_dt):
         """
@@ -244,11 +288,12 @@ class Position:
         assert (self.__active_position is False), 'A position is already active'
 
         self.__entry_price = Decimal(entry_price)
-        self.entry_signal_given = False
+        self.__entry_signal_given = False
         self.__position_size = int(self.__capital / self.__entry_price)
         self.__uninvested_capital = self.__capital - (self.__position_size * self.__entry_price)
         self.__commission = (self.__position_size * self.__entry_price) * self.__commission_pct_cost
         self.__entry_dt = entry_dt
+        self.__current_dt = entry_dt
         self.__active_position = True
 
     def exit_market(self, exit_price, exit_signal_dt):
@@ -272,10 +317,14 @@ class Position:
             market.
         """
 
+        if self.__current_dt != exit_signal_dt:
+            # TODO: How to handle this?
+            raise ValueError('Date mismatch')
+
         self.__exit_price = Decimal(exit_price)
-        self.update(self.__exit_price)
-        if self.exit_signal_dt is None:
-            self.exit_signal_dt = exit_signal_dt
+        self.update(self.__exit_price, exit_signal_dt)
+        if self.__exit_signal_dt is None:
+            self.__exit_signal_dt = exit_signal_dt
         self.__active_position = False
         self.__commission += (self.__position_size * self.__exit_price) * self.__commission_pct_cost
 
@@ -359,7 +408,7 @@ class Position:
             self.__last_price = current_price
             self.__unrealised_return = unrealised_return
 
-    def update(self, price):
+    def update(self, price, current_dt):
         """
         Calls methods to update the unrealised return and
         unrealised profit and loss of the Position.
@@ -368,10 +417,14 @@ class Position:
         ----------
         :param price:
             'float/Decimal' : The most recently updated price of the asset.
+        :param current_dt:
+            'Pandas Timestamp/Datetime' : Time and date of the data point
+            the position is updated with.
         """
 
         self._unrealised_return(price)
         self._unrealised_profit_loss(price)
+        self.__current_dt = current_dt
 
     def print_position_status(self):
         """
