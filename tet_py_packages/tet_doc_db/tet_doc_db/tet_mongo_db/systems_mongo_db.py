@@ -101,8 +101,6 @@ class TetSystemsMongoDb(ITetSystemsDocumentDatabase):
         for data_p in ts_data:
             assert isinstance(data_p, dict)
             data_p.update({self.__SYSTEM_ID_FIELD: system_id})
-            
-
             result = self.__market_states.update_one(
                 {
                     self.__SYSTEM_ID_FIELD: system_id, 
@@ -112,9 +110,15 @@ class TetSystemsMongoDb(ITetSystemsDocumentDatabase):
                             self.__SIGNAL_DT_FIELD: {'$lt': data_p.get(self.__SIGNAL_DT_FIELD)}
                         },
                         {
-                            '$and':[
+                            '$and': [
                                 {self.__SIGNAL_DT_FIELD: {'$lte': data_p.get(self.__SIGNAL_DT_FIELD)}},
                                 {self.__MARKET_STATE_FIELD: MarketState.NULL.value}
+                            ]
+                        },
+                        {
+                            '$and': [
+                                {self.__SIGNAL_DT_FIELD: {'$eq': data_p.get(self.__SIGNAL_DT_FIELD)}},
+                                {self.__MARKET_STATE_FIELD: MarketState.ACTIVE.value}
                             ]
                         }
                     ]
@@ -130,47 +134,6 @@ class TetSystemsMongoDb(ITetSystemsDocumentDatabase):
                 )
                 if existing_doc is None:
                     self.__market_states.insert_one(data_p)
-
-
-            # if self.__MARKET_STATE_FIELD in data_p and \
-            #     data_p[self.__MARKET_STATE_FIELD] == MarketState.ENTRY.value:
-            #     result = self.__market_states.delete_one(
-            #         {
-            #             self.__SYSTEM_ID_FIELD: system_id, 
-            #             self.__SYMBOL_FIELD: data_p[TradingSystemAttributes.SYMBOL],
-            #             self.__SIGNAL_DT_FIELD: {'$lte': data_p.get(self.__SIGNAL_DT_FIELD)}
-            #         }
-            #     )
-            #     if result.deleted_count > 0:
-            #         self.__market_states.insert_one(data_p)
-            #     else:
-            #         existing_doc = self.__market_states.find_one(
-            #             {
-            #                 self.__SYSTEM_ID_FIELD: system_id, 
-            #                 self.__SYMBOL_FIELD: data_p[TradingSystemAttributes.SYMBOL]
-            #             }
-            #         )
-            #         if existing_doc is None:
-            #             self.__market_states.insert_one(data_p)
-            # else:
-            #     result = self.__market_states.update_one(
-            #         {
-            #             self.__SYSTEM_ID_FIELD: system_id, 
-            #             self.__SYMBOL_FIELD: data_p[TradingSystemAttributes.SYMBOL],
-            #             self.__SIGNAL_DT_FIELD: {'$lte': data_p.get(self.__SIGNAL_DT_FIELD)}
-            #         },
-            #         {'$set': data_p}
-            #     )
-            #     if result.modified_count < 1:
-            #         existing_doc = self.__market_states.find_one(
-            #             {
-            #                 self.__SYSTEM_ID_FIELD: system_id, 
-            #                 self.__SYMBOL_FIELD: data_p[TradingSystemAttributes.SYMBOL]
-            #             }
-            #         )
-            #         if existing_doc is None:
-            #             self.__market_states.insert_one(data_p)
-        return True
 
     def update_market_state_data(self, system_name, data):
         data: dict[str, object] = json.loads(data)

@@ -114,7 +114,7 @@ class TradingSession:
 
             capital = position.exit_market(
                 dataframe[open_price_col_name].iloc[-1],
-                dataframe.index[-2]
+                dataframe.index[-2], dataframe.index[-1]
             )
             position.price_data_json = (
                 dataframe.iloc[-len(position.returns_list)-15:]
@@ -142,8 +142,6 @@ class TradingSession:
                     f'{format(dataframe[open_price_col_name].iloc[-1], ".3f")}, '
                     f'{dataframe.index[-1]}'
                 )
-
-        position.print_position_stats()
 
         if position.active_position is True:
             position.update(
@@ -344,7 +342,8 @@ class BacktestTradingSession:
                 if exit_condition == True:
                     capital = position.exit_market(
                         self.__dataframe[open_price_col_name].iloc[index], 
-                        self.__dataframe[datetime_col_name].iloc[index-1]
+                        self.__dataframe[datetime_col_name].iloc[index-1],
+                        self.__dataframe[datetime_col_name].iloc[index]
                     )
                     position.price_data_json = (
                         self.__dataframe.iloc[(index-len(position.returns_list)-15):(index+15)]
@@ -382,6 +381,7 @@ class BacktestTradingSession:
                 if entry_signal == True:
                     position = Position(
                         capital, direction,
+                        entry_signal_dt=self.__dataframe[datetime_col_name].iloc[index-1],
                         fixed_position_size=fixed_position_size, 
                         commission_pct_cost=commission_pct_cost
                     )

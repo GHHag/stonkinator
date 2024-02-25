@@ -35,7 +35,7 @@ class Position:
         self.__entry_price = None
         self.__exit_price = None
         self.__position_size = None
-        self.__entry_dt = None
+        self.__entry_dt, self.__exit_dt = None, None
         self.__current_dt = None
         self.__capital = Decimal(capital)
         self.__direction = direction
@@ -271,6 +271,35 @@ class Position:
             'price_data': self.__price_data_json
        }
 
+    def datetime_check(self, input_datetime):
+        """
+        Checks date and time properties against a given datetime
+        value. Useful to make sure data points of the same date
+        and time are not processed multiple times.
+        
+        Parameters
+        ----------
+        :param input_datetime:
+            'Pandas Timestamp/Datetime' : Date and time to check
+            against.
+        :return:
+            'bool' : Returns True/False depending on the result
+            of the datetime comparisons.
+        """
+
+        if self.__exit_dt is not None:
+            check = not self.__exit_dt >= input_datetime
+        elif self.__exit_signal_dt is not None:
+            check = not self.__exit_signal_dt >= input_datetime
+        elif self.__current_dt is not None:
+            check = not self.__current_dt >= input_datetime
+        elif self.__entry_signal_dt is not None:
+            check = not self.__entry_signal_dt >= input_datetime
+        else:
+            check = True
+
+        return check
+
     def enter_market(self, entry_price, entry_dt):
         """
         Enters market at the given price.
@@ -296,7 +325,7 @@ class Position:
         self.__current_dt = entry_dt
         self.__active_position = True
 
-    def exit_market(self, exit_price, exit_signal_dt):
+    def exit_market(self, exit_price, exit_signal_dt, exit_dt):
         """
         Exits the market at the given price.
 
@@ -308,6 +337,9 @@ class Position:
         :param exit_signal_dt:
             'Pandas Timestamp/Datetime' : Time and date when the signal
             to exit market was given.
+        :param exit_dt:
+            'Pandas Timestamp/Datetime' : Time and date when the order
+            to exit market was made.
         :return:
             'int/float/Decimal' : Returns the capital amount, which is
             the same as the Position was instantiated with if
@@ -325,6 +357,7 @@ class Position:
         self.update(self.__exit_price, exit_signal_dt)
         if self.__exit_signal_dt is None:
             self.__exit_signal_dt = exit_signal_dt
+        self.__exit_dt = exit_dt
         self.__active_position = False
         self.__commission += (self.__position_size * self.__exit_price) * self.__commission_pct_cost
 
