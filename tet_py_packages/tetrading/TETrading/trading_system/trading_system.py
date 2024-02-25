@@ -7,7 +7,7 @@ import numpy as np
 from TETrading.data.metadata.trading_system_metrics import TradingSystemMetrics
 from TETrading.position.position import Position
 from TETrading.position.position_manager import PositionManager
-from TETrading.trading_system.trading_session import TradingSession, TradingSessionAlt
+from TETrading.trading_system.trading_session import TradingSession, BacktestTradingSession
 from TETrading.signal_events.signal_handler import SignalHandler
 from TETrading.utils.monte_carlo_functions import monte_carlo_simulate_returns, \
     monte_carlo_simulation_summary_data
@@ -182,7 +182,6 @@ class TradingSystem:
                     raise Exception('Column missing in DataFrame')
             except TypeError:
                 print('TypeError', instrument)
-                input('Enter to proceed')
                 continue
 
             # if capital_fraction is a dict containing a key with the current value of
@@ -199,7 +198,7 @@ class TradingSystem:
                 instrument, len(data), capital, capital_f, 
                 asset_price_series=asset_price_series
             )
-            trading_session = TradingSession(
+            trading_session = BacktestTradingSession(
                 self.__entry_logic_function, self.__exit_logic_function, data,
                 signal_handler, symbol=instrument
             )
@@ -349,37 +348,26 @@ class TradingSystem:
 
     def run_trading_system(
         self, data_dict: dict[str, pd.DataFrame], *args,
-        capital=10000, capital_fraction=None,
-        system_evaluation_fields=TradingSystemMetrics.system_evaluation_fields,
-        print_data=False,
-        write_signals_to_file_path: str=None, 
-        insert_data_to_db_bool=False,
-        **kwargs
+        print_data=False, write_signals_to_file_path: str=None, 
+        insert_data_to_db_bool=False, **kwargs
     ):
         signal_handler = SignalHandler()
 
         for instrument, data in data_dict.items():
             if not 'close' in data and not f'close_{instrument}' in data:
                 raise ValueError(f'Column missing in DataFrame, instrument: {instrument}')
+            if not pd.api.types.is_datetime64_any_dtype(data.index):
+                raise ValueError(
+                    'Expected index of Pandas DataFrame to have a datetime-like dtype.'
+                )
 
-            # if capital_fraction is a dict containing a key with the current value of
-            # 'instrument', its value will be assigned to 'capital_f'
-            if isinstance(capital_fraction, dict) and instrument in capital_fraction:
-                capital_f = capital_fraction[instrument]
-            # if capital_fraction is a float its value will be assigned to 'capital_f'
-            elif isinstance(capital_fraction, float):
-                capital_f = capital_fraction
-            else:
-                capital_f = 1.0
-
-            position = self.__systems_db.get_current_position(
+            position: Position = self.__systems_db.get_current_position(
                 self.__system_name, instrument
             )
-            print()
-            if position: position.print_position_status()
-            input('TradingSystem - before TradingSessionAlt run')
+            if position and position.datetime_check(data.index[-1]) is False: 
+                continue
 
-            trading_session = TradingSessionAlt(
+            trading_session = TradingSession(
                 self.__entry_logic_function, self.__exit_logic_function,
                 signal_handler, symbol=instrument
             )
@@ -387,31 +375,23 @@ class TradingSystem:
                 data, position, *args,
                 print_data=print_data, **kwargs
             )
-            print()
-            position.print_position_stats()
-            position.print_position_status()
-            input('TradingSystem - after TradingSessionAlt run')
 
             if insert_data_to_db_bool:
-                print('insert')
                 self.__systems_db.insert_current_position(
                     self.__system_name, instrument, position
                 )
-                input('inserted????')
                 # also insert position to client db?
                 # self.__client_db.insert_current_position(
                 #     self.__system_name, instrument, position
                 # )
 
-                # self.__total_period_len += len(data)
-
             elif position.exit_signal_dt and insert_data_to_db_bool:
                 self.__systems_db.insert_single_symbol_position(
-                    self.__system_name, instrument, position, len(data),
+                    self.__system_name, instrument, position, len(position.returns_list),
                     serialized_format=True
                 )
                 self.__client_db.insert_single_symbol_position(
-                    self.__system_name, instrument, position, len(data),
+                    self.__system_name, instrument, position, len(position.returns_list),
                     json_format=True
                 )
                 self.__systems_db.insert_position(
