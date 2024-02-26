@@ -134,6 +134,7 @@ class TetSystemsMongoDb(ITetSystemsDocumentDatabase):
                 )
                 if existing_doc is None:
                     self.__market_states.insert_one(data_p)
+        return True
 
     def update_market_state_data(self, system_name, data):
         data: dict[str, object] = json.loads(data)

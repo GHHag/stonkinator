@@ -50,18 +50,8 @@ class TradingSystem:
             "Parameter 'exit_logic_function' must be a function."
         self.__exit_logic_function = exit_logic_function
 
-        self.__systems_db = systems_db
-        self.__client_db = client_db
-
-        # should maybe also be defined in "run_trading_system_backtest method" 
-        # and localized to a current run
-        self.__total_period_len = 0
-        self.__full_pos_list: list[Position] = []
-        self.__pos_lists: list[list[Position]] = []
-        self.__full_market_to_market_returns_list = np.array([])
-        self.__full_mae_list = np.array([])
-        self.__full_mfe_list = np.array([])
-
+        self.__systems_db: ITetSystemsDocumentDatabase = systems_db
+        self.__client_db: ITetSystemsDocumentDatabase = client_db
         self.__metrics_df: pd.DataFrame = pd.DataFrame()
         self.__monte_carlo_simulations_df: pd.DataFrame = pd.DataFrame()
 
@@ -75,8 +65,8 @@ class TradingSystem:
         )
 
     def run_trading_system_backtest(
-        self, data_dict: dict[str, pd.DataFrame], *args, capital=10000, 
-        capital_fraction=None, avg_yearly_periods=251,
+        self, data_dict: dict[str, pd.DataFrame], *args, 
+        capital=10000, capital_fraction=None, avg_yearly_periods=251,
         system_evaluation_fields=TradingSystemMetrics.system_evaluation_fields,
         market_state_null_default=False,
         plot_performance_summary=False, save_summary_plot_to_path: str=None, 
@@ -171,6 +161,11 @@ class TradingSystem:
         """
 
         signal_handler = SignalHandler()
+        full_pos_list: list[Position] = []
+        pos_lists: list[list[Position]] = []
+        full_market_to_market_returns_list = np.array([])
+        full_mae_list = np.array([])
+        full_mfe_list = np.array([])
 
         for instrument, data in data_dict.items():
             try:
@@ -275,22 +270,21 @@ class TradingSystem:
                         json_format=True
                     )
 
-                self.__full_pos_list += pos_manager.position_list[:]
-                self.__pos_lists.append(pos_manager.position_list[:])
-                self.__total_period_len += len(data)
+                full_pos_list += pos_manager.position_list[:]
+                pos_lists.append(pos_manager.position_list[:])
 
                 if len(pos_manager.metrics.market_to_market_returns_list) > 0:
-                    self.__full_market_to_market_returns_list = np.concatenate(
+                    full_market_to_market_returns_list = np.concatenate(
                         (
-                            self.__full_market_to_market_returns_list,
+                            full_market_to_market_returns_list,
                             pos_manager.metrics.market_to_market_returns_list
                         ), axis=0
                     )
-                    self.__full_mae_list = np.concatenate(
-                        (self.__full_mae_list, pos_manager.metrics.w_mae_list), axis=0
+                    full_mae_list = np.concatenate(
+                        (full_mae_list, pos_manager.metrics.w_mae_list), axis=0
                     )
-                    self.__full_mfe_list = np.concatenate(
-                        (self.__full_mfe_list, pos_manager.metrics.mfe_list), axis=0                    
+                    full_mfe_list = np.concatenate(
+                        (full_mfe_list, pos_manager.metrics.mfe_list), axis=0                    
                     )
 
         if print_data: self._print_metrics_df()
@@ -313,10 +307,10 @@ class TradingSystem:
 
         if len(data_dict) > 1:
             num_of_pos_insert_multiplier = pos_list_slice_years_est * 1.5
-            sorted_pos_lists = sorted(self.__pos_lists, key=len, reverse=True)
+            sorted_pos_lists = sorted(pos_lists, key=len, reverse=True)
             position_list_lengths = (
-                [len(i) for i in sorted_pos_lists[:int(len(self.__pos_lists) / 4 + 0.5)]]
-                if len(self.__pos_lists) > 1
+                [len(i) for i in sorted_pos_lists[:int(len(pos_lists) / 4 + 0.5)]]
+                if len(pos_lists) > 1
                 else [len(sorted_pos_lists[0])]
             )
             data_periods = [len(v) for k, v in data_dict.items()][:int(len(data_dict) / 4 + 0.5)]
@@ -326,7 +320,7 @@ class TradingSystem:
                 * num_of_pos_insert_multiplier
             )
             full_pos_list_slice_param = int(avg_yearly_positions * (pos_list_slice_years_est * 1.5) + 0.5)
-            sorted_full_pos_list: list[Position] = sorted(self.__full_pos_list, key=lambda x: x.entry_dt)
+            sorted_full_pos_list: list[Position] = sorted(full_pos_list, key=lambda x: x.entry_dt)
             sliced_pos_list: list[Position] = sorted_full_pos_list[-full_pos_list_slice_param:]
             num_of_periods = avg_yearly_periods * pos_list_slice_years_est * num_of_pos_insert_multiplier
 
@@ -341,16 +335,43 @@ class TradingSystem:
             )
 
         returns_distribution_plot(
-            self.__full_market_to_market_returns_list, self.__full_mae_list, self.__full_mfe_list,
+            full_market_to_market_returns_list, full_mae_list, full_mfe_list,
             plot_fig=plot_returns_distribution, save_fig_to_path=save_returns_distribution_plot_to_path
         )
 
 
     def run_trading_system(
         self, data_dict: dict[str, pd.DataFrame], *args,
-        print_data=False, write_signals_to_file_path: str=None, 
+        write_signals_to_file_path: str=None, print_data=False,
         insert_data_to_db_bool=False, **kwargs
     ):
+        """
+        Iterates over data, creates a TradingSession instance and generates
+        positions.
+
+        Parameters
+        ----------
+        :param data_dict:
+            'dict' : A dict with key: symbol, value: Pandas DataFrame with data
+            for the assets used in the system.
+        :param args:
+            'tuple' : A tuple of positional arguments not specified in the method
+            signature.
+        :param write_signals_to_file_path:
+            Keyword arg 'None/str' : Provide a file path as a str to save any signals
+            generated by the system. Default value=None
+        :param print_data:
+            Keyword arg 'bool' : True/False decides if data for positions, trading system
+            and trading signals should be printed out to the console or not. 
+            Default value=False
+        :param insert_data_to_db_bool:
+            Keyword arg 'bool' : True/False decides whether or not data should be 
+            inserted into database or not. Default value=False
+        :param kwargs:
+            'dict' : Dictionary with keyword arguments not specified in the method
+            signature.
+        """
+
         signal_handler = SignalHandler()
 
         for instrument, data in data_dict.items():
