@@ -370,7 +370,7 @@ class Metrics:
             plot_fig=plot_fig, save_fig_to_path=save_fig_to_path
         )
 
-    def __call__(self, positions: List[Position]):
+    def calculate_metrics(self, positions: List[Position]):
         """
         Iterates over the given collection of Position objects and calculates metrics
         derived from them.

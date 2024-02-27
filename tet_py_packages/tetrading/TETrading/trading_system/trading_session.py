@@ -47,7 +47,7 @@ class TradingSession:
         high_price_col_name='high',
         low_price_col_name='low',
         close_price_col_name='close', 
-        volume_price_col_name='volume', 
+        volume_col_name='volume', 
         fixed_position_size=True, capital=10000, commission_pct_cost=0.0,
         print_data=False, **kwargs
     ):
@@ -84,7 +84,7 @@ class TradingSession:
         :param close_price_col_name:
             Keyword arg 'str' : The column of the objects __dataframe that
             contains values for close prices. Default value='close'
-        :param volume_price_col_name:
+        :param volume_col_name:
             Keyword arg 'str' : The column of the objects __dataframe that
             contains values for volume. Default value='volume'
         :param fixed_position_size:
@@ -119,7 +119,7 @@ class TradingSession:
             position.price_data_json = (
                 dataframe.iloc[-len(position.returns_list)-15:]
                 [[open_price_col_name, high_price_col_name, low_price_col_name, 
-                  close_price_col_name, volume_price_col_name]].to_json()
+                  close_price_col_name, volume_col_name]].to_json()
             )
             if print_data:
                 position.print_position_stats()
@@ -242,10 +242,15 @@ class BacktestTradingSession:
         self.__market_state_column = TradingSystemAttributes.MARKET_STATE
 
     def __call__(
-        self, *args, entry_args=None, exit_args=None, 
+        self, *args, 
+        entry_args=None, exit_args=None, 
         max_req_periods_feature=TradingSystemAttributes.REQ_PERIOD_ITERS, 
         datetime_col_name='date',
-        close_price_col_name='close', open_price_col_name='open',
+        open_price_col_name='open',
+        high_price_col_name='high',
+        low_price_col_name='low',
+        close_price_col_name='close', 
+        volume_price_col_name='volume',
         fixed_position_size=True, capital=10000, commission_pct_cost=0.0,
         market_state_null_default=False,
         generate_signals=False, plot_positions=False, 
@@ -276,12 +281,21 @@ class BacktestTradingSession:
         :param datetime_col_name:
             Keyword arg 'str' : The column of the objects __dataframe that
             contains time and date data. Default value='date'
-        :param close_price_col_name:
-            Keyword arg 'str' : The column of the objects __dataframe that
-            contains values for close prices. Default value='close'
         :param open_price_col_name:
             Keyword arg 'str' : The column of the objects __dataframe that
             contains values for open prices. Default value='open'
+        :param high_price_col_name:
+            Keyword arg 'str' : The column of the objects __dataframe that
+            contains values for high prices. Default value='high'
+        :param low_price_col_name:
+            Keyword arg 'str' : The column of the objects __dataframe that
+            contains values for low prices. Default value='low'
+        :param close_price_col_name:
+            Keyword arg 'str' : The column of the objects __dataframe that
+            contains values for close prices. Default value='close'
+        :param volume_col_name:
+            Keyword arg 'str' : The column of the objects __dataframe that
+            contains values for volume. Default value='volume'
         :param fixed_position_size:
             Keyword arg 'bool' : True/False decides whether the capital
             used for positions generated should be at a fixed amount or not.
@@ -347,7 +361,8 @@ class BacktestTradingSession:
                     )
                     position.price_data_json = (
                         self.__dataframe.iloc[(index-len(position.returns_list)-15):(index+15)]
-                            [['open', 'high', 'low', 'close', 'volume', 'date']].to_json()
+                            [[open_price_col_name, high_price_col_name, low_price_col_name,
+                              close_price_col_name, volume_price_col_name, datetime_col_name]].to_json()
                     )
                     if print_data:
                         position.print_position_stats()
