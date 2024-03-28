@@ -349,9 +349,14 @@ class Position:
             market.
         """
 
-        if self.__current_dt != exit_signal_dt:
-            # TODO: How to handle this?
-            raise ValueError('Date mismatch')
+        if self.__current_dt != exit_signal_dt or not self.__current_dt < exit_dt:
+            raise ValueError(
+                f'Date mismatch.\n'
+                f'self.__current_dt != exit_signal_dt: {self.__current_dt != exit_signal_dt},'
+                'should be True\n'
+                f'not self.__current_dt < exit_dt: {not self.__current_dt < exit_dt},'
+                'should be True'
+            )
 
         self.__exit_price = Decimal(exit_price)
         self.update(self.__exit_price, exit_signal_dt)

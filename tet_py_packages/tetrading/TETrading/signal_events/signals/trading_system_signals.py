@@ -78,7 +78,10 @@ class TradingSystemSignals:
         """
 
         for instrument_dict in self.__data_list:
-            if instrument_dict[TradingSystemAttributes.SYMBOL] in evaluation_data_dict.values():
+            if (
+                instrument_dict[TradingSystemAttributes.SYMBOL] == 
+                evaluation_data_dict[TradingSystemAttributes.SYMBOL]
+            ):
                 assert 'data' in instrument_dict, \
                     "'instrument_dict' is missing required 'data' key is missing."
                 assert isinstance(instrument_dict['data'], dict), \
