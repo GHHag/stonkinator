@@ -18,6 +18,5 @@ class TradingSystemProperties:
     exit_function_args: dict
 
     position_sizer: IPositionSizer
-    position_sizer_args: tuple
     position_sizer_call_args: tuple
     position_sizer_call_kwargs: dict

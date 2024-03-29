@@ -83,8 +83,7 @@ def exit_logic_example(
 
 def preprocess_data(
     symbols_list, benchmark_symbol, get_data_function,
-    entry_args, exit_args, start_dt, end_dt,
-    latest_position_dts=False
+    entry_args, exit_args, start_dt, end_dt
 ):
     df_dict = {}
     for symbol in symbols_list:
@@ -170,7 +169,7 @@ def get_props(instruments_db: InstrumentsMongoDb, import_instruments=False, path
         ),
         entry_logic_example, exit_logic_example,
         entry_args, exit_args,
-        SafeFPositionSizer, (20, 0.8), (),
+        SafeFPositionSizer(20, 0.8), (),
         {
             'plot_fig': False,
             'num_of_sims': 500
