@@ -134,11 +134,11 @@ class TradingSystemProcessor:
         **kwargs
     ):
         for i in range(self.__ts_properties.required_runs):
-            if i > 0 and full_run is False:
-                break
+            if full_run is True:
+                insert_data = i == self.__ts_properties.required_runs - 1 and insert_into_db
+            else:
+                insert_data = insert_into_db
 
-            insert_data = True if (i + 1) == self.__ts_properties.required_runs and insert_into_db else False
-            insert_data = True if full_run is False else insert_data
             self._run_trading_system(
                 full_run,
                 insert_into_db=insert_data,
@@ -166,22 +166,26 @@ class TradingSystemProcessor:
                     **self.__ts_properties.position_sizer.position_sizer_data_dict
                 )
 
-        pos_sizer_data_dict = self.__ts_properties.position_sizer.get_position_sizer_data_dict()
-        self.__client_db.update_market_state_data(
-            self.__ts_properties.system_name, json.dumps(pos_sizer_data_dict)
+            if full_run is False:
+                break
+
+        if insert_into_db:
+            pos_sizer_data_dict = self.__ts_properties.position_sizer.get_position_sizer_data_dict()
+            self.__client_db.update_market_state_data(
+                self.__ts_properties.system_name, json.dumps(pos_sizer_data_dict)
         )
 
     def _handle_ext_pos_sizer_trading_system(
         self, full_run: bool,
-        time_series_db=None, insert_into_db=False, plot_fig=False,
+        time_series_db=None, insert_into_db=False,
         **kwargs
     ):
         for i in range(self.__ts_properties.required_runs):
-            # if i > 0 and full_run is False:
-            #     break
+            if full_run is True:
+                insert_data = i == self.__ts_properties.required_runs - 1 and insert_into_db
+            else:
+                insert_data = insert_into_db
 
-            insert_data = True if (i + 1) == self.__ts_properties.required_runs and insert_into_db else False
-            insert_data = True if full_run is False else insert_data
             self._run_trading_system(
                 full_run,
                 insert_into_db=insert_data,
@@ -199,8 +203,13 @@ class TradingSystemProcessor:
                 **self.__ts_properties.position_sizer.position_sizer_data_dict
             )
 
-        pos_sizer_data_dict = self.__ts_properties.position_sizer.get_position_sizer_data_dict()
-        self.__systems_db.insert_system_metrics(self.__ts_properties.system_name, pos_sizer_data_dict)
+            if full_run is False:
+                break
+
+        if insert_into_db:
+            pos_sizer_data_dict = self.__ts_properties.position_sizer.get_position_sizer_data_dict()
+            self.__systems_db.insert_system_metrics(self.__ts_properties.system_name, pos_sizer_data_dict)
+            self.__client_db.insert_system_metrics(self.__ts_properties.system_name, pos_sizer_data_dict)
 
     def __call__(
         self, date: dt.datetime, full_run: bool,
