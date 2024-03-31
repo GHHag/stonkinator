@@ -15,6 +15,7 @@ from TETrading.trading_system.trading_system import TradingSystem
 from tet_trading_systems.trading_system_development.trading_systems.trading_system_properties.trading_system_properties \
     import TradingSystemProperties
 from tet_trading_systems.trading_system_management.position_sizer.position_sizer import IPositionSizer
+from tet_trading_systems.trading_system_management.position_sizer.ext_position_sizer import ExtPositionSizer
 
 from tet_doc_db.doc_database_meta_classes.tet_signals_doc_db import ITetSignalsDocumentDatabase
 from tet_doc_db.doc_database_meta_classes.tet_systems_doc_db import ITetSystemsDocumentDatabase
@@ -74,7 +75,7 @@ class TradingSystemProcessor:
     def _run_trading_system(
         self, full_run,
         capital=10000, capital_fraction=1.0, avg_yearly_periods=251,  
-        market_state_null_default=False, run_monte_carlo_sims=False, num_of_sims=2500,
+        run_monte_carlo_sims=False, num_of_sims=2500,
         print_dataframe=False, plot_fig=False, plot_positions=False, write_to_file_path=None,
         save_summary_plot_to_path=False, system_analysis_to_csv_path=None,
         plot_returns_distribution=False,
@@ -89,8 +90,7 @@ class TradingSystemProcessor:
                 capital=capital,
                 capital_fraction=capital_fraction,
                 avg_yearly_periods=avg_yearly_periods,
-                # market_state_null_default=market_state_null_default,
-                market_state_null_default=True,
+                market_state_null_default=full_run,
                 plot_performance_summary=plot_fig,
                 save_summary_plot_to_path=save_summary_plot_to_path,
                 system_analysis_to_csv_path=system_analysis_to_csv_path, 
@@ -144,72 +144,60 @@ class TradingSystemProcessor:
                 insert_into_db=insert_data,
                 **self.__ts_properties.position_sizer.position_sizer_data_dict
             )
-            # not optimal for TradingSystem class to insert market state data and
-            # positions to database and then reading it back into the application here
-            market_states_data: list[dict] = json.loads(
-                self.__client_db.get_market_state_data(
-                    self.__ts_properties.system_name, MarketState.ENTRY.value
-                )
-            )
 
-            for data_dict in market_states_data:
-                position_list, num_of_periods = self.__systems_db.get_single_symbol_position_list(
-                    self.__ts_properties.system_name, 
-                    data_dict.get(TradingSystemAttributes.SYMBOL),
-                    serialized_format=True, return_num_of_periods=True
-                )
-                self.__ts_properties.position_sizer(
-                    position_list, num_of_periods,
-                    *self.__ts_properties.position_sizer_call_args,
-                    symbol=data_dict.get(TradingSystemAttributes.SYMBOL), 
-                    **self.__ts_properties.position_sizer_call_kwargs,
-                    **self.__ts_properties.position_sizer.position_sizer_data_dict
-                )
+            if isinstance(self.__ts_properties.position_sizer, ExtPositionSizer):
+                self._run_ext_pos_sizer()
+            else:
+                self._run_pos_sizer()
 
             if full_run is False:
                 break
 
-        if insert_into_db:
-            pos_sizer_data_dict = self.__ts_properties.position_sizer.get_position_sizer_data_dict()
-            self.__client_db.update_market_state_data(
-                self.__ts_properties.system_name, json.dumps(pos_sizer_data_dict)
-        )
-
-    def _handle_ext_pos_sizer_trading_system(
-        self, full_run: bool,
-        time_series_db=None, insert_into_db=False,
-        **kwargs
-    ):
-        for i in range(self.__ts_properties.required_runs):
-            if full_run is True:
-                insert_data = i == self.__ts_properties.required_runs - 1 and insert_into_db
+        if insert_into_db is True:
+            if isinstance(self.__ts_properties.position_sizer, ExtPositionSizer):
+                pos_sizer_data_dict = self.__ts_properties.position_sizer.get_position_sizer_data_dict()
+                self.__systems_db.insert_system_metrics(self.__ts_properties.system_name, pos_sizer_data_dict)
+                self.__client_db.insert_system_metrics(self.__ts_properties.system_name, pos_sizer_data_dict)
             else:
-                insert_data = insert_into_db
+                pos_sizer_data_dict = self.__ts_properties.position_sizer.get_position_sizer_data_dict()
+                self.__client_db.update_market_state_data(
+                    self.__ts_properties.system_name, json.dumps(pos_sizer_data_dict)
+                )
 
-            self._run_trading_system(
-                full_run,
-                insert_into_db=insert_data,
-                **self.__ts_properties.position_sizer.position_sizer_data_dict
+    def _run_pos_sizer(self):
+        # not optimal for TradingSystem class to insert market state data and
+        # positions to database and then reading it back into the application here
+        market_states_data: list[dict] = json.loads(
+            self.__client_db.get_market_state_data(
+                self.__ts_properties.system_name, MarketState.ENTRY.value
             )
-            position_list, num_of_periods = self.__systems_db.get_position_list(
-                self.__ts_properties.system_name, return_num_of_periods=True
+        )
+        for data_dict in market_states_data:
+            position_list, num_of_periods = self.__systems_db.get_single_symbol_position_list(
+                self.__ts_properties.system_name, 
+                data_dict.get(TradingSystemAttributes.SYMBOL),
+                serialized_format=True, return_num_of_periods=True
             )
-            if position_list is None or num_of_periods is None:
-                continue
             self.__ts_properties.position_sizer(
                 position_list, num_of_periods,
                 *self.__ts_properties.position_sizer_call_args,
+                symbol=data_dict.get(TradingSystemAttributes.SYMBOL), 
                 **self.__ts_properties.position_sizer_call_kwargs,
                 **self.__ts_properties.position_sizer.position_sizer_data_dict
             )
 
-            if full_run is False:
-                break
-
-        if insert_into_db:
-            pos_sizer_data_dict = self.__ts_properties.position_sizer.get_position_sizer_data_dict()
-            self.__systems_db.insert_system_metrics(self.__ts_properties.system_name, pos_sizer_data_dict)
-            self.__client_db.insert_system_metrics(self.__ts_properties.system_name, pos_sizer_data_dict)
+    def _run_ext_pos_sizer(self):
+        position_list, num_of_periods = self.__systems_db.get_position_list(
+            self.__ts_properties.system_name, return_num_of_periods=True
+        )
+        if position_list is None or num_of_periods is None:
+            return
+        self.__ts_properties.position_sizer(
+            position_list, num_of_periods,
+            *self.__ts_properties.position_sizer_call_args,
+            **self.__ts_properties.position_sizer_call_kwargs,
+            **self.__ts_properties.position_sizer.position_sizer_data_dict
+        )
 
     def __call__(
         self, date: dt.datetime, full_run: bool,
@@ -223,7 +211,6 @@ class TradingSystemProcessor:
         # self.reprocess_data(date)
 
         self._handle_trading_system(
-        # self._handle_ext_pos_sizer_trading_system(
             full_run,
             time_series_db=time_series_db, 
             insert_into_db=insert_into_db,
