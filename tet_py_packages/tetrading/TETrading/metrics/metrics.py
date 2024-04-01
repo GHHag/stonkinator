@@ -190,7 +190,7 @@ class Metrics:
             return np.nan
         else:
             avg_profit = np.sum(self.__pos_net_results_list) / len(self.__positions)
-            avg_loss = np.mean(self.__net_losses_list)
+            avg_loss = np.mean(self.__net_losses_list) if len(self.__net_losses_list) > 0 else 1
             if avg_loss == 0:
                 return np.nan
             else:
@@ -461,10 +461,19 @@ class Metrics:
         self.__median_return = np.median(self.__returns_list)
         self.__std_return = np.std(self.__returns_list)
 
-        self.__mean_positive_pos = np.mean(self.__profitable_pos_list)
-        self.__median_positive_pos = np.median(self.__profitable_pos_list)
-        self.__mean_negative_pos = np.mean(self.__loosing_pos_list)
-        self.__median_negative_pos = np.median(self.__loosing_pos_list)
+        if len(self.__profitable_pos_list) > 0:
+            self.__mean_positive_pos = np.mean(self.__profitable_pos_list)
+            self.__median_positive_pos = np.median(self.__profitable_pos_list)
+        else:
+            self.__mean_positive_pos = np.nan
+            self.__median_positive_pos = np.nan
+        
+        if len(self.__loosing_pos_list) > 0:
+            self.__mean_negative_pos = np.mean(self.__loosing_pos_list)
+            self.__median_negative_pos = np.median(self.__loosing_pos_list)
+        else: 
+            self.__mean_negative_pos = np.nan
+            self.__median_negative_pos = np.nan
 
         self.__total_gross_profit = self.__final_capital - self.__start_capital
         self.__avg_pos_net_result = np.mean(self.__pos_net_results_list)
@@ -478,11 +487,17 @@ class Metrics:
         except DivisionByZero:
             self.__sharpe_ratio = np.nan
         self.__expectancy = self._calculate_expectancy()
-        try:
+
+        if len(self.__gross_wins_list) > 0 and len(self.__gross_losses_list) > 0:
             self.__profit_factor = np.sum(self.__gross_wins_list, dtype=float) / \
                 np.abs(np.sum(self.__gross_losses_list, dtype=float))
-        except (DivisionByZero, ZeroDivisionError, InvalidOperation):
-            self.__profit_factor = 0
+        elif len(self.__gross_wins_list) > 0 and len(self.__gross_losses_list) < 1:
+            self.__profit_factor = np.PINF
+        elif len(self.__gross_wins_list) < 1 and len(self.__gross_losses_list) > 0:
+            self.__profit_factor = np.NINF
+        else:
+            self.__profit_factor = np.nan
+
         try:
             self.__return_to_max_drawdown = self.__rate_of_return / float(self.__max_drawdown)
         except ZeroDivisionError:
