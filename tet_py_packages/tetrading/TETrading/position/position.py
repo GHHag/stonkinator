@@ -352,9 +352,9 @@ class Position:
         if self.__current_dt != exit_signal_dt or not self.__current_dt < exit_dt:
             raise ValueError(
                 f'Date mismatch.\n'
-                f'self.__current_dt != exit_signal_dt: {self.__current_dt != exit_signal_dt},'
+                f'self.__current_dt != exit_signal_dt: {self.__current_dt != exit_signal_dt}, '
                 'should be True\n'
-                f'not self.__current_dt < exit_dt: {not self.__current_dt < exit_dt},'
+                f'not self.__current_dt < exit_dt: {not self.__current_dt < exit_dt}, '
                 'should be True'
             )
 

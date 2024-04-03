@@ -134,7 +134,7 @@ def system_metrics_summary_plot(
 
     axs[1, 0].stem(
         [x for x in range(len(returns_data))], np.sort(returns_data), 
-        markerfmt=' ', use_line_collection=True
+        markerfmt=' '
     )
     axs[1, 0].set_title('Sorted Returns')
     axs[1, 0].set_xlabel('Periods')

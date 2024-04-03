@@ -1,6 +1,5 @@
 import datetime as dt
 import json
-from typing import Dict
 
 import pandas as pd
 import numpy as np
@@ -15,15 +14,13 @@ from sklearn.metrics import mean_squared_error, r2_score, classification_report,
 from securities_db_py_dal.dal import price_data_get_req
 
 from TETrading.data.metadata.trading_system_attributes import TradingSystemAttributes
+from TETrading.trading_system.trading_system import TradingSystem
 
 from tet_doc_db.tet_mongo_db.systems_mongo_db import TetSystemsMongoDb
 from tet_doc_db.instruments_mongo_db.instruments_mongo_db import InstrumentsMongoDb
 
 from tet_trading_systems.trading_system_development.trading_systems.trading_system_properties.trading_system_properties \
     import TradingSystemProperties
-from tet_trading_systems.trading_system_development.trading_systems.trading_system_handler \
-    import handle_ml_trading_system, run_trading_system
-from tet_trading_systems.trading_system_state_handler.ml_trading_system_state_handler import MlTradingSystemStateHandler 
 from tet_trading_systems.trading_system_management.position_sizer.safe_f_position_sizer import SafeFPositionSizer
 from tet_trading_systems.trading_system_development.ml_utils.ml_system_utils import serialize_models
 
@@ -51,8 +48,8 @@ def ml_exit_regression(
 
 
 def create_reg_models(
-    data_dict: Dict[str, pd.DataFrame], *args, 
-    target_col='Close', target_period=1
+    data_dict: dict[str, pd.DataFrame], *args, 
+    target_col='close', target_period=1
 ):
     models_df_dict = {}
     for symbol, df in data_dict.items():
@@ -70,9 +67,9 @@ def create_reg_models(
         X_df = df.copy()
         X_df.drop(
             [
-                'Open', 'High', 'Low', 'Close', 'Pct_chg', 'Date', 
-                'Open_benchmark', 'High_benchmark', 'Low_benchmark', 'Close_benchmark',
-                'Volume_benchmark', 'symbol', 'symbol_benchmark', 
+                'open', 'high', 'low', 'close', 'Pct_chg', 'date', 
+                'open_benchmark', 'high_benchmark', 'low_benchmark', 'close_benchmark',
+                'volume_benchmark', 'symbol', 'symbol_benchmark', 
                 'Target'
             ], 
             axis=1, inplace=True
@@ -129,7 +126,7 @@ def create_reg_models(
                     if models_df_dict[symbol] is None:
                         models_df_dict[symbol] = top_model
                     else:
-                        models_df_dict[symbol].append(top_model)
+                        models_df_dict[symbol]._append(top_model)
         except ValueError:
             print('ValueError')
             print(len(df))
@@ -138,8 +135,8 @@ def create_reg_models(
 
 
 def create_classification_models(
-    data_dict: Dict[str, pd.DataFrame], *args, 
-    target_col='Close', target_period=1
+    data_dict: dict[str, pd.DataFrame], *args, 
+    target_col='close', target_period=1
 ):
     models_df_dict = {}
     for symbol, df in data_dict.items():
@@ -159,9 +156,9 @@ def create_classification_models(
         X_df = df.copy()
         X_df.drop(
             [
-                'Open', 'High', 'Low', 'Close', 'Pct_chg', 'Date',
-                'Open_benchmark', 'High_benchmark', 'Low_benchmark', 'Close_benchmark',
-                'Volume_benchmark', 'symbol', 'symbol_benchmark',
+                'open', 'high', 'low', 'close', 'Pct_chg', 'date',
+                'open_benchmark', 'high_benchmark', 'low_benchmark', 'close_benchmark',
+                'volume_benchmark', 'symbol', 'symbol_benchmark',
                 'Target'
             ], 
             axis=1, inplace=True
@@ -226,7 +223,7 @@ def create_classification_models(
                     if models_df_dict[symbol] is None:
                         models_df_dict[symbol] = top_model
                     else:
-                        models_df_dict[symbol].append(top_model)
+                        models_df_dict[symbol]._append(top_model)
         except ValueError:
             print('ValueError')
             print(len(df))
@@ -235,9 +232,9 @@ def create_classification_models(
 
 
 def create_production_models(
-    db: TetSystemsMongoDb, df_dict: Dict[str, pd.DataFrame], 
+    db: TetSystemsMongoDb, df_dict: dict[str, pd.DataFrame], 
     system_name, *args, 
-    target_col='Close', target_period=1
+    target_col='close', target_period=1
 ):
     models_dict = {}
     for symbol, df in df_dict.items():
@@ -258,9 +255,9 @@ def create_production_models(
         X_df = df.copy()
         X_df.drop(
             [
-                'Open', 'High', 'Low', 'Close', 'Pct_chg', 'Date',
-                'Open_benchmark', 'High_benchmark', 'Low_benchmark', 'Close_benchmark',
-                'Volume_benchmark', 'symbol', 'symbol_benchmark',
+                'open', 'high', 'low', 'close', 'Pct_chg', 'date',
+                'open_benchmark', 'high_benchmark', 'low_benchmark', 'close_benchmark',
+                'volume_benchmark', 'symbol', 'symbol_benchmark',
                 'Target' 
             ], axis=1, inplace=True
         )
@@ -300,48 +297,63 @@ def create_production_models(
 def preprocess_data(
     symbols_list, benchmark_symbol, get_data_function,
     entry_args, exit_args, start_dt, end_dt, 
-    target_period=1, **null
+    target_period=1
 ):
-    df_dict = {
-        symbol: pd.json_normalize(
-            get_data_function(symbol, start_dt, end_dt)['data']
-        )
-        for symbol in symbols_list
-    }
-
-    df_benchmark = pd.json_normalize(
-        get_data_function(benchmark_symbol, start_dt, end_dt)['data']
-    )
+    df_dict = {}
+    for symbol in symbols_list:
+        response_data, response_status = get_data_function(symbol, start_dt, end_dt)
+        if response_status == 200:
+            df_dict[symbol] = pd.json_normalize(json.loads(response_data))
+            if 'instrument_id' in df_dict[symbol].columns:
+                df_dict[symbol] = df_dict[symbol].drop('instrument_id', axis=1)
     
-    pred_features_df_dict = {}
+    benchmark_col_suffix = '_benchmark'
+    response_data, response_status = get_data_function(benchmark_symbol, start_dt, end_dt)
+    if response_status == 200:
+        df_benchmark = pd.json_normalize(json.loads(response_data))
+        df_benchmark = df_benchmark.drop('instrument_id', axis=1)
+        df_benchmark.rename(
+            columns={
+                'open': f'open{benchmark_col_suffix}',
+                'high': f'high{benchmark_col_suffix}',
+                'low': f'low{benchmark_col_suffix}',
+                'close': f'close{benchmark_col_suffix}',
+                'volume': f'volume{benchmark_col_suffix}',
+                'symbol': f'symbol{benchmark_col_suffix}'
+            },
+            inplace=True
+        )
 
+    pred_features_df_dict = {}
     for symbol, data in dict(df_dict).items():
-        if data.empty or len(data) < target_period:
+        if data.empty or len(data) < entry_args.get(TradingSystemAttributes.REQ_PERIOD_ITERS):
             print(symbol, 'DataFrame empty')
             del df_dict[symbol]
         else:
-            df_dict[symbol] = pd.merge_ordered(
-                data, df_benchmark, on='Date', how='inner',
-                suffixes=('', '_benchmark')
-            )
-            df_dict[symbol].fillna(method='ffill', inplace=True)
-            df_dict[symbol]['Date'] = pd.to_datetime(df_dict[symbol]['Date'])
-            df_dict[symbol].set_index(['Date'], inplace=True)
-            #df_dict[symbol].fillna(method='ffill', inplace=True)
+            df_benchmark['date'] = pd.to_datetime(df_benchmark['date'])
+            df_dict[symbol]['date'] = pd.to_datetime(df_dict[symbol]['date'])
+
+            df_dict[symbol] = pd.merge_ordered(data, df_benchmark, on='date', how='inner')
+            df_dict[symbol].ffill(inplace=True)
+            df_dict[symbol]['date'] = pd.to_datetime(df_dict[symbol]['date'])
+            df_dict[symbol].set_index('date', inplace=True)
+
+            df_dict[symbol]['volume'] = df_dict[symbol]['volume'].astype(int)
 
             # apply indicators/features to dataframe
-            df_dict[symbol]['Pct_chg'] = df_dict[symbol]['Close'].pct_change().mul(100)
+            df_dict[symbol]['Pct_chg'] = df_dict[symbol]['close'].pct_change().mul(100)
             df_dict[symbol]['Lag1'] = df_dict[symbol]['Pct_chg'].shift(1)
             df_dict[symbol]['Lag2'] = df_dict[symbol]['Pct_chg'].shift(2)
             df_dict[symbol]['Lag5'] = df_dict[symbol]['Pct_chg'].shift(5)
             df_dict[symbol].dropna(inplace=True)
             df_dict[symbol].reset_index(inplace=True)
-            pred_features_df_dict[symbol] = df_dict[symbol][['Lag1', 'Lag2', 'Lag5', 'Volume']].to_numpy()
+
+            pred_features_df_dict[symbol] = df_dict[symbol][['Lag1', 'Lag2', 'Lag5', 'volume']].to_numpy()
 
     return df_dict, pred_features_df_dict 
 
 
-def get_props(
+def get_ts_properties(
     instruments_db: InstrumentsMongoDb, target_period=1,
     import_instruments=False, path=None
 ):
@@ -364,26 +376,19 @@ def get_props(
 
     return TradingSystemProperties( 
         system_name, 1,
+        symbols_list,
         preprocess_data,
         (
             benchmark_symbol, price_data_get_req,
             entry_args, exit_args
         ),
-        handle_ml_trading_system,
-        MlTradingSystemStateHandler, (system_name, ),
-        (
-            #ml_entry_regression, ml_exit_regression,
-            ml_entry_classification, ml_exit_classification,
-            entry_args, exit_args
-        ),
-        {},
-        None, (), (),
-        SafeFPositionSizer, (20, 0.8), (),
+        ml_entry_classification, ml_exit_classification,
+        entry_args, exit_args,
+        SafeFPositionSizer(20, 0.8), (),
         {
             'forecast_data_fraction': 0.7,
             'num_of_sims': 100
-        },
-        symbols_list
+        }
     )
 
 
@@ -396,7 +401,7 @@ if __name__ == '__main__':
     end_dt = dt.datetime(2011, 1, 1)
 
     target_period = 1
-    system_props = get_props(INSTRUMENTS_DB, target_period=target_period)
+    system_props = get_ts_properties(INSTRUMENTS_DB, target_period=target_period)
     insert_into_db = False
 
     df_dict, pred_features = system_props.preprocess_data_function(
@@ -408,21 +413,27 @@ if __name__ == '__main__':
     #model_data_dict = create_reg_models(df_dict, target_period=target_period)
     model_data_dict = create_classification_models(df_dict, target_period=target_period)
 
-    if insert_into_db:
+    if insert_into_db is True:
         models_created_bool = create_production_models(
             SYSTEMS_DB, df_dict, system_props.system_name, target_period=target_period
         )
         if not models_created_bool:
             raise Exception('Failed to create model')
 
-    run_trading_system(
-        model_data_dict, 
+    trading_system = TradingSystem(
         system_props.system_name,
-        #ml_entry_regression, ml_exit_regression, 
-        ml_entry_classification, ml_exit_classification, 
-        system_props.preprocess_data_args[-2],
-        system_props.preprocess_data_args[-1],
+        system_props.entry_logic_function,
+        system_props.exit_logic_function,
+        SYSTEMS_DB, SYSTEMS_DB
+    )
+
+    trading_system.run_trading_system_backtest(
+        model_data_dict,
         market_state_null_default=True,
-        plot_fig=True,
-        systems_db=SYSTEMS_DB, client_db=SYSTEMS_DB, insert_into_db=insert_into_db
+        plot_performance_summary=False,
+        save_summary_plot_to_path=None, # '/app/plots/',
+        print_data=True,
+        entry_args=system_props.entry_function_args,
+        exit_args=system_props.exit_function_args,
+        insert_data_to_db_bool=insert_into_db,
     )

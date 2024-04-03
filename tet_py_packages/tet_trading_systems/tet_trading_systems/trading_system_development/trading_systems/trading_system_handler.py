@@ -14,8 +14,8 @@ from TETrading.trading_system.trading_system import TradingSystem
 
 from tet_trading_systems.trading_system_development.trading_systems.trading_system_properties.trading_system_properties \
     import TradingSystemProperties
-from tet_trading_systems.trading_system_management.position_sizer.position_sizer import IPositionSizer
 from tet_trading_systems.trading_system_management.position_sizer.ext_position_sizer import ExtPositionSizer
+from tet_trading_systems.trading_system_state_handler.ml_trading_system_state_handler import MlTradingSystemStateHandler
 
 from tet_doc_db.doc_database_meta_classes.tet_signals_doc_db import ITetSignalsDocumentDatabase
 from tet_doc_db.doc_database_meta_classes.tet_systems_doc_db import ITetSystemsDocumentDatabase
@@ -42,16 +42,17 @@ class TradingSystemProcessor:
     
     # __data: dict[str, TimeSeriesDataHandler] = {}
     __data: dict[str, pd.DataFrame] = {}
+    __pred_features_data: dict[str, pd.DataFrame] = {}
     
     def __init__(
         self, ts_properties: TradingSystemProperties, 
         systems_db: ITetSystemsDocumentDatabase, 
-        client_db: ITetSystemsDocumentDatabase,
+        client_db: ITetSignalsDocumentDatabase,
         start_dt: dt.datetime, end_dt: dt.datetime
     ):
         self.__ts_properties = ts_properties
         self.__systems_db: ITetSystemsDocumentDatabase = systems_db
-        self.__client_db: ITetSystemsDocumentDatabase = client_db
+        self.__client_db: ITetSignalsDocumentDatabase = client_db
         self.__trading_system = TradingSystem(
             self.__ts_properties.system_name,
             self.__ts_properties.entry_logic_function, 
@@ -63,8 +64,7 @@ class TradingSystemProcessor:
         self.__preprocess_data(self.__start_dt, self.__end_dt)
 
     def __preprocess_data(self, start_dt: dt.datetime, end_dt: dt.datetime):
-        # self.__data, _ = self.__ts_properties.preprocess_data_function(
-        self.__data, pred_features = self.__ts_properties.preprocess_data_function(
+        self.__data, self.__pred_features_data = self.__ts_properties.preprocess_data_function(
             self.__ts_properties.system_instruments_list,
             *self.__ts_properties.preprocess_data_args, start_dt, end_dt
         )
@@ -130,7 +130,7 @@ class TradingSystemProcessor:
 
     def _handle_trading_system(
         self, full_run: bool,
-        time_series_db=None, insert_into_db=False, 
+        time_series_db: ITimeSeriesDocumentDatabase=None, insert_into_db=False, 
         **kwargs
     ):
         for i in range(self.__ts_properties.required_runs):
@@ -163,6 +163,37 @@ class TradingSystemProcessor:
                 self.__client_db.update_market_state_data(
                     self.__ts_properties.system_name, json.dumps(pos_sizer_data_dict)
                 )
+
+    def _handle_ml_trading_system(
+        self, full_run: bool,
+        time_series_db: ITimeSeriesDocumentDatabase=None, insert_into_db=False,
+        **kwargs
+    ):
+        if full_run is True:
+            # Train models using latest data on a regular interval
+            pass
+
+        system_state_handler = MlTradingSystemStateHandler(
+            self.__ts_properties.system_name, 
+            self.__data, self.__pred_features_data, 
+            self.__systems_db,
+        )
+
+        for _ in range(self.__ts_properties.required_runs):
+            system_state_handler(
+                self.__ts_properties.entry_logic_function, self.__ts_properties.exit_logic_function,
+                self.__ts_properties.entry_function_args, self.__ts_properties.exit_function_args,
+                client_db=self.__client_db, insert_into_db=insert_into_db,
+                **self.__ts_properties.position_sizer.position_sizer_data_dict
+            )
+            
+            self._run_pos_sizer()
+
+        if insert_into_db is True:
+            pos_sizer_data_dict = self.__ts_properties.position_sizer.get_position_sizer_data_dict()
+            self.__client_db.update_market_state_data(
+                self.__ts_properties.system_name, json.dumps(pos_sizer_data_dict)
+            )
 
     def _run_pos_sizer(self):
         # not optimal for TradingSystem class to insert market state data and
@@ -211,6 +242,7 @@ class TradingSystemProcessor:
         # self.reprocess_data(date)
 
         self._handle_trading_system(
+        # self._handle_ml_trading_system(
             full_run,
             time_series_db=time_series_db, 
             insert_into_db=insert_into_db,
@@ -225,7 +257,7 @@ class TradingSystemHandler:
     def __init__(
         self, trading_system_properties_list: list[TradingSystemProperties],
         systems_db: ITetSystemsDocumentDatabase, 
-        client_db: ITetSystemsDocumentDatabase,
+        client_db: ITetSignalsDocumentDatabase,
         start_dt: dt.datetime, end_dt: dt.datetime, 
     ):
         for ts_properties in trading_system_properties_list:
@@ -246,68 +278,6 @@ class TradingSystemHandler:
             )
 
 
-def run_trading_system(*args, **kwargs):
-    pass
-
-
-def handle_ml_trading_system(
-    system_props: TradingSystemProperties, start_dt, end_dt, 
-    from_latest_exit: bool,
-    systems_db: ITetSystemsDocumentDatabase, 
-    client_db: ITetSignalsDocumentDatabase, 
-    time_series_db: ITimeSeriesDocumentDatabase=None,
-    insert_into_db=False, plot_fig=False 
-):
-    data, pred_features_data = system_props.preprocess_data_function(
-        system_props.system_instruments_list,
-        *system_props.preprocess_data_args, start_dt, end_dt
-    )
-
-    #if time_series_db:
-    #   time_series_db.insert_pandas_time_series_data(data)
-
-    system_state_handler = system_props.system_state_handler(
-        # if only pred_features_data is what differs between this and handle_trading_system 
-        # function try to make both compatible with all system types
-        *system_props.system_state_handler_args, data, pred_features_data, systems_db,
-    )
-    system_position_sizer: IPositionSizer = system_props.position_sizer(
-        *system_props.position_sizer_args
-    )
-
-    for _ in range(system_props.required_runs):
-        system_state_handler(
-            *system_props.system_state_handler_call_args,
-            plot_fig=plot_fig, 
-            client_db=client_db, insert_into_db=insert_into_db,
-            **system_props.system_state_handler_call_kwargs,
-            **system_position_sizer.position_sizer_data_dict
-        )
-        market_states_data: list[dict] = json.loads(
-            systems_db.get_market_state_data(
-                system_props.system_name, MarketState.ENTRY.value
-            )
-        )
-
-        for data_dict in market_states_data:
-            position_list, num_of_periods = systems_db.get_single_symbol_position_list(
-                system_props.system_name, data_dict[TradingSystemAttributes.SYMBOL],
-                return_num_of_periods=True
-            )
-            system_position_sizer(
-                position_list, num_of_periods,
-                *system_props.position_sizer_call_args,
-                symbol=data_dict[TradingSystemAttributes.SYMBOL], 
-                **system_props.position_sizer_call_kwargs,
-                **system_position_sizer.position_sizer_data_dict
-            )
-
-    pos_sizer_data_dict = system_position_sizer.get_position_sizer_data_dict()
-    systems_db.insert_market_state_data(
-        system_props.system_name, json.dumps(pos_sizer_data_dict)
-    )
-
-
 if __name__ == '__main__':
     import tet_trading_systems.trading_system_development.trading_systems.env as env
 
@@ -321,7 +291,6 @@ if __name__ == '__main__':
     )
 
     cli_args = arg_parser.parse_args()
-
     live_systems_dir = cli_args.ts_dir
     full_run = cli_args.full_run
 
@@ -344,7 +313,7 @@ if __name__ == '__main__':
         if ts_module == 'ml_trading_system_example':
         # if ts_module != 'trading_system_example':
             continue
-        ts_properties = __globals[ts_module].get_props(
+        ts_properties = __globals[ts_module].get_ts_properties(
             INSTRUMENTS_DB, import_instruments=False,
             path=f'{file_dir}/{live_systems_dir}/backtests'
         )

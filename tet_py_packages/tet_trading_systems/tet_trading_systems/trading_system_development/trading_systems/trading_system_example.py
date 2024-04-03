@@ -6,14 +6,13 @@ import pandas as pd
 from securities_db_py_dal.dal import price_data_get_req
 
 from TETrading.data.metadata.trading_system_attributes import TradingSystemAttributes
+from TETrading.trading_system.trading_system import TradingSystem
 
 from tet_doc_db.tet_mongo_db.systems_mongo_db import TetSystemsMongoDb
 from tet_doc_db.instruments_mongo_db.instruments_mongo_db import InstrumentsMongoDb
 
 from tet_trading_systems.trading_system_development.trading_systems.trading_system_properties.trading_system_properties \
     import TradingSystemProperties
-from tet_trading_systems.trading_system_development.trading_systems.trading_system_handler \
-    import run_trading_system
 from tet_trading_systems.trading_system_management.position_sizer.safe_f_position_sizer \
     import SafeFPositionSizer
 from tet_trading_systems.trading_system_state_handler.instrument_selection.pd_instrument_selector \
@@ -90,11 +89,14 @@ def preprocess_data(
         response_data, response_status = get_data_function(symbol, start_dt, end_dt)
         if response_status == 200:
             df_dict[symbol] = pd.json_normalize(json.loads(response_data))
+            if 'instrument_id' in df_dict[symbol].columns:
+                df_dict[symbol] = df_dict[symbol].drop('instrument_id', axis=1)
 
     benchmark_col_suffix = '_benchmark'
     response_data, response_status = get_data_function(benchmark_symbol, start_dt, end_dt)
     if response_status == 200:
         df_benchmark = pd.json_normalize(json.loads(response_data))
+        df_benchmark = df_benchmark.drop('instrument_id', axis=1)
         df_benchmark.rename(
             columns={
                 'open': f'open{benchmark_col_suffix}', 
@@ -128,7 +130,10 @@ def preprocess_data(
     return df_dict, None
 
 
-def get_props(instruments_db: InstrumentsMongoDb, import_instruments=False, path=None):
+def get_ts_properties(
+    instruments_db: InstrumentsMongoDb,
+    import_instruments=False, path=None
+):
     system_name = 'example_system'
     benchmark_symbol = '^OMX'
     entry_args = {
@@ -185,26 +190,26 @@ if __name__ == '__main__':
     start_dt = dt.datetime(1999, 1, 1)
     end_dt = dt.datetime(2011, 1, 1)
 
-    system_props = get_props(INSTRUMENTS_DB)
+    system_props = get_ts_properties(INSTRUMENTS_DB)
 
     df_dict, features = system_props.preprocess_data_function(
-        system_props.system_instruments_list, '^OMX',
-        price_data_get_req,
-        system_props.preprocess_data_args[-2],
-        system_props.preprocess_data_args[-1],
-        start_dt, end_dt
+        system_props.system_instruments_list,
+        *system_props.preprocess_data_args, start_dt, end_dt
     )
 
-    run_trading_system(
-        df_dict, 
+    trading_system = TradingSystem(
         system_props.system_name,
-        entry_logic_example, exit_logic_example,
-        system_props.preprocess_data_args[-2], 
-        system_props.preprocess_data_args[-1], 
-        plot_fig=False,
-        #run_monte_carlo_sims=True,
-        #num_of_sims=100,
-        #plot_monte_carlo=True,
-        system_analysis_to_csv_path=f'./backtests/{system_props.system_name}.csv',
-        systems_db=SYSTEMS_DB, client_db=SYSTEMS_DB, insert_into_db=False
+        system_props.entry_logic_function,
+        system_props.exit_logic_function,
+        SYSTEMS_DB, SYSTEMS_DB
+    )
+
+    trading_system.run_trading_system_backtest(
+        df_dict, 
+        entry_args=system_props.entry_function_args,
+        exit_args=system_props.exit_function_args,
+        market_state_null_default=True,
+        plot_performance_summary=False,
+        print_data=True,
+        insert_data_to_db_bool=False
     )
