@@ -1,6 +1,5 @@
 import math
-from decimal import Decimal, DivisionByZero, InvalidOperation
-from typing import List
+from decimal import Decimal, DivisionByZero
 
 import numpy as np
 import pandas as pd
@@ -370,7 +369,7 @@ class Metrics:
             plot_fig=plot_fig, save_fig_to_path=save_fig_to_path
         )
 
-    def calculate_metrics(self, positions: List[Position]):
+    def calculate_metrics(self, positions: list[Position]):
         """
         Iterates over the given collection of Position objects and calculates metrics
         derived from them.

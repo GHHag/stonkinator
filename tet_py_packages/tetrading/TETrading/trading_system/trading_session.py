@@ -199,6 +199,7 @@ class TradingSession:
                         TradingSystemAttributes.SIGNAL_DT: dataframe.index[-1],
                         TradingSystemAttributes.SYMBOL: self.__symbol,
                         TradingSystemAttributes.DIRECTION: direction,
+                        TradingSystemAttributes.PERIODS_IN_POSITION: 0,
                         self.__market_state_column: MarketState.ENTRY.value
                     }
                 )
@@ -468,6 +469,7 @@ class BacktestTradingSession:
                         TradingSystemAttributes.SIGNAL_DT: self.__dataframe[datetime_col_name].iloc[-1], 
                         TradingSystemAttributes.SYMBOL: self.__symbol,
                         TradingSystemAttributes.DIRECTION: direction,
+                        TradingSystemAttributes.PERIODS_IN_POSITION: 0,
                         self.__market_state_column: MarketState.ENTRY.value
                     }
                 )

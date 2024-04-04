@@ -1,4 +1,3 @@
-from typing import List
 import pandas as pd
 
 from tet_trading_systems.trading_system_state_handler.instrument_selection.instrument_selector \
@@ -23,10 +22,10 @@ class PdInstrumentSelector(IInstrumentSelector):
         self.__selection_metric: str = selection_metric
         self.__instruments_data: pd.DataFrame = instruments_data
         self.__selection_threshold = selection_threshold
-        self.__selected_instruments: List[str] = []
+        self.__selected_instruments: list[str] = []
 
     @property
-    def selected_instruments(self) -> List[str]:
+    def selected_instruments(self) -> list[str]:
         return self.__selected_instruments
     
     def __call__(self):

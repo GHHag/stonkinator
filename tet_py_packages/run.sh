@@ -2,9 +2,6 @@
 
 # TODO: Add help option
 
-# the specified python binary path /usr/local/bin/python is customized 
-# for the python bullseye Docker image
-
 if [ -f .env ]; then
     while IFS='=' read -r key value; do
         [[ $key == \#* ]] && continue
@@ -56,9 +53,9 @@ if [ -n "$TS_HANDLER_DIR_TARGET" ] && [ -n "$LIVE_SYSTEMS_RELATIVE_DIR" ]; then
         echo
         echo "--full-run: $full_run"
         echo "Full run"
-        /usr/local/bin/python trading_system_handler.py --trading-systems-dir="$LIVE_SYSTEMS_RELATIVE_DIR" --full-run
+        /usr/local/bin/python trading_system_handler.py -trading-systems-dir="$LIVE_SYSTEMS_RELATIVE_DIR" --full-run
     else
-        /usr/local/bin/python trading_system_handler.py --trading-systems-dir="$LIVE_SYSTEMS_RELATIVE_DIR"
+        /usr/local/bin/python trading_system_handler.py -trading-systems-dir="$LIVE_SYSTEMS_RELATIVE_DIR"
     fi
 else
     echo "$0 - Error: Missing values for TS_HANDLER_DIR_TARGET or LIVE_SYSTEMS_RELATIVE_DIR variables."

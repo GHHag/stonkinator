@@ -97,7 +97,7 @@ def preprocess_data(
     if response_status == 200:
         df_benchmark = pd.json_normalize(json.loads(response_data))
         df_benchmark = df_benchmark.drop('instrument_id', axis=1)
-        df_benchmark.rename(
+        df_benchmark = df_benchmark.rename(
             columns={
                 'open': f'open{benchmark_col_suffix}', 
                 'high': f'high{benchmark_col_suffix}', 
@@ -105,8 +105,7 @@ def preprocess_data(
                 'close': f'close{benchmark_col_suffix}',
                 'volume': f'volume{benchmark_col_suffix}', 
                 'symbol': f'symbol{benchmark_col_suffix}'
-            },
-            inplace=True
+            }
         )
 
     for symbol, data in dict(df_dict).items():
@@ -118,14 +117,13 @@ def preprocess_data(
             df_dict[symbol]['date'] = pd.to_datetime(df_dict[symbol]['date'])
             
             df_dict[symbol] = pd.merge_ordered(data, df_benchmark, on='date', how='inner')
-            df_dict[symbol].ffill(inplace=True)
-            df_dict[symbol]['date'] = pd.to_datetime(df_dict[symbol]['date'])
-            df_dict[symbol].set_index('date', inplace=True)
+            df_dict[symbol] = df_dict[symbol].ffill()
+            df_dict[symbol] = df_dict[symbol].set_index('date')
 
             # apply indicators/features to dataframe
             df_dict[symbol]['SMA'] = df_dict[symbol]['close'].rolling(20).mean()
 
-            df_dict[symbol].dropna(inplace=True)
+            df_dict[symbol] = df_dict[symbol].dropna()
 
     return df_dict, None
 

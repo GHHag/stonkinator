@@ -196,19 +196,22 @@ class TradingSystemProcessor:
             )
 
     def _run_pos_sizer(self):
-        # not optimal for TradingSystem class to insert market state data and
-        # positions to database and then reading it back into the application here
         market_states_data: list[dict] = json.loads(
             self.__client_db.get_market_state_data(
                 self.__ts_properties.system_name, MarketState.ENTRY.value
             )
         )
         for data_dict in market_states_data:
-            position_list, num_of_periods = self.__systems_db.get_single_symbol_position_list(
-                self.__ts_properties.system_name, 
-                data_dict.get(TradingSystemAttributes.SYMBOL),
-                serialized_format=True, return_num_of_periods=True
-            )
+            try:
+                position_list, num_of_periods = self.__systems_db.get_single_symbol_position_list(
+                    self.__ts_properties.system_name, 
+                    data_dict.get(TradingSystemAttributes.SYMBOL),
+                    serialized_format=True, return_num_of_periods=True
+                )
+            except ValueError as e:
+                print(e)
+                continue
+
             self.__ts_properties.position_sizer(
                 position_list, num_of_periods,
                 *self.__ts_properties.position_sizer_call_args,
@@ -218,11 +221,15 @@ class TradingSystemProcessor:
             )
 
     def _run_ext_pos_sizer(self):
-        position_list, num_of_periods = self.__systems_db.get_position_list(
-            self.__ts_properties.system_name, return_num_of_periods=True
-        )
-        if position_list is None or num_of_periods is None:
+        try:
+            position_list, num_of_periods = self.__systems_db.get_position_list(
+                self.__ts_properties.system_name,
+                serialized_format=True, return_num_of_periods=True
+            )
+        except ValueError as e:
+            print(e)
             return
+
         self.__ts_properties.position_sizer(
             position_list, num_of_periods,
             *self.__ts_properties.position_sizer_call_args,
@@ -283,7 +290,7 @@ if __name__ == '__main__':
 
     arg_parser = argparse.ArgumentParser(description='trading_system_handler CLI argument parser')
     arg_parser.add_argument(
-        '--trading-systems-dir', dest='ts_dir', help='Trading system files directory'
+        '-trading-systems-dir', dest='ts_dir', help='Trading system files directory'
     )
     arg_parser.add_argument(
         '--full-run', action='store_true', dest='full_run',

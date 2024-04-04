@@ -58,21 +58,21 @@ def create_reg_models(
         # shifted dataframe column
         df['Target'] = \
             df[target_col].pct_change(periods=target_period).shift(-target_period).mul(100)
-        df.dropna(inplace=True)
+        df = df.dropna()
 
         # assign target column/feature
         y_df = df['Target']
 
         # copy df and drop columns/features to be excluded from training data...
         X_df = df.copy()
-        X_df.drop(
+        X_df = X_df.drop(
             [
                 'open', 'high', 'low', 'close', 'Pct_chg', 'date', 
                 'open_benchmark', 'high_benchmark', 'low_benchmark', 'close_benchmark',
                 'volume_benchmark', 'symbol', 'symbol_benchmark', 
                 'Target'
             ], 
-            axis=1, inplace=True
+            axis=1
         )
         # ... or assign columns/features to use as predictors
         """X_df = df[['Lag1', 'Lag2', 'Lag5']]"""
@@ -146,22 +146,22 @@ def create_classification_models(
         df['Return_shifted'] = \
             df[target_col].pct_change(periods=target_period).shift(-target_period).mul(100)
         df['Target'] = df['Return_shifted'] > 0
-        df.drop(columns=['Return_shifted'], inplace=True)
-        df.dropna(inplace=True)
+        df = df.drop(columns=['Return_shifted'])
+        df = df.dropna()
 
         # assign target column/feature
         y_df = df['Target']
 
         # copy df and drop columns/features to be excluded from training data...
         X_df = df.copy()
-        X_df.drop(
+        X_df = X_df.drop(
             [
                 'open', 'high', 'low', 'close', 'Pct_chg', 'date',
                 'open_benchmark', 'high_benchmark', 'low_benchmark', 'close_benchmark',
                 'volume_benchmark', 'symbol', 'symbol_benchmark',
                 'Target'
             ], 
-            axis=1, inplace=True
+            axis=1
         )
         # ... or assign columns/features to use as predictors
         """X_df = df[['Lag1', 'Lag2', 'Lag5']]"""
@@ -245,21 +245,21 @@ def create_production_models(
         df['Target_col_shifted'] = \
             df[target_col].pct_change(periods=target_period).shift(-target_period).mul(100)
         df['Target'] = df['Target_col_shifted'] > 0
-        df.drop(columns=['Target_col_shifted'], inplace=True)
-        df.dropna(inplace=True)
+        df = df.drop(columns=['Target_col_shifted'])
+        df = df.dropna()
 
         # assign target column/feature
         y_df = df['Target']
 
         # copy df and drop columns/features to be excluded from training data...
         X_df = df.copy()
-        X_df.drop(
+        X_df = X_df.drop(
             [
                 'open', 'high', 'low', 'close', 'Pct_chg', 'date',
                 'open_benchmark', 'high_benchmark', 'low_benchmark', 'close_benchmark',
                 'volume_benchmark', 'symbol', 'symbol_benchmark',
                 'Target' 
-            ], axis=1, inplace=True
+            ], axis=1
         )
         # ... or assign columns/features to use as predictors
         """X_df = df[['Lag1', 'Lag2', 'Lag5']]"""
@@ -312,7 +312,7 @@ def preprocess_data(
     if response_status == 200:
         df_benchmark = pd.json_normalize(json.loads(response_data))
         df_benchmark = df_benchmark.drop('instrument_id', axis=1)
-        df_benchmark.rename(
+        df_benchmark = df_benchmark.rename(
             columns={
                 'open': f'open{benchmark_col_suffix}',
                 'high': f'high{benchmark_col_suffix}',
@@ -320,8 +320,7 @@ def preprocess_data(
                 'close': f'close{benchmark_col_suffix}',
                 'volume': f'volume{benchmark_col_suffix}',
                 'symbol': f'symbol{benchmark_col_suffix}'
-            },
-            inplace=True
+            }
         )
 
     pred_features_df_dict = {}
@@ -334,9 +333,8 @@ def preprocess_data(
             df_dict[symbol]['date'] = pd.to_datetime(df_dict[symbol]['date'])
 
             df_dict[symbol] = pd.merge_ordered(data, df_benchmark, on='date', how='inner')
-            df_dict[symbol].ffill(inplace=True)
-            df_dict[symbol]['date'] = pd.to_datetime(df_dict[symbol]['date'])
-            df_dict[symbol].set_index('date', inplace=True)
+            df_dict[symbol] = df_dict[symbol].ffill()
+            df_dict[symbol] = df_dict[symbol].set_index('date')
 
             df_dict[symbol]['volume'] = df_dict[symbol]['volume'].astype(int)
 
@@ -345,8 +343,8 @@ def preprocess_data(
             df_dict[symbol]['Lag1'] = df_dict[symbol]['Pct_chg'].shift(1)
             df_dict[symbol]['Lag2'] = df_dict[symbol]['Pct_chg'].shift(2)
             df_dict[symbol]['Lag5'] = df_dict[symbol]['Pct_chg'].shift(5)
-            df_dict[symbol].dropna(inplace=True)
-            df_dict[symbol].reset_index(inplace=True)
+            df_dict[symbol] = df_dict[symbol].dropna()
+            df_dict[symbol] = df_dict[symbol].reset_index()
 
             pred_features_df_dict[symbol] = df_dict[symbol][['Lag1', 'Lag2', 'Lag5', 'volume']].to_numpy()
 
@@ -429,11 +427,11 @@ if __name__ == '__main__':
 
     trading_system.run_trading_system_backtest(
         model_data_dict,
+        entry_args=system_props.entry_function_args,
+        exit_args=system_props.exit_function_args,
         market_state_null_default=True,
         plot_performance_summary=False,
         save_summary_plot_to_path=None, # '/app/plots/',
         print_data=True,
-        entry_args=system_props.entry_function_args,
-        exit_args=system_props.exit_function_args,
         insert_data_to_db_bool=insert_into_db,
     )

@@ -1,5 +1,4 @@
 import random
-from typing import List
 
 import pandas as pd
 import numpy as np
@@ -357,7 +356,7 @@ def monte_carlo_simulate_positions(
 
 
 def calculate_safe_f(
-    positions: List[Position], period_len, tolerated_pct_max_dd, 
+    positions: list[Position], period_len, tolerated_pct_max_dd, 
     max_dd_pctl_threshold,
     forecast_data_fraction=0.5, capital=10000, num_of_sims=2500, 
     symbol='', print_dataframe=False
