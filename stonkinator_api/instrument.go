@@ -126,30 +126,29 @@ func insertInstrument(w http.ResponseWriter, r *http.Request, pgPool *pgxpool.Po
 	fmt.Fprint(w, rowsAffected)
 }
 
-func instrumentsAction(w http.ResponseWriter, r *http.Request) {
-	switch r.Method {
-	case http.MethodGet:
-		marketListId := r.URL.Query().Get("id")
-		projection := r.URL.Query().Get("projection")
+func instrumentsAction(mdb *mongo.Database) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodGet:
+			getMarketListInstruments(w, r, mdb)
 
-		getMarketListInstruments(marketListId, projection, w, r)
+		case http.MethodPost:
+			insertStock(w, r, mdb)
 
-	case http.MethodPost:
-		marketListId := r.URL.Query().Get("id")
-		var stock Stock
-		if err := json.NewDecoder(r.Body).Decode(&stock); err != nil {
-			http.Error(w, "Failed to parse request body", http.StatusBadRequest)
-			return
+		default:
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		}
-
-		insertStock(marketListId, stock, w, r)
-
-	default:
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 	}
 }
 
-func insertStock(marketListId string, stock Stock, w http.ResponseWriter, r *http.Request) {
+func insertStock(w http.ResponseWriter, r *http.Request, mdb *mongo.Database) {
+	marketListId := r.URL.Query().Get("id")
+	var stock Stock
+	if err := json.NewDecoder(r.Body).Decode(&stock); err != nil {
+		http.Error(w, "Failed to parse request body", http.StatusBadRequest)
+		return
+	}
+
 	marketListObjectId, err := primitive.ObjectIDFromHex(marketListId)
 	if err != nil {
 		http.Error(w, "Failed to parse id", http.StatusBadRequest)
@@ -188,7 +187,10 @@ func insertStock(marketListId string, stock Stock, w http.ResponseWriter, r *htt
 	w.Write(jsonResult)
 }
 
-func getMarketListInstruments(marketListId string, projection string, w http.ResponseWriter, r *http.Request) {
+func getMarketListInstruments(w http.ResponseWriter, r *http.Request, mdb *mongo.Database) {
+	marketListId := r.URL.Query().Get("id")
+	projection := r.URL.Query().Get("projection")
+
 	marketListObjectId, err := primitive.ObjectIDFromHex(marketListId)
 	if err != nil {
 		http.Error(w, "Failed to parse id", http.StatusBadRequest)
@@ -250,152 +252,158 @@ func getMarketListInstruments(marketListId string, projection string, w http.Res
 	w.Write(jsonMarketListsInstruments)
 }
 
-func getSectorInstruments(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
-	sector := r.URL.Query().Get("sector")
-
-	collection := mdb.Collection(INSTRUMENTS_COLLECTION)
-
-	var results []bson.M
-	cursor, err := collection.Find(context.Background(), bson.M{"industry": sector})
-	if err != nil {
-		http.Error(w, "Failed to execute query", http.StatusInternalServerError)
-		return
-	}
-	defer cursor.Close(context.Background())
-	if err = cursor.All(context.Background(), &results); err != nil {
-		http.Error(w, "Failed to retrieve result", http.StatusInternalServerError)
-		return
-	}
-	if len(results) == 0 {
-		http.Error(w, "No documents found", http.StatusNoContent)
-		return
-	}
-
-	jsonSectors, err := json.Marshal(results)
-	if err != nil {
-		http.Error(w, "Failed to marshal data", http.StatusInternalServerError)
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	w.Write(jsonSectors)
-}
-
-func getSectors(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
-	collection := mdb.Collection(INSTRUMENTS_COLLECTION)
-
-	results, err := collection.Distinct(context.Background(), "industry", bson.M{})
-	if err != nil {
-		http.Error(w, "Failed to execute query", http.StatusInternalServerError)
-		return
-	}
-
-	jsonSectors, err := json.Marshal(results)
-	if err != nil {
-		http.Error(w, "Failed to marshal data", http.StatusInternalServerError)
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	w.Write(jsonSectors)
-}
-
-func getSectorInstrumentsForMarketLists(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
-	sector := r.URL.Query().Get("sector")
-	type MarketListIdsBody struct {
-		MarketListIds []string `json:"market-list-ids"`
-	}
-	var marketListIds MarketListIdsBody
-	if err := json.NewDecoder(r.Body).Decode(&marketListIds); err != nil {
-		http.Error(w, "Failed to parse request body", http.StatusBadRequest)
-		return
-	}
-	objIds, err := convertStringIds(marketListIds.MarketListIds)
-	if len(objIds) == 0 {
-		http.Error(w, "Invalid object ID/IDs", http.StatusBadRequest)
-		return
-	}
-
-	collection := mdb.Collection(INSTRUMENTS_COLLECTION)
-
-	pipeline := mongo.Pipeline{
-		bson.D{{
-			"$match", bson.D{{"industry", sector}},
-		}},
-		bson.D{{
-			"$match", bson.M{
-				"$nor": []bson.M{{
-					"market_list_ids": bson.M{
-						"$nin": objIds,
-					}},
-				},
-			},
-		}},
-	}
-
-	var results []bson.M
-	cursor, err := collection.Aggregate(context.Background(), pipeline)
-	if err != nil {
-		http.Error(w, "Failed to execute query", http.StatusInternalServerError)
-		return
-	}
-	defer cursor.Close(context.Background())
-	if err = cursor.All(context.Background(), &results); err != nil {
-		http.Error(w, "Failed to retrieve result", http.StatusInternalServerError)
-		return
-	}
-	if len(results) == 0 {
-		http.Error(w, "No documents found", http.StatusNoContent)
-		return
-	}
-
-	jsonSectorInstruments, err := json.Marshal(results)
-	if err != nil {
-		http.Error(w, "Failed to marshal data", http.StatusInternalServerError)
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	w.Write(jsonSectorInstruments)
-}
-
-func marketListAction(w http.ResponseWriter, r *http.Request) {
-	switch r.Method {
-	case http.MethodGet:
-		marketList := r.URL.Query().Get("market-list")
-
-		getMarketListId(marketList, w, r)
-
-	case http.MethodPost:
-		var marketList MarketList
-		if err := json.NewDecoder(r.Body).Decode(&marketList); err != nil {
-			http.Error(w, "Failed to parse request body", http.StatusBadRequest)
+func getSectorInstruments(mdb *mongo.Database) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 			return
 		}
 
-		insertMarketList(marketList, w, r)
+		sector := r.URL.Query().Get("sector")
 
-	default:
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		collection := mdb.Collection(INSTRUMENTS_COLLECTION)
+
+		var results []bson.M
+		cursor, err := collection.Find(context.Background(), bson.M{"industry": sector})
+		if err != nil {
+			http.Error(w, "Failed to execute query", http.StatusInternalServerError)
+			return
+		}
+		defer cursor.Close(context.Background())
+		if err = cursor.All(context.Background(), &results); err != nil {
+			http.Error(w, "Failed to retrieve result", http.StatusInternalServerError)
+			return
+		}
+		if len(results) == 0 {
+			http.Error(w, "No documents found", http.StatusNoContent)
+			return
+		}
+
+		jsonSectors, err := json.Marshal(results)
+		if err != nil {
+			http.Error(w, "Failed to marshal data", http.StatusInternalServerError)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.Write(jsonSectors)
 	}
 }
 
-func insertMarketList(marketList MarketList, w http.ResponseWriter, r *http.Request) {
+func getSectors(mdb *mongo.Database) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		collection := mdb.Collection(INSTRUMENTS_COLLECTION)
+
+		results, err := collection.Distinct(context.Background(), "industry", bson.M{})
+		if err != nil {
+			http.Error(w, "Failed to execute query", http.StatusInternalServerError)
+			return
+		}
+
+		jsonSectors, err := json.Marshal(results)
+		if err != nil {
+			http.Error(w, "Failed to marshal data", http.StatusInternalServerError)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.Write(jsonSectors)
+	}
+}
+
+func getSectorInstrumentsForMarketLists(mdb *mongo.Database) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		sector := r.URL.Query().Get("sector")
+		type MarketListIdsBody struct {
+			MarketListIds []string `json:"market-list-ids"`
+		}
+		var marketListIds MarketListIdsBody
+		if err := json.NewDecoder(r.Body).Decode(&marketListIds); err != nil {
+			http.Error(w, "Failed to parse request body", http.StatusBadRequest)
+			return
+		}
+		objIds, err := convertStringIds(marketListIds.MarketListIds)
+		if len(objIds) == 0 {
+			http.Error(w, "Invalid object ID/IDs", http.StatusBadRequest)
+			return
+		}
+
+		collection := mdb.Collection(INSTRUMENTS_COLLECTION)
+
+		pipeline := mongo.Pipeline{
+			bson.D{{
+				"$match", bson.D{{"industry", sector}},
+			}},
+			bson.D{{
+				"$match", bson.M{
+					"$nor": []bson.M{{
+						"market_list_ids": bson.M{
+							"$nin": objIds,
+						}},
+					},
+				},
+			}},
+		}
+
+		var results []bson.M
+		cursor, err := collection.Aggregate(context.Background(), pipeline)
+		if err != nil {
+			http.Error(w, "Failed to execute query", http.StatusInternalServerError)
+			return
+		}
+		defer cursor.Close(context.Background())
+		if err = cursor.All(context.Background(), &results); err != nil {
+			http.Error(w, "Failed to retrieve result", http.StatusInternalServerError)
+			return
+		}
+		if len(results) == 0 {
+			http.Error(w, "No documents found", http.StatusNoContent)
+			return
+		}
+
+		jsonSectorInstruments, err := json.Marshal(results)
+		if err != nil {
+			http.Error(w, "Failed to marshal data", http.StatusInternalServerError)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.Write(jsonSectorInstruments)
+	}
+}
+
+func marketListAction(mdb *mongo.Database) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodGet:
+			getMarketListId(w, r, mdb)
+
+		case http.MethodPost:
+			insertMarketList(w, r, mdb)
+
+		default:
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		}
+	}
+}
+
+func insertMarketList(w http.ResponseWriter, r *http.Request, mdb *mongo.Database) {
+	var marketList MarketList
+	if err := json.NewDecoder(r.Body).Decode(&marketList); err != nil {
+		http.Error(w, "Failed to parse request body", http.StatusBadRequest)
+		return
+	}
+
 	collection := mdb.Collection(MARKET_LISTS_COLLECTION)
 
 	var findResult bson.M
@@ -432,7 +440,9 @@ func insertMarketList(marketList MarketList, w http.ResponseWriter, r *http.Requ
 	w.Write(jsonInsertResult)
 }
 
-func getMarketListId(marketList string, w http.ResponseWriter, r *http.Request) {
+func getMarketListId(w http.ResponseWriter, r *http.Request, mdb *mongo.Database) {
+	marketList := r.URL.Query().Get("market-list")
+
 	collection := mdb.Collection(MARKET_LISTS_COLLECTION)
 
 	var result bson.M
@@ -459,36 +469,38 @@ func getMarketListId(marketList string, w http.ResponseWriter, r *http.Request) 
 	w.Write(jsonMarketListId)
 }
 
-func getMarketLists(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
+func getMarketLists(mdb *mongo.Database) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
 
-	collection := mdb.Collection(MARKET_LISTS_COLLECTION)
+		collection := mdb.Collection(MARKET_LISTS_COLLECTION)
 
-	var results []bson.M
-	cursor, err := collection.Find(context.Background(), bson.M{})
-	if err != nil {
-		http.Error(w, "Failed to execute query", http.StatusInternalServerError)
-		return
-	}
-	defer cursor.Close(context.Background())
-	if err = cursor.All(context.Background(), &results); err != nil {
-		http.Error(w, "Failed to retrieve result", http.StatusInternalServerError)
-		return
-	}
-	if len(results) == 0 {
-		http.Error(w, "No documents found", http.StatusNoContent)
-		return
-	}
+		var results []bson.M
+		cursor, err := collection.Find(context.Background(), bson.M{})
+		if err != nil {
+			http.Error(w, "Failed to execute query", http.StatusInternalServerError)
+			return
+		}
+		defer cursor.Close(context.Background())
+		if err = cursor.All(context.Background(), &results); err != nil {
+			http.Error(w, "Failed to retrieve result", http.StatusInternalServerError)
+			return
+		}
+		if len(results) == 0 {
+			http.Error(w, "No documents found", http.StatusNoContent)
+			return
+		}
 
-	jsonMarketLists, err := json.Marshal(results)
-	if err != nil {
-		http.Error(w, "Failed to marshal data", http.StatusInternalServerError)
-		return
-	}
+		jsonMarketLists, err := json.Marshal(results)
+		if err != nil {
+			http.Error(w, "Failed to marshal data", http.StatusInternalServerError)
+			return
+		}
 
-	w.Header().Set("Content-Type", "application/json")
-	w.Write(jsonMarketLists)
+		w.Header().Set("Content-Type", "application/json")
+		w.Write(jsonMarketLists)
+	}
 }

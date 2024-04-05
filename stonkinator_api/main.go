@@ -32,10 +32,10 @@ func main() {
 	}
 
 	pgPool := initPgPool()
-	initMdb()
+	mdb := initMdb()
 
 	port := os.Getenv("TET_API_PORT")
 	api_url := os.Getenv("API_URL")
 
-	register(port, api_url, pgPool)
+	register(port, api_url, pgPool, mdb)
 }
