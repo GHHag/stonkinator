@@ -3,11 +3,12 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
-	"fmt"
 
+	"github.com/jackc/pgx/v5/pgxpool"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -15,22 +16,22 @@ import (
 )
 
 type MarketList struct {
-	Id primitive.ObjectID `bson:"_id,omitempty" json:"id"`
-	MarketList string `bson:"market_list" json:"market_list"`
+	Id         primitive.ObjectID `bson:"_id,omitempty" json:"id"`
+	MarketList string             `bson:"market_list" json:"market_list"`
 }
 
 type Stock struct {
-	Id primitive.ObjectID `bson:"_id,omitempty" json:"id"`
-	Symbol string `bson:"symbol" json:"symbol"`
-	Industry string `bson:"industry" json:"industry"`
-	Instrument string `bson:"instrument" json:"instrument"`
+	Id            primitive.ObjectID   `bson:"_id,omitempty" json:"id"`
+	Symbol        string               `bson:"symbol" json:"symbol"`
+	Industry      string               `bson:"industry" json:"industry"`
+	Instrument    string               `bson:"instrument" json:"instrument"`
 	MarketListIds []primitive.ObjectID `bson:"market_list_ids" json:"market_list_ids"`
 }
 
 type Instrument struct {
-	Id string `json:"id,omitempty"`
+	Id         string `json:"id,omitempty"`
 	ExchangeId string `json:"exchange_id"`
-	Symbol string `json:"symbol"`
+	Symbol     string `json:"symbol"`
 }
 
 // Move func elsewhere?
@@ -38,46 +39,42 @@ func convertStringIds(ids []string) ([]primitive.ObjectID, error) {
 	var objIds []primitive.ObjectID
 
 	for _, idStr := range ids {
-	    objId, err := primitive.ObjectIDFromHex(idStr)
-	    if err != nil {
-		return nil, err
-	    } else {
-		objIds = append(objIds, objId)
-	    }
+		objId, err := primitive.ObjectIDFromHex(idStr)
+		if err != nil {
+			return nil, err
+		} else {
+			objIds = append(objIds, objId)
+		}
 	}
 
 	return objIds, nil
 }
 
-func instrumentAction(w http.ResponseWriter, r *http.Request) {
-	switch r.Method {
+func instrumentAction(pgPool *pgxpool.Pool) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
 		case http.MethodGet:
-			symbol := r.URL.Query().Get("symbol")
-			getInstrument(symbol, w, r)
+			getInstrument(w, r, pgPool)
 
 		case http.MethodPost:
-			var instrument Instrument
-			err := json.NewDecoder(r.Body).Decode(&instrument)
-			if err != nil {
-				http.Error(w, "Invalid request body", http.StatusBadRequest)
-				return
-			} else {
-				insertInstrument(instrument, w, r)
-			}
+			insertInstrument(w, r, pgPool)
 
 		default:
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		}
 	}
 }
 
-func getInstrument(symbol string, w http.ResponseWriter, r *http.Request) {
+func getInstrument(w http.ResponseWriter, r *http.Request, pgPool *pgxpool.Pool) {
+	symbol := r.URL.Query().Get("symbol")
+
 	query := pgPool.QueryRow(
 		context.Background(),
 		`
 			SELECT id, exchange_id, symbol
 			FROM instruments
 			WHERE UPPER(symbol) = $1
-		`, 
+		`,
 		strings.ToUpper(symbol),
 	)
 
@@ -98,14 +95,21 @@ func getInstrument(symbol string, w http.ResponseWriter, r *http.Request) {
 	w.Write(jsonInstrument)
 }
 
-func insertInstrument(instrument Instrument, w http.ResponseWriter, r *http.Request) {
+func insertInstrument(w http.ResponseWriter, r *http.Request, pgPool *pgxpool.Pool) {
+	var instrument Instrument
+	err := json.NewDecoder(r.Body).Decode(&instrument)
+	if err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
 	result, err := pgPool.Exec(
 		context.Background(),
 		`
 			INSERT INTO instruments(exchange_id, symbol)
 			VALUES($1, $2)
 			ON CONFLICT DO NOTHING
-		`, 
+		`,
 		instrument.ExchangeId, instrument.Symbol,
 	)
 	if err != nil {
@@ -124,24 +128,24 @@ func insertInstrument(instrument Instrument, w http.ResponseWriter, r *http.Requ
 
 func instrumentsAction(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
-		case http.MethodGet:
-			marketListId := r.URL.Query().Get("id")
-			projection := r.URL.Query().Get("projection")
-			
-			getMarketListInstruments(marketListId, projection, w, r)
+	case http.MethodGet:
+		marketListId := r.URL.Query().Get("id")
+		projection := r.URL.Query().Get("projection")
 
-		case http.MethodPost:
-			marketListId := r.URL.Query().Get("id")
-			var stock Stock
-			if err := json.NewDecoder(r.Body).Decode(&stock); err != nil {
-				http.Error(w, "Failed to parse request body", http.StatusBadRequest)
-				return
-			}
+		getMarketListInstruments(marketListId, projection, w, r)
 
-			insertStock(marketListId, stock, w, r)
+	case http.MethodPost:
+		marketListId := r.URL.Query().Get("id")
+		var stock Stock
+		if err := json.NewDecoder(r.Body).Decode(&stock); err != nil {
+			http.Error(w, "Failed to parse request body", http.StatusBadRequest)
+			return
+		}
 
-		default:
-			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		insertStock(marketListId, stock, w, r)
+
+	default:
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 	}
 }
 
@@ -157,8 +161,8 @@ func insertStock(marketListId string, stock Stock, w http.ResponseWriter, r *htt
 	filter := bson.M{"symbol": stock.Symbol}
 	update := bson.M{
 		"$set": bson.M{
-			"symbol": stock.Symbol,
-			"industry": stock.Industry,
+			"symbol":     stock.Symbol,
+			"industry":   stock.Industry,
 			"instrument": stock.Instrument,
 		},
 		"$addToSet": bson.M{
@@ -209,7 +213,7 @@ func getMarketListInstruments(marketListId string, projection string, w http.Res
 	projectionValue, err := strconv.Atoi(projection)
 	if err == nil && projectionValue == 1 {
 		pipeline = append(
-			pipeline, 
+			pipeline,
 			bson.D{{
 				"$project", bson.D{
 					{"market_list_instruments._id", 1},
@@ -372,22 +376,22 @@ func getSectorInstrumentsForMarketLists(w http.ResponseWriter, r *http.Request) 
 
 func marketListAction(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
-		case http.MethodGet:
-			marketList := r.URL.Query().Get("market-list")
+	case http.MethodGet:
+		marketList := r.URL.Query().Get("market-list")
 
-			getMarketListId(marketList, w, r)
+		getMarketListId(marketList, w, r)
 
-		case http.MethodPost:
-			var marketList MarketList
-			if err := json.NewDecoder(r.Body).Decode(&marketList); err != nil {
-				http.Error(w, "Failed to parse request body", http.StatusBadRequest)
-				return
-			}
+	case http.MethodPost:
+		var marketList MarketList
+		if err := json.NewDecoder(r.Body).Decode(&marketList); err != nil {
+			http.Error(w, "Failed to parse request body", http.StatusBadRequest)
+			return
+		}
 
-			insertMarketList(marketList, w, r)
+		insertMarketList(marketList, w, r)
 
-		default:
-			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+	default:
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 	}
 }
 
@@ -433,7 +437,7 @@ func getMarketListId(marketList string, w http.ResponseWriter, r *http.Request) 
 
 	var result bson.M
 	err := collection.FindOne(
-		context.Background(), 
+		context.Background(),
 		bson.M{"market_list": marketList},
 		options.FindOne().SetProjection(bson.M{"_id": 1, "market_list": 0}),
 	).Decode(&result)

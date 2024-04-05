@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	"github.com/GHHag/gobware"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 func testGobware() gobware.ACL {
@@ -13,19 +14,19 @@ func testGobware() gobware.ACL {
 	return x
 }
 
-func register(port string, api_url string) {
+func register(port string, api_url string, pgPool *pgxpool.Pool) {
 	http.HandleFunc(fmt.Sprintf("%s/health-check", api_url), healthCheck)
 
-	http.HandleFunc(fmt.Sprintf("%s/user", api_url), RegisterUser)
+	http.HandleFunc(fmt.Sprintf("%s/user", api_url), registerUser(pgPool))
 
-	http.HandleFunc(fmt.Sprintf("%s/exchange", api_url), exchangeAction)
+	http.HandleFunc(fmt.Sprintf("%s/exchange", api_url), exchangeAction(pgPool))
 
-	http.HandleFunc(fmt.Sprintf("%s/instrument", api_url), instrumentAction)
+	http.HandleFunc(fmt.Sprintf("%s/instrument", api_url), instrumentAction(pgPool))
 
-	http.HandleFunc(fmt.Sprintf("%s/price", api_url), priceDataAction)
-	http.HandleFunc(fmt.Sprintf("%s/price/first-dt", api_url), getFirstAvailableDate)
-	http.HandleFunc(fmt.Sprintf("%s/price/last-dt", api_url), getLastAvailableDate)
-	http.HandleFunc(fmt.Sprintf("%s/price/date", api_url), getLastDate)
+	http.HandleFunc(fmt.Sprintf("%s/price", api_url), priceDataAction(pgPool))
+	http.HandleFunc(fmt.Sprintf("%s/price/first-dt", api_url), getFirstAvailableDate(pgPool))
+	http.HandleFunc(fmt.Sprintf("%s/price/last-dt", api_url), getLastAvailableDate(pgPool))
+	http.HandleFunc(fmt.Sprintf("%s/price/date", api_url), getLastDate(pgPool))
 
 	http.HandleFunc(fmt.Sprintf("%s/market-list", api_url), marketListAction)
 	http.HandleFunc(fmt.Sprintf("%s/market-lists", api_url), getMarketLists)
