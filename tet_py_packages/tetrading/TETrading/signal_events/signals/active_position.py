@@ -1,7 +1,7 @@
-from TETrading.signal_events.signals.system_signals import SystemSignals
+from TETrading.signal_events.signals.trading_system_signals import TradingSystemSignals
 
 
-class ActivePositions(SystemSignals):
+class ActivePositions(TradingSystemSignals):
     """
     Handles data for active positions.
     """

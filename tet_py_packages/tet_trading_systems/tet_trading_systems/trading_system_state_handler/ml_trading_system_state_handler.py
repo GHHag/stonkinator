@@ -1,6 +1,5 @@
 from decimal import Decimal
 import json
-from typing import Callable, Dict
 
 import pandas as pd
 import numpy as np
@@ -20,16 +19,16 @@ class MlSystemInstrumentData:
     __symbol: str
     __dataframe: pd.DataFrame
     __pred_data: np.ndarray
-    __model: Pipeline
+    __model_pipeline: Pipeline
     __position_list: list[Position]
-    __market_state_data: Dict[str, object]
+    __market_state_data: dict[str, object]
     __num_testing_periods: int
 
     def __init__(self, symbol, dataframe, pred_data):
         self.__symbol = symbol
         self.__dataframe = dataframe
         self.__pred_data = pred_data
-        self.__model = None
+        self.__model_pipeline = None
         self.__position_list = None
         self.__market_state_data = None
         self.__num_testing_periods = None
@@ -51,12 +50,12 @@ class MlSystemInstrumentData:
         return self.__pred_data
 
     @property
-    def model(self):
-        return self.__model
+    def model_pipeline(self):
+        return self.__model_pipeline
 
-    @model.setter
-    def model(self, model):
-        self.__model = model
+    @model_pipeline.setter
+    def model_pipeline(self, model_pipeline):
+        self.__model_pipeline = model_pipeline
 
     @property
     def position_list(self):
@@ -86,8 +85,8 @@ class MlSystemInstrumentData:
 class MlTradingSystemStateHandler:
 
     def __init__(
-        self, system_name: str, instrument_dicts: Dict[str, pd.DataFrame],
-        instrument_pred_data_dicts: Dict[str, np.ndarray], db: TetSystemsMongoDb,
+        self, system_name: str, instrument_dicts: dict[str, pd.DataFrame],
+        instrument_pred_data_dicts: dict[str, np.ndarray], db: TetSystemsMongoDb,
         date_format='%Y-%m-%d'
     ):
         self.__system_name = system_name
@@ -101,25 +100,25 @@ class MlTradingSystemStateHandler:
             instrument_data = MlSystemInstrumentData(
                 symbol, dataframe, instrument_pred_data_dicts.get(symbol)
             )
-            instrument_data.model = self.__systems_db.get_ml_model(self.__system_name, instrument_data.symbol)
+            instrument_data.model_pipeline = self.__systems_db.get_ml_model(self.__system_name, instrument_data.symbol)
             instrument_data.position_list = self.__systems_db.get_single_symbol_position_list(
-                self.__system_name, instrument_data.symbol
+                self.__system_name, instrument_data.symbol, serialized_format=True
             )
 
-            if instrument_data.model:
+            if instrument_data.model_pipeline:
                 instrument_data.market_state_data = json.loads(
                     self.__systems_db.get_market_state_data_for_symbol(self.__system_name, instrument_data.symbol)
                 )
             else:
-                raise Exception("Something went wrong while getting the model from database.")
+                raise ValueError("Something went wrong while getting the model from database.")
 
-            if instrument_data.position_list[-1].exit_signal_dt:
-                mask = (instrument_data.dataframe['date'] > str(instrument_data.position_list[0].entry_dt)) & \
-                    (instrument_data.dataframe['date'] <= str(instrument_data.position_list[-1].exit_signal_dt))
+            if instrument_data.position_list[-1].exit_signal_dt is not None:
+                mask = (instrument_data.dataframe['date'] > instrument_data.position_list[0].entry_dt) & \
+                    (instrument_data.dataframe['date'] <= instrument_data.position_list[-1].exit_signal_dt)
                 instrument_data.num_testing_periods = len(instrument_data.dataframe.loc[mask])
             else:
-                mask = (instrument_data.dataframe['date'] > str(instrument_data.position_list[0].entry_dt)) & \
-                    (instrument_data.dataframe['date'] <= str(instrument_data.position_list[-2].exit_signal_dt))
+                mask = (instrument_data.dataframe['date'] > instrument_data.position_list[0].entry_dt) & \
+                    (instrument_data.dataframe['date'] <= instrument_data.position_list[-2].exit_signal_dt)
                 periods_in_position = instrument_data.market_state_data[TradingSystemAttributes.PERIODS_IN_POSITION] \
                     if TradingSystemAttributes.PERIODS_IN_POSITION in instrument_data.market_state_data else 1
                 instrument_data.num_testing_periods = len(instrument_data.dataframe.loc[mask]) + periods_in_position 
@@ -131,7 +130,7 @@ class MlTradingSystemStateHandler:
             instrument_data.dataframe['date'].iloc[-2] == pd.Timestamp(instrument_data.market_state_data[TradingSystemAttributes.SIGNAL_DT]) and \
                 not instrument_data.position_list[-1].active_position:
             instrument_data.position_list[-1].enter_market(
-                instrument_data.dataframe['open'].iloc[-1], 'long', instrument_data.dataframe['date'].iloc[-1]
+                instrument_data.dataframe['open'].iloc[-1], instrument_data.dataframe['date'].iloc[-1]
             )
             print(
                 f'\nEntry index {len(instrument_data.dataframe)}: {format(instrument_data.dataframe["open"].iloc[-1], ".3f")}, ' + 
@@ -155,8 +154,8 @@ class MlTradingSystemStateHandler:
             not instrument_data.position_list[-1].exit_signal_dt == instrument_data.dataframe['date'].iloc[-2]:
             # create mask to filter dataframe where the 'date' is between the first element of 
             # position_list's entry_dt and the last elements exit_signal_dt
-            mask = (instrument_data.dataframe['date'] > str(instrument_data.position_list[0].entry_dt)) & \
-                (instrument_data.dataframe['date'] <= str(instrument_data.position_list[-1].exit_signal_dt))
+            mask = (instrument_data.dataframe['date'] > instrument_data.position_list[0].entry_dt) & \
+                (instrument_data.dataframe['date'] <= instrument_data.position_list[-1].exit_signal_dt)
             avg_yearly_positions = int(
                 len(instrument_data.position_list) / (instrument_data.num_testing_periods / yearly_periods) + 0.5
             )
@@ -184,18 +183,18 @@ class MlTradingSystemStateHandler:
             )
             
             instrument_data.position_list.pop(0)
-            instrument_data.position_list.append(Position(capital))
+            instrument_data.position_list.append(Position(capital, direction))
             print(f'\nEntry signal, buy next open\nIndex {len(instrument_data.dataframe)}')
 
     def _handle_active_pos_state(self, instrument_data: MlSystemInstrumentData):
-        if instrument_data.dataframe['date'].iloc[-1] != pd.Timestamp(instrument_data.market_state_data[TradingSystemAttributes.SIGNAL_DT]):
-            instrument_data.position_list[-1].update(Decimal(instrument_data.dataframe['close'].iloc[-1]))
-        instrument_data.position_list[-1].print_position_stats()
-
-        if instrument_data.market_state_data[TradingSystemAttributes.MARKET_STATE] == MarketState.EXIT.value and \
-            instrument_data.dataframe['date'].iloc[-2] == pd.Timestamp(instrument_data.market_state_data[TradingSystemAttributes.SIGNAL_DT]):
+        if (
+            instrument_data.market_state_data[TradingSystemAttributes.MARKET_STATE] == MarketState.EXIT.value and
+            instrument_data.dataframe['date'].iloc[-2] == pd.Timestamp(instrument_data.market_state_data[TradingSystemAttributes.SIGNAL_DT])
+        ):
             instrument_data.position_list[-1].exit_market(
-                instrument_data.dataframe['open'].iloc[-1], pd.Timestamp(instrument_data.market_state_data[TradingSystemAttributes.SIGNAL_DT])
+                instrument_data.dataframe['open'].iloc[-1],
+                pd.Timestamp(instrument_data.market_state_data[TradingSystemAttributes.SIGNAL_DT]),
+                instrument_data.dataframe['date'].iloc[-1]
             ) 
             print(
                 f'Exit index {len(instrument_data.dataframe)}: {format(instrument_data.dataframe["open"].iloc[-1], ".3f")}, ' + 
@@ -204,6 +203,12 @@ class MlTradingSystemStateHandler:
             )
             return False
         else:
+            if instrument_data.dataframe['date'].iloc[-1] != pd.Timestamp(instrument_data.market_state_data[TradingSystemAttributes.SIGNAL_DT]):
+                instrument_data.position_list[-1].update(
+                    Decimal(instrument_data.dataframe['close'].iloc[-1]),
+                    instrument_data.dataframe['date'].iloc[-1]
+                )
+            instrument_data.position_list[-1].print_position_stats()
             self.__signal_handler.handle_active_position(
                 instrument_data.symbol, 
                 {
@@ -242,8 +247,8 @@ class MlTradingSystemStateHandler:
             return False
 
     def __call__(
-        self, entry_logic_function: Callable, exit_logic_function: Callable, 
-        entry_args: Dict[str, object], exit_args: Dict[str, object], 
+        self, entry_logic_function: callable, exit_logic_function: callable, 
+        entry_args: dict[str, object], exit_args: dict[str, object], 
         date_format='%Y-%m-%d', capital=10000, plot_fig=False,
         client_db: TetSystemsMongoDb=None, insert_into_db=False, 
         **kwargs
@@ -257,7 +262,7 @@ class MlTradingSystemStateHandler:
             if instrument_data.dataframe['date'].iloc[-1] != pd.Timestamp(instrument_data.market_state_data[TradingSystemAttributes.SIGNAL_DT]):
                 self._handle_entry_signal(instrument_data)
                 latest_data_point = instrument_data.dataframe.iloc[-1].copy()
-                latest_data_point['pred'] = instrument_data.model.predict(instrument_data.pred_data[-1].reshape(1, -1))[0]
+                latest_data_point['pred'] = instrument_data.model_pipeline.predict(instrument_data.pred_data[-1].reshape(1, -1))[0]
                 latest_data_point_df = pd.DataFrame(latest_data_point).transpose()
                 latest_data_point_df['pred'] = latest_data_point_df['pred'].astype('boolean')
                 instrument_data.dataframe = pd.concat(
@@ -271,11 +276,11 @@ class MlTradingSystemStateHandler:
                         self._handle_exit_market_state(instrument_data, exit_logic_function, exit_args)
                     else:
                         if insert_into_db:
-                            # Position objects in json format are inserted into database after being exited
+                            # Position objects in json format are inserted into database after position exit
                             client_db.insert_single_symbol_position_list(
                                 self.__system_name, instrument_data.symbol, 
                                 instrument_data.position_list, instrument_data.num_testing_periods,
-                                format='json'
+                                json_format=True
                             )
                 else:
                     self._handle_enter_market_state(
@@ -285,7 +290,8 @@ class MlTradingSystemStateHandler:
 
                 result = self.__systems_db.insert_single_symbol_position_list(
                     self.__system_name, instrument_data.symbol, 
-                    instrument_data.position_list, instrument_data.num_testing_periods
+                    instrument_data.position_list, instrument_data.num_testing_periods,
+                    serialized_format=True
                 )
 
                 if not result:

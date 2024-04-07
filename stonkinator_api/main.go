@@ -31,11 +31,11 @@ func main() {
 		panic(err)
 	}
 
-	initPgPool()
-	initMdb()
+	pgPool := initPgPool()
+	mdb := initMdb()
 
 	port := os.Getenv("TET_API_PORT")
 	api_url := os.Getenv("API_URL")
 
-	register(port, api_url)
+	register(port, api_url, pgPool, mdb)
 }

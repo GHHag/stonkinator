@@ -22,13 +22,12 @@ class TetSystemsMongoDb(ITetSystemsDocumentDatabase):
     __SYMBOL_FIELD = TradingSystemAttributes.SYMBOL
     __METRICS_FIELD = TradingSystemAttributes.METRICS
     __MARKET_STATE_FIELD = TradingSystemAttributes.MARKET_STATE
-    __PORTFOLIO_CREATION_DATA_FIELD = 'portfolio_creation_data'
     __NUMBER_OF_PERIODS_FIELD = TradingSystemAttributes.NUMBER_OF_PERIODS
     __POSITION_LIST_FIELD = TradingSystemAttributes.POSITION_LIST
+    __CURRENT_POSITION_FIELD = TradingSystemAttributes.CURRENT_POSITION
     __ML_MODEL_FIELD = TradingSystemAttributes.ML_MODEL
     __INSTRUMENT_FIELD = TradingSystemAttributes.INSTRUMENT
     __SIGNAL_DT_FIELD = TradingSystemAttributes.SIGNAL_DT
-    __EXIT_SIGNAL_DT_FIELD = 'exit_signal_dt'
     __START_DT = TradingSystemAttributes.START_DT
     __END_DT = TradingSystemAttributes.END_DT
     __MARKET_TO_MARKET_RETURNS = TradingSystemAttributes.MARKET_TO_MARKET_RETURNS
@@ -68,7 +67,7 @@ class TetSystemsMongoDb(ITetSystemsDocumentDatabase):
         )
         return json.dumps(list(query), default=json_util.default)
 
-    def insert_system_metrics(self, system_name, metrics: dict, *args):
+    def insert_system_metrics(self, system_name, metrics: dict):
         system_id = self._get_system_id(system_name)
         if not system_id:
             return False
@@ -77,13 +76,6 @@ class TetSystemsMongoDb(ITetSystemsDocumentDatabase):
                 {self.__ID_FIELD: system_id, self.__NAME_FIELD: system_name},
                 {'$set': {self.__METRICS_FIELD: {k: v for k, v in metrics.items()}}}
             )
-            for data_dict in list(args):
-                if isinstance(data_dict, dict):
-                    for k, v in data_dict.items():
-                        self.__systems.update_one(
-                            {self.__ID_FIELD: system_id, self.__NAME_FIELD: system_name},
-                            {'$set': {k: v}}
-                        )
             return result.modified_count > 0
 
     def get_system_metrics(self, system_name):
@@ -97,16 +89,8 @@ class TetSystemsMongoDb(ITetSystemsDocumentDatabase):
         )
         return json.dumps(query, default=json_util.default)
 
-    def get_system_portfolio_creation_data(self, system_name):
-        system_id = self._get_system_id(system_name)
-        query = self.__systems.find_one(
-            {self.__ID_FIELD: system_id, self.__NAME_FIELD: system_name},
-            {self.__ID_FIELD: 0, self.__PORTFOLIO_CREATION_DATA_FIELD: 1}
-        )
-        return json.dumps(query[self.__PORTFOLIO_CREATION_DATA_FIELD])
-
     def insert_market_state_data(self, system_name, data):
-        data = json.loads(data)
+        data: dict[str, object] = json.loads(data)
         system_id = self._get_system_id(system_name)
         if not system_id:
             self._insert_system(system_name)
@@ -117,48 +101,43 @@ class TetSystemsMongoDb(ITetSystemsDocumentDatabase):
         for data_p in ts_data:
             assert isinstance(data_p, dict)
             data_p.update({self.__SYSTEM_ID_FIELD: system_id})
-            if self.__MARKET_STATE_FIELD in data_p and \
-                data_p[self.__MARKET_STATE_FIELD] == MarketState.ENTRY.value:
-                result = self.__market_states.delete_one(
+            result = self.__market_states.update_one(
+                {
+                    self.__SYSTEM_ID_FIELD: system_id, 
+                    self.__SYMBOL_FIELD: data_p[TradingSystemAttributes.SYMBOL],
+                    '$or': [
+                        {
+                            self.__SIGNAL_DT_FIELD: {'$lt': data_p.get(self.__SIGNAL_DT_FIELD)}
+                        },
+                        {
+                            '$and': [
+                                {self.__SIGNAL_DT_FIELD: {'$lte': data_p.get(self.__SIGNAL_DT_FIELD)}},
+                                {self.__MARKET_STATE_FIELD: MarketState.NULL.value}
+                            ]
+                        },
+                        {
+                            '$and': [
+                                {self.__SIGNAL_DT_FIELD: {'$eq': data_p.get(self.__SIGNAL_DT_FIELD)}},
+                                {self.__MARKET_STATE_FIELD: MarketState.ACTIVE.value}
+                            ]
+                        }
+                    ]
+                },
+                {'$set': data_p},
+            )
+            if result.modified_count < 1:
+                existing_doc = self.__market_states.find_one(
                     {
                         self.__SYSTEM_ID_FIELD: system_id, 
-                        self.__SYMBOL_FIELD: data_p[TradingSystemAttributes.SYMBOL],
-                        self.__SIGNAL_DT_FIELD: {'$lt': data_p.get(self.__SIGNAL_DT_FIELD)}
+                        self.__SYMBOL_FIELD: data_p[TradingSystemAttributes.SYMBOL]
                     }
                 )
-                if result.deleted_count > 0:
+                if existing_doc is None:
                     self.__market_states.insert_one(data_p)
-                else:
-                    existing_doc = self.__market_states.find_one(
-                        {
-                            self.__SYSTEM_ID_FIELD: system_id, 
-                            self.__SYMBOL_FIELD: data_p[TradingSystemAttributes.SYMBOL]
-                        }
-                    )
-                    if existing_doc is None:
-                        self.__market_states.insert_one(data_p)
-            else:
-                result = self.__market_states.update_one(
-                    {
-                        self.__SYSTEM_ID_FIELD: system_id, 
-                        self.__SYMBOL_FIELD: data_p[TradingSystemAttributes.SYMBOL],
-                        self.__SIGNAL_DT_FIELD: {'$lt': data_p.get(self.__SIGNAL_DT_FIELD)}
-                    },
-                    {'$set': data_p}
-                )
-                if result.modified_count < 1:
-                    existing_doc = self.__market_states.find_one(
-                        {
-                            self.__SYSTEM_ID_FIELD: system_id, 
-                            self.__SYMBOL_FIELD: data_p[TradingSystemAttributes.SYMBOL]
-                        }
-                    )
-                    if existing_doc is None:
-                        self.__market_states.insert_one(data_p)
         return True
 
     def update_market_state_data(self, system_name, data):
-        data = json.loads(data)
+        data: dict[str, object] = json.loads(data)
         system_id = self._get_system_id(system_name)
         if not system_id:
             return False
@@ -278,6 +257,8 @@ class TetSystemsMongoDb(ITetSystemsDocumentDatabase):
                     self.__POSITION_LIST_FIELD: 1, self.__NUMBER_OF_PERIODS_FIELD: 1
                 }
             )
+            if query is None:
+                raise ValueError('no serialized Position objects found')
             if return_num_of_periods:
                 return list(map(pickle.loads, query[self.__POSITION_LIST_FIELD])), \
                     query[self.__NUMBER_OF_PERIODS_FIELD]
@@ -385,6 +366,8 @@ class TetSystemsMongoDb(ITetSystemsDocumentDatabase):
                 },
                 {self.__ID_FIELD: 0, self.__POSITION_LIST_FIELD: 1, self.__NUMBER_OF_PERIODS_FIELD: 1}
             )
+            if query is None:
+                raise ValueError('no serialized Position objects found')
             if return_num_of_periods:
                 return list(map(pickle.loads, query[self.__POSITION_LIST_FIELD])), \
                     query[self.__NUMBER_OF_PERIODS_FIELD]
@@ -404,33 +387,45 @@ class TetSystemsMongoDb(ITetSystemsDocumentDatabase):
             else:
                 return json.dumps(query, default=json_util.default)
 
-    def get_latest_position_dts(self, system_name, symbols_list):
+    def insert_current_position(
+        self, system_name, symbol, position
+    ):
         system_id = self._get_system_id(system_name)
-        query = self.__single_symbol_positions.aggregate(
-            [
-                {
-                    '$match': {
-                        self.__SYSTEM_ID_FIELD: system_id
-                    }
-                },
-                {
-                    '$project': {
-                        self.__SYMBOL_FIELD: f'${self.__SYMBOL_FIELD}',
-                        'position': {
-                            '$arrayElemAt': [f'${self.__POSITION_LIST_FIELD}_json', -1]
-                        }
-                    }
+        if not system_id:
+            self._insert_system(system_name)
+            system_id = self._get_system_id(system_name)
+        result = self.__single_symbol_positions.update_one(
+            {
+                self.__SYSTEM_ID_FIELD: system_id, 
+                self.__SYSTEM_NAME_FIELD: system_name,
+                self.__SYMBOL_FIELD: symbol
+            },
+            {
+                '$set': {
+                    self.__CURRENT_POSITION_FIELD: pickle.dumps(position)
                 }
-            ]
+            }, upsert=True
         )
-        symbols_dict = dict.fromkeys(symbols_list)
-        latest_positions_dts = {
-            pos[self.__SYMBOL_FIELD]: pos['position'][self.__EXIT_SIGNAL_DT_FIELD]
-            # TODO: add filter for given list of symbols in query instead of filtering here
-            for pos in list(query) if pos[self.__SYMBOL_FIELD] in symbols_list
-        }
-        symbols_dict.update(latest_positions_dts)
-        return json.dumps(symbols_dict, default=json_util.default)
+        return result.modified_count > 0
+
+    def get_current_position(self, system_name, symbol):
+        system_id = self._get_system_id(system_name)
+        query = self.__single_symbol_positions.find_one(
+            {
+                self.__SYSTEM_ID_FIELD: system_id, 
+                self.__SYSTEM_NAME_FIELD: system_name,
+                self.__SYMBOL_FIELD: symbol,
+                self.__CURRENT_POSITION_FIELD: {'$exists': True}
+            },
+            {
+                self.__ID_FIELD: 0, self.__SYSTEM_ID_FIELD: 1, 
+                self.__SYMBOL_FIELD: 1, self.__CURRENT_POSITION_FIELD: 1
+            }
+        )
+        if query is None:
+            return False
+        else:
+            return pickle.loads(query[self.__CURRENT_POSITION_FIELD])
 
     def get_historic_data(self, system_name):
         position_list = self.get_position_list(system_name)

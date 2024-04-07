@@ -1,7 +1,7 @@
-from TETrading.signal_events.signals.system_signals import SystemSignals
+from TETrading.signal_events.signals.trading_system_signals import TradingSystemSignals
 
 
-class EntrySignals(SystemSignals):
+class EntrySignals(TradingSystemSignals):
     """
     Handles data for entry signals.
     """

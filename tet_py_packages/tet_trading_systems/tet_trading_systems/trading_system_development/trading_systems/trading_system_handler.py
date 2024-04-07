@@ -5,22 +5,22 @@ import datetime as dt
 import json
 import argparse
 
+import pandas as pd
+from sterunets.data_handler import FeatureBlueprint, TimeSeriesDataHandler
+
 from TETrading.data.metadata.trading_system_attributes import TradingSystemAttributes
 from TETrading.data.metadata.market_state_enum import MarketState
 from TETrading.trading_system.trading_system import TradingSystem
 
 from tet_trading_systems.trading_system_development.trading_systems.trading_system_properties.trading_system_properties \
     import TradingSystemProperties
-from tet_trading_systems.trading_system_state_handler.trading_system_state_handler \
-    import TradingSystemStateHandler
-from tet_trading_systems.trading_system_management.position_sizer.position_sizer import IPositionSizer
+from tet_trading_systems.trading_system_management.position_sizer.ext_position_sizer import ExtPositionSizer
+from tet_trading_systems.trading_system_state_handler.ml_trading_system_state_handler import MlTradingSystemStateHandler
 
 from tet_doc_db.doc_database_meta_classes.tet_signals_doc_db import ITetSignalsDocumentDatabase
 from tet_doc_db.doc_database_meta_classes.tet_systems_doc_db import ITetSystemsDocumentDatabase
-from tet_doc_db.doc_database_meta_classes.tet_portfolio_doc_db import ITetPortfolioDocumentDatabase
 from tet_doc_db.doc_database_meta_classes.time_series_doc_db import ITimeSeriesDocumentDatabase
 from tet_doc_db.tet_mongo_db.systems_mongo_db import TetSystemsMongoDb
-from tet_doc_db.tet_mongo_db.portfolio_mongo_db import TetPortfolioMongoDb
 from tet_doc_db.time_series_mongo_db.time_series_mongo_db import TimeSeriesMongoDb
 from tet_doc_db.instruments_mongo_db.instruments_mongo_db import InstrumentsMongoDb
 import tet_trading_systems.trading_system_development.trading_systems.env as env
@@ -37,208 +37,252 @@ INSTRUMENTS_DB = InstrumentsMongoDb(env.ATLAS_MONGO_DB_URL, env.CLIENT_DB)
 #SYSTEMS_DB = TetSystemsMongoDb(env.ATLAS_MONGO_DB_URL, env.CLIENT_DB)
 #CLIENT_DB = TetSystemsMongoDb(env.ATLAS_MONGO_DB_URL, env.CLIENT_DB)
 
-PORTFOLIOS_DB = TetPortfolioMongoDb(env.LOCALHOST_MONGO_DB_URL, env.CLIENT_DB)
+
+class TradingSystemProcessor:
+    
+    # __data: dict[str, TimeSeriesDataHandler] = {}
+    __data: dict[str, pd.DataFrame] = {}
+    __pred_features_data: dict[str, pd.DataFrame] = {}
+    
+    def __init__(
+        self, ts_properties: TradingSystemProperties, 
+        systems_db: ITetSystemsDocumentDatabase, 
+        client_db: ITetSignalsDocumentDatabase,
+        start_dt: dt.datetime, end_dt: dt.datetime
+    ):
+        self.__ts_properties = ts_properties
+        self.__systems_db: ITetSystemsDocumentDatabase = systems_db
+        self.__client_db: ITetSignalsDocumentDatabase = client_db
+        self.__trading_system = TradingSystem(
+            self.__ts_properties.system_name,
+            self.__ts_properties.entry_logic_function, 
+            self.__ts_properties.exit_logic_function,
+            self.__systems_db, self.__client_db
+        )
+        self.__start_dt: dt.datetime = start_dt
+        self.__end_dt: dt.datetime = end_dt
+        self.__preprocess_data(self.__start_dt, self.__end_dt)
+
+    def __preprocess_data(self, start_dt: dt.datetime, end_dt: dt.datetime):
+        self.__data, self.__pred_features_data = self.__ts_properties.preprocess_data_function(
+            self.__ts_properties.system_instruments_list,
+            *self.__ts_properties.preprocess_data_args, start_dt, end_dt
+        )
+
+    def reprocess_data(self, end_dt: dt.datetime):
+        pass
+
+    def _run_trading_system(
+        self, full_run,
+        capital=10000, capital_fraction=1.0, avg_yearly_periods=251,  
+        run_monte_carlo_sims=False, num_of_sims=2500,
+        print_dataframe=False, plot_fig=False, plot_positions=False, write_to_file_path=None,
+        save_summary_plot_to_path=False, system_analysis_to_csv_path=None,
+        plot_returns_distribution=False,
+        print_data=False,
+        insert_into_db=False,
+        pos_list_slice_years_est=2,
+        **kwargs
+    ):
+        if full_run:
+            self.__trading_system.run_trading_system_backtest(
+                self.__data,
+                capital=capital,
+                capital_fraction=capital_fraction,
+                avg_yearly_periods=avg_yearly_periods,
+                market_state_null_default=full_run,
+                plot_performance_summary=plot_fig,
+                save_summary_plot_to_path=save_summary_plot_to_path,
+                system_analysis_to_csv_path=system_analysis_to_csv_path, 
+                plot_returns_distribution=plot_returns_distribution,
+                save_returns_distribution_plot_to_path=None, 
+                run_monte_carlo_sims=run_monte_carlo_sims,
+                num_of_monte_carlo_sims=num_of_sims,
+                monte_carlo_data_amount=0.65,
+                plot_monte_carlo=plot_fig,
+                print_monte_carlo_df=print_dataframe,
+                monte_carlo_analysis_to_csv_path=None, 
+                print_data=print_data,
+                commission_pct_cost=0.0025,
+                entry_args=self.__ts_properties.entry_function_args,
+                exit_args=self.__ts_properties.exit_function_args,
+                fixed_position_size=True,
+                generate_signals=True,
+                plot_positions=plot_positions,
+                save_position_figs_path=None,
+                write_signals_to_file_path=write_to_file_path,
+                insert_data_to_db_bool=insert_into_db,
+                pos_list_slice_years_est=pos_list_slice_years_est
+            )
+        else:
+            self.__trading_system.run_trading_system(
+                self.__data,
+                capital=capital,
+                capital_fraction=capital_fraction,
+                commission_pct_cost=0.0025,  # goes into **kwargs
+                entry_args=self.__ts_properties.entry_function_args,  # goes into **kwargs
+                exit_args=self.__ts_properties.exit_function_args,  # goes into **kwargs
+                fixed_position_size=True,  # goes into **kwargs
+                print_data=print_data,
+                write_signals_to_file_path=write_to_file_path,
+                insert_data_to_db_bool=insert_into_db
+            )
+
+    def _handle_trading_system(
+        self, full_run: bool,
+        time_series_db: ITimeSeriesDocumentDatabase=None, insert_into_db=False, 
+        **kwargs
+    ):
+        for i in range(self.__ts_properties.required_runs):
+            if full_run is True:
+                insert_data = i == self.__ts_properties.required_runs - 1 and insert_into_db
+            else:
+                insert_data = insert_into_db
+
+            self._run_trading_system(
+                full_run,
+                insert_into_db=insert_data,
+                **self.__ts_properties.position_sizer.position_sizer_data_dict
+            )
+
+            if isinstance(self.__ts_properties.position_sizer, ExtPositionSizer):
+                self._run_ext_pos_sizer()
+            else:
+                self._run_pos_sizer()
+
+            if full_run is False:
+                break
+
+        if insert_into_db is True:
+            if isinstance(self.__ts_properties.position_sizer, ExtPositionSizer):
+                pos_sizer_data_dict = self.__ts_properties.position_sizer.get_position_sizer_data_dict()
+                self.__systems_db.insert_system_metrics(self.__ts_properties.system_name, pos_sizer_data_dict)
+                self.__client_db.insert_system_metrics(self.__ts_properties.system_name, pos_sizer_data_dict)
+            else:
+                pos_sizer_data_dict = self.__ts_properties.position_sizer.get_position_sizer_data_dict()
+                self.__client_db.update_market_state_data(
+                    self.__ts_properties.system_name, json.dumps(pos_sizer_data_dict)
+                )
+
+    def _handle_ml_trading_system(
+        self, full_run: bool,
+        time_series_db: ITimeSeriesDocumentDatabase=None, insert_into_db=False,
+        **kwargs
+    ):
+        if full_run is True:
+            # Train models using latest data on a regular interval
+            pass
+
+        system_state_handler = MlTradingSystemStateHandler(
+            self.__ts_properties.system_name, 
+            self.__data, self.__pred_features_data, 
+            self.__systems_db,
+        )
+
+        for _ in range(self.__ts_properties.required_runs):
+            system_state_handler(
+                self.__ts_properties.entry_logic_function, self.__ts_properties.exit_logic_function,
+                self.__ts_properties.entry_function_args, self.__ts_properties.exit_function_args,
+                client_db=self.__client_db, insert_into_db=insert_into_db,
+                **self.__ts_properties.position_sizer.position_sizer_data_dict
+            )
+            
+            self._run_pos_sizer()
+
+        if insert_into_db is True:
+            pos_sizer_data_dict = self.__ts_properties.position_sizer.get_position_sizer_data_dict()
+            self.__client_db.update_market_state_data(
+                self.__ts_properties.system_name, json.dumps(pos_sizer_data_dict)
+            )
+
+    def _run_pos_sizer(self):
+        market_states_data: list[dict] = json.loads(
+            self.__client_db.get_market_state_data(
+                self.__ts_properties.system_name, MarketState.ENTRY.value
+            )
+        )
+        for data_dict in market_states_data:
+            try:
+                position_list, num_of_periods = self.__systems_db.get_single_symbol_position_list(
+                    self.__ts_properties.system_name, 
+                    data_dict.get(TradingSystemAttributes.SYMBOL),
+                    serialized_format=True, return_num_of_periods=True
+                )
+            except ValueError as e:
+                print(e)
+                continue
+
+            self.__ts_properties.position_sizer(
+                position_list, num_of_periods,
+                *self.__ts_properties.position_sizer_call_args,
+                symbol=data_dict.get(TradingSystemAttributes.SYMBOL), 
+                **self.__ts_properties.position_sizer_call_kwargs,
+                **self.__ts_properties.position_sizer.position_sizer_data_dict
+            )
+
+    def _run_ext_pos_sizer(self):
+        try:
+            position_list, num_of_periods = self.__systems_db.get_position_list(
+                self.__ts_properties.system_name,
+                serialized_format=True, return_num_of_periods=True
+            )
+        except ValueError as e:
+            print(e)
+            return
+
+        self.__ts_properties.position_sizer(
+            position_list, num_of_periods,
+            *self.__ts_properties.position_sizer_call_args,
+            **self.__ts_properties.position_sizer_call_kwargs,
+            **self.__ts_properties.position_sizer.position_sizer_data_dict
+        )
+
+    def __call__(
+        self, date: dt.datetime, full_run: bool,
+        time_series_db=None, insert_into_db=False, **kwargs
+    ):
+        # get new data here and append it to __data member
+
+        # make some date check on given date against last date of self.__data
+
+        # call reprocess_data if new data is available
+        # self.reprocess_data(date)
+
+        self._handle_trading_system(
+        # self._handle_ml_trading_system(
+            full_run,
+            time_series_db=time_series_db, 
+            insert_into_db=insert_into_db,
+            **kwargs
+        )
 
 
-class TradingSystemsHandler:
+class TradingSystemHandler:
 
-    __trading_system_state_handlers: list[TradingSystemStateHandler] = []
+    __trading_systems: list[TradingSystemProcessor] = []
 
     def __init__(
         self, trading_system_properties_list: list[TradingSystemProperties],
+        systems_db: ITetSystemsDocumentDatabase, 
+        client_db: ITetSignalsDocumentDatabase,
         start_dt: dt.datetime, end_dt: dt.datetime, 
     ):
         for ts_properties in trading_system_properties_list:
-            self.__trading_system_state_handlers.append(
-                TradingSystemStateHandler(
-                    ts_properties, SYSTEMS_DB, CLIENT_DB, start_dt, end_dt
+            self.__trading_systems.append(
+                TradingSystemProcessor(
+                    ts_properties, systems_db, client_db, start_dt, end_dt
                 )
             )
 
-    def _run_trading_systems(self, date: dt.datetime):
-        for trading_system_state_handler in self.__trading_system_state_handlers:
+    def run_trading_systems(
+        self, date: dt.datetime, full_run: bool,
+        time_series_db=None
+    ):
+        for trading_system_state_handler in self.__trading_systems:
             trading_system_state_handler(
-                date, time_series_db=TIME_SERIES_DB, insert_into_db=True
+                date, full_run, 
+                time_series_db=time_series_db, insert_into_db=True
             )
-
-    def __call__(self, date: dt.datetime):
-        self._run_trading_systems(date)
-
-
-def run_trading_system(
-    data_dict, system_name, entry_func, exit_func,
-    entry_args, exit_args, *args, 
-    capital=10000, capital_fraction=1.0, avg_yearly_periods=251,  
-    market_state_null_default=False, run_monte_carlo_sims=False, num_of_sims=2500,
-    print_dataframe=False, plot_fig=False, plot_positions=False, write_to_file_path=None,
-    save_summary_plot_to_path=False, system_analysis_to_csv_path=None,
-    plot_returns_distribution=False,
-    systems_db: ITetSystemsDocumentDatabase=None, 
-    client_db: ITetSystemsDocumentDatabase=None, 
-    print_data=False,
-    run_from_latest_exit=False,
-    insert_into_db=False,
-    pos_list_slice_years_est=2,
-    **kwargs
-):
-    ts = TradingSystem(system_name, data_dict, entry_func, exit_func, systems_db, client_db)
-    ts(
-        capital=capital,
-        capital_fraction=capital_fraction,
-        avg_yearly_periods=avg_yearly_periods,
-        market_state_null_default=market_state_null_default,
-        plot_performance_summary=plot_fig,
-        save_summary_plot_to_path=save_summary_plot_to_path,
-        system_analysis_to_csv_path=system_analysis_to_csv_path, 
-        plot_returns_distribution=plot_returns_distribution,
-        save_returns_distribution_plot_to_path=None, 
-        run_monte_carlo_sims=run_monte_carlo_sims,
-        num_of_monte_carlo_sims=num_of_sims,
-        monte_carlo_data_amount=0.65,
-        plot_monte_carlo=plot_fig,
-        print_monte_carlo_df=print_dataframe,
-        monte_carlo_analysis_to_csv_path=None, 
-        print_data=print_data,
-        commission_pct_cost=0.0025,
-        entry_args=entry_args,
-        exit_args=exit_args,
-        fixed_position_size=True,
-        generate_signals=True,
-        plot_positions=plot_positions,
-        save_position_figs_path=None,
-        write_signals_to_file_path=write_to_file_path,
-        run_from_latest_exit=run_from_latest_exit,
-        insert_data_to_db_bool=insert_into_db,
-        pos_list_slice_years_est=pos_list_slice_years_est
-    )
-
-
-def handle_ext_pos_sizer_trading_system(
-    system_props: TradingSystemProperties, start_dt, end_dt, 
-    from_latest_exit: bool,
-    systems_db: ITetSystemsDocumentDatabase, 
-    client_db: ITetSignalsDocumentDatabase, 
-    time_series_db: ITimeSeriesDocumentDatabase=None,
-    insert_into_db=False, plot_fig=False 
-):
-    if from_latest_exit:
-        latest_position_dts = json.loads(
-            client_db.get_latest_position_dts(
-                system_props.system_name, system_props.system_instruments_list
-            )
-        )
-
-    data, pred_features_data = system_props.preprocess_data_function(
-        system_props.system_instruments_list,
-        *system_props.preprocess_data_args, start_dt, end_dt,
-        latest_position_dts=latest_position_dts if from_latest_exit else from_latest_exit
-    )
-
-    #if time_series_db:
-    #    time_series_db.insert_pandas_time_series_data(data)
-
-    system_state_handler = system_props.system_state_handler(
-        *system_props.system_state_handler_args, systems_db, data
-    )
-    system_position_sizer: IPositionSizer = system_props.position_sizer(
-        *system_props.position_sizer_args
-    )
-
-    for i in range(system_props.required_runs):
-        system_state_handler(
-            *system_props.system_state_handler_call_args, pred_features_data,
-            plot_fig=plot_fig, client_db=client_db,
-            insert_into_db=True if (i + 1) == system_props.required_runs and insert_into_db else False,
-            **system_props.system_state_handler_call_kwargs,
-            run_from_latest_exit=from_latest_exit,
-            **system_position_sizer.position_sizer_data_dict
-        )
-        position_list, num_of_periods = systems_db.get_position_list(
-            system_props.system_name, return_num_of_periods=True
-        )
-        system_position_sizer(
-            position_list, num_of_periods,
-            *system_props.position_sizer_call_args,
-            **system_props.position_sizer_call_kwargs,
-            **system_position_sizer.position_sizer_data_dict
-        )
-
-    pos_sizer_data_dict = system_position_sizer.get_position_sizer_data_dict()
-    systems_db.insert_system_metrics(system_props.system_name, pos_sizer_data_dict)
- 
-
-def handle_ml_trading_system(
-    system_props: TradingSystemProperties, start_dt, end_dt, 
-    from_latest_exit: bool,
-    systems_db: ITetSystemsDocumentDatabase, 
-    client_db: ITetSignalsDocumentDatabase, 
-    time_series_db: ITimeSeriesDocumentDatabase=None,
-    insert_into_db=False, plot_fig=False 
-):
-    data, pred_features_data = system_props.preprocess_data_function(
-        system_props.system_instruments_list,
-        *system_props.preprocess_data_args, start_dt, end_dt
-    )
-
-    #if time_series_db:
-    #   time_series_db.insert_pandas_time_series_data(data)
-
-    system_state_handler = system_props.system_state_handler(
-        # if only pred_features_data is what differs between this and handle_trading_system 
-        # function try to make both compatible with all system types
-        *system_props.system_state_handler_args, data, pred_features_data, systems_db,
-    )
-    system_position_sizer: IPositionSizer = system_props.position_sizer(
-        *system_props.position_sizer_args
-    )
-
-    for _ in range(system_props.required_runs):
-        system_state_handler(
-            *system_props.system_state_handler_call_args,
-            plot_fig=plot_fig, 
-            client_db=client_db, insert_into_db=insert_into_db,
-            **system_props.system_state_handler_call_kwargs,
-            **system_position_sizer.position_sizer_data_dict
-        )
-        market_states_data: list[dict] = json.loads(
-            systems_db.get_market_state_data(
-                system_props.system_name, MarketState.ENTRY.value
-            )
-        )
-
-        for data_dict in market_states_data:
-            position_list, num_of_periods = systems_db.get_single_symbol_position_list(
-                system_props.system_name, data_dict[TradingSystemAttributes.SYMBOL],
-                return_num_of_periods=True
-            )
-            system_position_sizer(
-                position_list, num_of_periods,
-                *system_props.position_sizer_call_args,
-                symbol=data_dict[TradingSystemAttributes.SYMBOL], 
-                **system_props.position_sizer_call_kwargs,
-                **system_position_sizer.position_sizer_data_dict
-            )
-
-    pos_sizer_data_dict = system_position_sizer.get_position_sizer_data_dict()
-    systems_db.insert_market_state_data(
-        system_props.system_name, json.dumps(pos_sizer_data_dict)
-    )
-
-
-def handle_trading_system_portfolio(
-    system_props: TradingSystemProperties,
-    client_db: ITetSignalsDocumentDatabase,
-    portfolio_db: ITetPortfolioDocumentDatabase,
-    insert_into_db=False
-):
-    portfolio = system_props.portfolio(
-        *system_props.portfolio_args, 
-        client_db, portfolio_db
-    )
-    portfolio(
-        *system_props.portfolio_call_args, 
-        insert_into_db=insert_into_db
-    )
 
 
 if __name__ == '__main__':
@@ -246,18 +290,16 @@ if __name__ == '__main__':
 
     arg_parser = argparse.ArgumentParser(description='trading_system_handler CLI argument parser')
     arg_parser.add_argument(
-        '--trading-systems-dir', help='Trading system files directory', dest='ts_dir'
+        '-trading-systems-dir', dest='ts_dir', help='Trading system files directory'
     )
     arg_parser.add_argument(
-        '--from-latest-exit', action='store_true',
+        '--full-run', action='store_true', dest='full_run',
         help='Run trading systems from the date of the latest exit of each instrument',
-        dest='from_latest_exit'
     )
 
     cli_args = arg_parser.parse_args()
-
     live_systems_dir = cli_args.ts_dir
-    from_latest_exit = cli_args.from_latest_exit
+    full_run = cli_args.full_run
 
     file_dir = os.path.dirname(os.path.abspath(__file__))
     __globals = globals()
@@ -278,37 +320,21 @@ if __name__ == '__main__':
         if ts_module == 'ml_trading_system_example':
         # if ts_module != 'trading_system_example':
             continue
-        ts_properties = __globals[ts_module].get_props(
+        ts_properties = __globals[ts_module].get_ts_properties(
             INSTRUMENTS_DB, import_instruments=False,
-            path=f'{file_dir}/{live_systems_dir}/backtests' # only used to import list of instruments for the trading system?
+            path=f'{file_dir}/{live_systems_dir}/backtests'
         )
         trading_system_properties_list.append(ts_properties)
 
     #start_dt = dt.datetime(1999, 1, 1)
     #end_dt = dt.datetime(2011, 1, 1)
     start_dt = dt.datetime(2015, 9, 16)
-    #end_dt = dt.datetime.now()
-    #end_dt = dt.datetime(2023, 2, 24)
-    end_dt = dt.datetime(2023, 3, 1)
+    end_dt = dt.datetime.now()
+    # end_dt = dt.datetime(2023, 3, 2)
 
-    ts_handler = TradingSystemsHandler(trading_system_properties_list, start_dt, end_dt)
-    ts_handler(end_dt)
-    end_dt = dt.datetime(2023, 3, 2)
-    ts_handler(end_dt)
-
-    # instead of this scheduling, the system should listen for the data retrieving
-    # cron job to finish, and run the ts_handler() then
-    # while True:
-    #     # Get the current time
-    #     now = dt.datetime.now()
-
-    #     # Check if it's a weekday and the time is 05:00
-    #     if now.weekday() < 5 and now.hour == 5 and now.minute == 0:
-    #         ts_handler()
-
-    #         # Sleep for the rest of the day to avoid repeated executions
-    #         sleep_time = (dt.datetime(now.year, now.month, now.day, 23, 59, 59) - now).total_seconds()
-    #         time.sleep(sleep_time)
-
-    #     # Sleep for one minute before checking again
-    #     time.sleep(60)
+    ts_handler = TradingSystemHandler(
+        trading_system_properties_list, 
+        SYSTEMS_DB, CLIENT_DB,
+        start_dt, end_dt
+    )
+    ts_handler.run_trading_systems(end_dt, full_run)

@@ -1,7 +1,7 @@
-from TETrading.signal_events.signals.system_signals import SystemSignals
+from TETrading.signal_events.signals.trading_system_signals import TradingSystemSignals
 
 
-class ExitSignals(SystemSignals):
+class ExitSignals(TradingSystemSignals):
     """
     Handles data for exit signals.
     """

@@ -2,16 +2,14 @@ package main
 
 import (
 	"context"
-	"log"
-	"os"
-	"fmt"
 	"errors"
+	"fmt"
+	"os"
+
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-var pgPool *pgxpool.Pool
-
-func initPgPool() {
+func initPgPool() *pgxpool.Pool {
 	connectionString := fmt.Sprintf(
 		"postgresql://%s:%s@%s:%s/%s",
 		os.Getenv("PG_DB_USER"),
@@ -21,22 +19,14 @@ func initPgPool() {
 		os.Getenv("PG_DB_NAME"),
 	)
 
-	var err error
-	pgPool, err = pgxpool.New(context.Background(), connectionString)
+	pgPool, err := pgxpool.New(context.Background(), connectionString)
 	if err != nil {
-		log.Fatal("Error connecting to the PSQL database: ", err)
 		panic(err)
 	}
 
 	if pgPool == nil {
-		panic(err)
+		panic(errors.New("pgPool is nil"))
 	}
-}
 
-func GetPgPool() (*pgxpool.Pool, error) {
-	if pgPool == nil {
-		return nil, errors.New("pgPool has not been initialised")
-	} else {
-		return pgPool, nil
-	}
+	return pgPool
 }

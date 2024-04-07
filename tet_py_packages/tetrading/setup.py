@@ -1,5 +1,6 @@
 from setuptools import setup, find_packages
 
+
 VERSION = '0.1.0'
 DESCRIPTION = 'TETrading trading system development software'
 LONG_DESCRIPTION = DESCRIPTION
@@ -12,5 +13,10 @@ setup(
     author='GHHag',
     packages=find_packages(),
     include_package_data=True,
-    install_requires=['pandas', 'numpy', 'matplotlib', 'mplfinance']
+    install_requires=[
+        'pandas==2.2.0', 
+        'numpy==1.26.4', 
+        'matplotlib==3.8.2', 
+        'mplfinance==0.12.10b0'
+    ]
 )

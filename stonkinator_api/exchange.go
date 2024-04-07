@@ -3,47 +3,44 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strings"
-	"fmt"
+
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type Exchange struct {
-	Id string `json:"id,omitempty"`
+	Id           string `json:"id,omitempty"`
 	ExchangeName string `json:"exchange_name"`
-	Currency string `json:"currency"`
+	Currency     string `json:"currency"`
 }
 
-func exchangeAction(w http.ResponseWriter, r *http.Request) {
-	switch r.Method {
+func exchangeAction(pgPool *pgxpool.Pool) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
 		case http.MethodGet:
-			exchangeName := r.URL.Query().Get("exchange")
-
-			getExchange(exchangeName, w, r)
+			getExchange(w, r, pgPool)
 
 		case http.MethodPost:
-			var exchange Exchange
-			err := json.NewDecoder(r.Body).Decode(&exchange)
-			if err != nil {
-				http.Error(w, "Invalid request body", http.StatusBadRequest)
-				return
-			} else {
-				insertExchange(exchange, w, r)
-			}
+			insertExchange(w, r, pgPool)
 
 		default:
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		}
 	}
 }
 
-func getExchange(exchangeName string, w http.ResponseWriter, r *http.Request) {
+func getExchange(w http.ResponseWriter, r *http.Request, pgPool *pgxpool.Pool) {
+	exchangeName := r.URL.Query().Get("exchange")
+
 	query := pgPool.QueryRow(
 		context.Background(),
 		`
 			SELECT id, exchange_name, currency
 			FROM exchanges
 			WHERE UPPER(exchange_name) = $1
-		`, 
+		`,
 		strings.ToUpper(exchangeName),
 	)
 
@@ -64,14 +61,21 @@ func getExchange(exchangeName string, w http.ResponseWriter, r *http.Request) {
 	w.Write(jsonExchange)
 }
 
-func insertExchange(exchange Exchange, w http.ResponseWriter, r *http.Request) {
+func insertExchange(w http.ResponseWriter, r *http.Request, pgPool *pgxpool.Pool) {
+	var exchange Exchange
+	err := json.NewDecoder(r.Body).Decode(&exchange)
+	if err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
 	result, err := pgPool.Exec(
 		context.Background(),
 		`
 			INSERT INTO exchanges(exchange_name, currency)
 			VALUES($1, $2)
 			ON CONFLICT DO NOTHING
-		`, 
+		`,
 		exchange.ExchangeName, exchange.Currency,
 	)
 	if err != nil {

@@ -1,9 +1,9 @@
 import json
 import datetime as dt
 import pytz
-import requests
 import logging
 
+import requests
 from yahooquery import Ticker
 import pandas as pd
 
@@ -31,15 +31,15 @@ def get_yahooquery_data(
         if omxs_stock:
             if '^' in instrument:
                 data = Ticker(
-                    instrument.upper()).history(start=start_date, end=end_date
-                )
+                    instrument.upper()
+                ).history(start=start_date, end=end_date)
             else:
                 data = Ticker(
                     instrument.upper().replace('_', '-') + '.ST'
                 ).history(start=start_date, end=end_date)
         else:
             data = Ticker(instrument.upper()).history(start=start_date, end=end_date)
-        data.reset_index(inplace=True)
+        data = data.reset_index()
         return data
     except (KeyError, AttributeError, TypeError):
         critical_logger.error(
@@ -217,8 +217,8 @@ def complete_historic_data(symbol, exchange_name, *args, omxs_stock=False):
         else:
             first_dt_data = Ticker(symbol.upper()).history(start=start_dt, end=first_dt)
             last_dt_data = Ticker(symbol.upper()).history(start=last_dt)
-        first_dt_data.reset_index(inplace=True)
-        last_dt_data.reset_index(inplace=True)
+        first_dt_data = first_dt_data.reset_index()
+        last_dt_data = last_dt_data.reset_index()
         if len(first_dt_data):
             post_daily_data(
                 [symbol], exchange_name, start_dt, first_dt + dt.timedelta(days=1), 

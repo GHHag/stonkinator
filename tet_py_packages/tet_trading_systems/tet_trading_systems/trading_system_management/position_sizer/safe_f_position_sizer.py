@@ -1,5 +1,4 @@
 import random
-from typing import Dict, List
 
 import numpy as np
 import pandas as pd
@@ -39,10 +38,10 @@ class SafeFPositionSizer(IPositionSizer):
         return self.__POSITION_SIZE_METRIC_STR
 
     @property
-    def position_sizer_data_dict(self) -> Dict:
+    def position_sizer_data_dict(self) -> dict:
         return self.__position_sizer_data_dict
 
-    def get_position_sizer_data_dict(self) -> Dict:
+    def get_position_sizer_data_dict(self) -> dict:
         pos_sizer_data = {}
         for k, v in self.__position_sizer_data_dict.items():
             for ki, vi in v.items():
@@ -54,7 +53,7 @@ class SafeFPositionSizer(IPositionSizer):
         return {'data': list(pos_sizer_data.values())}
 
     def _monte_carlo_simulate_pos_sequence(
-        self, positions: List[Position], num_testing_periods, start_capital,
+        self, positions: list[Position], num_testing_periods, start_capital,
         capital_fraction=1.0, num_of_sims=1000, data_fraction_used=0.66, 
         symbol='', print_dataframe=False, plot_fig=False, **kwargs
     ):
@@ -111,7 +110,7 @@ class SafeFPositionSizer(IPositionSizer):
         return monte_carlo_sims_df
 
     def __call__(
-        self, position_list: List[Position], num_of_periods, 
+        self, position_list: list[Position], num_of_periods, 
         avg_yearly_periods=251, years_to_forecast=2, persistant_safe_f=None,
         capital=10000, num_of_sims=2500, symbol='', plot_fig=False, 
         **kwargs

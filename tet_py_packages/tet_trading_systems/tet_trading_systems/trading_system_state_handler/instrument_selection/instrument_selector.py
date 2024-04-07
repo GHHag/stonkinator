@@ -1,5 +1,4 @@
 from abc import ABCMeta, abstractmethod
-from typing import List
 
 
 class IInstrumentSelector(metaclass=ABCMeta):
@@ -8,7 +7,7 @@ class IInstrumentSelector(metaclass=ABCMeta):
 
     @property
     @abstractmethod
-    def selected_instruments(self) -> List:
+    def selected_instruments(self) -> list:
         raise NotImplementedError("Should contain a 'selected_instruments' property")
 
     @abstractmethod
