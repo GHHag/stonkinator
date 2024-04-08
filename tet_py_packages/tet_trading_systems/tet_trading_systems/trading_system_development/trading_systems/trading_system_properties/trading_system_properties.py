@@ -7,6 +7,7 @@ from tet_trading_systems.trading_system_management.position_sizer.position_sizer
 class TradingSystemProperties:
     system_name: str
     required_runs: int
+    ts_category: str
     system_instruments_list: list[str]
     
     preprocess_data_function: callable

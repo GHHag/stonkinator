@@ -187,7 +187,10 @@ class TradingSystemProcessor:
                 **self.__ts_properties.position_sizer.position_sizer_data_dict
             )
             
-            self._run_pos_sizer()
+            if isinstance(self.__ts_properties.position_sizer, ExtPositionSizer):
+                self._run_ext_pos_sizer()
+            else:
+                self._run_pos_sizer()
 
         if insert_into_db is True:
             pos_sizer_data_dict = self.__ts_properties.position_sizer.get_position_sizer_data_dict()
@@ -248,13 +251,20 @@ class TradingSystemProcessor:
         # call reprocess_data if new data is available
         # self.reprocess_data(date)
 
-        self._handle_trading_system(
-        # self._handle_ml_trading_system(
-            full_run,
-            time_series_db=time_series_db, 
-            insert_into_db=insert_into_db,
-            **kwargs
-        )
+        if self.__ts_properties.ts_category == 'regular':
+            self._handle_trading_system(
+                full_run,
+                time_series_db=time_series_db, 
+                insert_into_db=insert_into_db,
+                **kwargs
+            )
+        if self.__ts_properties.ts_category == 'ml':
+            self._handle_ml_trading_system(
+                full_run,
+                time_series_db=time_series_db, 
+                insert_into_db=insert_into_db,
+                **kwargs
+            )
 
 
 class TradingSystemHandler:

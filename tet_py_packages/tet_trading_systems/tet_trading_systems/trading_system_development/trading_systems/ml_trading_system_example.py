@@ -301,7 +301,10 @@ def preprocess_data(
 ):
     df_dict = {}
     for symbol in symbols_list:
-        response_data, response_status = get_data_function(symbol, start_dt, end_dt)
+        try:
+            response_data, response_status = get_data_function(symbol, start_dt, end_dt)
+        except ValueError:
+            continue
         if response_status == 200:
             df_dict[symbol] = pd.json_normalize(json.loads(response_data))
             if 'instrument_id' in df_dict[symbol].columns:
@@ -373,7 +376,7 @@ def get_ts_properties(
     ) """
 
     return TradingSystemProperties( 
-        system_name, 1,
+        system_name, 1, 'ml',
         symbols_list,
         preprocess_data,
         (

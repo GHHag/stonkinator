@@ -2,6 +2,7 @@ import json
 import datetime as dt
 import pytz
 import logging
+from functools import lru_cache
 
 import requests
 from yahooquery import Ticker
@@ -94,10 +95,15 @@ def price_data_post_req(instrument_id, df_json):
     return price_data_post_res.content, price_data_post_res.status_code
 
 
+@lru_cache(maxsize=500)
 def price_data_get_req(symbol, start_date_time, end_date_time):
     price_data_get_res = requests.get(
         f'http://{env.API_HOST}:{env.API_PORT}{env.API_URL}/price?symbol={symbol}&start={start_date_time}&end={end_date_time}'
     )
+    
+    if len(price_data_get_res.content) <= 2:
+        raise ValueError('response data empty')
+
     return price_data_get_res.content, price_data_get_res.status_code
 
 
