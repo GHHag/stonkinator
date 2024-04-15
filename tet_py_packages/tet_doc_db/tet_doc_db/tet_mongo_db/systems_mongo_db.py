@@ -387,6 +387,18 @@ class TetSystemsMongoDb(ITetSystemsDocumentDatabase):
             else:
                 return json.dumps(query, default=json_util.default)
 
+    def get_single_symbol_latest_position(self, system_name, symbol):
+        system_id = self._get_system_id(system_name)
+        query = self.__single_symbol_positions.find_one(
+            {
+                self.__SYSTEM_ID_FIELD: system_id, self.__SYSTEM_NAME_FIELD: system_name,
+                self.__SYMBOL_FIELD: symbol
+            },
+            {self.__ID_FIELD: 0, self.__POSITION_LIST_FIELD: {'$slice': -1}}
+        )
+        if query is not None:
+            return pickle.loads(query[self.__POSITION_LIST_FIELD][0])
+
     def insert_current_position(
         self, system_name, symbol, position
     ):

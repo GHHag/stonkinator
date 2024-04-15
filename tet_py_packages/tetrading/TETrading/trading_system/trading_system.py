@@ -397,7 +397,7 @@ class TradingSystem:
                 print_data=print_data, **kwargs
             )
 
-            if insert_data_to_db_bool:
+            if insert_data_to_db_bool is True:
                 self.__systems_db.insert_current_position(
                     self.__system_name, instrument, position
                 )
@@ -406,13 +406,22 @@ class TradingSystem:
                 #     self.__system_name, instrument, position
                 # )
 
-            elif position.exit_signal_dt and insert_data_to_db_bool:
+            if(
+                position.exit_dt is not None and position.exit_dt == data.index[-1] and
+                insert_data_to_db_bool is True
+            ):
+                latest_position: Position = self.__systems_db.get_single_symbol_latest_position(
+                    self.__system_name, instrument
+                )
+                mask = data.index > latest_position.exit_signal_dt
+                num_periods = len(data.loc[mask])
+
                 self.__systems_db.insert_single_symbol_position(
-                    self.__system_name, instrument, position, len(position.returns_list),
+                    self.__system_name, instrument, position, num_periods,
                     serialized_format=True
                 )
                 self.__client_db.insert_single_symbol_position(
-                    self.__system_name, instrument, position, len(position.returns_list),
+                    self.__system_name, instrument, position, num_periods,
                     json_format=True
                 )
                 self.__systems_db.insert_position(

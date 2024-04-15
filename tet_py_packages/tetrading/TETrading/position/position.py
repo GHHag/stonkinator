@@ -78,6 +78,10 @@ class Position:
         return self.__entry_dt
 
     @property
+    def exit_dt(self):
+        return self.__exit_dt
+
+    @property
     def current_dt(self):
         return self.__current_dt
 
