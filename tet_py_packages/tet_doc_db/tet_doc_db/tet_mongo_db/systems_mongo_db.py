@@ -430,13 +430,13 @@ class TetSystemsMongoDb(ITetSystemsDocumentDatabase):
                 self.__CURRENT_POSITION_FIELD: {'$exists': True}
             },
             {
-                self.__ID_FIELD: 0, self.__SYSTEM_ID_FIELD: 1, 
-                self.__SYMBOL_FIELD: 1, self.__CURRENT_POSITION_FIELD: 1
+                self.__ID_FIELD: 0, 
+                self.__SYSTEM_ID_FIELD: 1, 
+                self.__SYMBOL_FIELD: 1, 
+                self.__CURRENT_POSITION_FIELD: 1
             }
         )
-        if query is None:
-            return False
-        else:
+        if query is not None:
             return pickle.loads(query[self.__CURRENT_POSITION_FIELD])
 
     def get_historic_data(self, system_name):
@@ -535,7 +535,8 @@ class TetSystemsMongoDb(ITetSystemsDocumentDatabase):
             }, 
             {self.__ID_FIELD: 0, self.__ML_MODEL_FIELD: 1}
         )
-        return pickle.loads(query[self.__ML_MODEL_FIELD])
+        if query is not None:
+            return pickle.loads(query[self.__ML_MODEL_FIELD])
 
 
 if __name__ == '__main__':

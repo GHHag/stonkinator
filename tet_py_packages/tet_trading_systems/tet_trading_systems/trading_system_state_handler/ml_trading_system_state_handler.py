@@ -7,9 +7,7 @@ from sklearn.pipeline import Pipeline
 
 from TETrading.data.metadata.market_state_enum import MarketState
 from TETrading.data.metadata.trading_system_attributes import TradingSystemAttributes
-from TETrading.data.metadata.trading_system_metrics import TradingSystemMetrics
 from TETrading.position.position import Position
-from TETrading.position.position_manager import PositionManager
 from TETrading.signal_events.signal_handler import SignalHandler
 
 from tet_doc_db.tet_mongo_db.systems_mongo_db import TetSystemsMongoDb
@@ -20,18 +18,16 @@ class MlSystemInstrumentData:
     __dataframe: pd.DataFrame
     __pred_data: np.ndarray
     __model_pipeline: Pipeline
-    __position_list: list[Position]
+    __position: Position
     __market_state_data: dict[str, object]
-    __num_testing_periods: int
 
     def __init__(self, symbol, dataframe, pred_data):
         self.__symbol = symbol
         self.__dataframe = dataframe
         self.__pred_data = pred_data
         self.__model_pipeline = None
-        self.__position_list = None
+        self.__position = None
         self.__market_state_data = None
-        self.__num_testing_periods = None
 
     @property
     def symbol(self):
@@ -58,12 +54,12 @@ class MlSystemInstrumentData:
         self.__model_pipeline = model_pipeline
 
     @property
-    def position_list(self):
-        return self.__position_list
+    def position(self):
+        return self.__position
 
-    @position_list.setter
-    def position_list(self, position_list):
-        self.__position_list = position_list
+    @position.setter
+    def position(self, position):
+        self.__position = position
 
     @property
     def market_state_data(self):
@@ -72,14 +68,6 @@ class MlSystemInstrumentData:
     @market_state_data.setter
     def market_state_data(self, market_state_data):
         self.__market_state_data = market_state_data
-
-    @property
-    def num_testing_periods(self):
-        return self.__num_testing_periods
-
-    @num_testing_periods.setter
-    def num_testing_periods(self, num_testing_periods):
-        self.__num_testing_periods = num_testing_periods
 
 
 class MlTradingSystemStateHandler:
@@ -101,35 +89,27 @@ class MlTradingSystemStateHandler:
                 symbol, dataframe, instrument_pred_data_dicts.get(symbol)
             )
             instrument_data.model_pipeline = self.__systems_db.get_ml_model(self.__system_name, instrument_data.symbol)
-            instrument_data.position_list = self.__systems_db.get_single_symbol_position_list(
-                self.__system_name, instrument_data.symbol, serialized_format=True
+            instrument_data.position = self.__systems_db.get_current_position(
+                self.__system_name, instrument_data.symbol
             )
 
-            if instrument_data.model_pipeline:
+            if instrument_data.model_pipeline is not None:
                 instrument_data.market_state_data = json.loads(
                     self.__systems_db.get_market_state_data_for_symbol(self.__system_name, instrument_data.symbol)
                 )
             else:
-                raise ValueError("Something went wrong while getting the model from database.")
-
-            if instrument_data.position_list[-1].exit_signal_dt is not None:
-                mask = (instrument_data.dataframe['date'] > instrument_data.position_list[0].entry_dt) & \
-                    (instrument_data.dataframe['date'] <= instrument_data.position_list[-1].exit_signal_dt)
-                instrument_data.num_testing_periods = len(instrument_data.dataframe.loc[mask])
-            else:
-                mask = (instrument_data.dataframe['date'] > instrument_data.position_list[0].entry_dt) & \
-                    (instrument_data.dataframe['date'] <= instrument_data.position_list[-2].exit_signal_dt)
-                periods_in_position = instrument_data.market_state_data[TradingSystemAttributes.PERIODS_IN_POSITION] \
-                    if TradingSystemAttributes.PERIODS_IN_POSITION in instrument_data.market_state_data else 1
-                instrument_data.num_testing_periods = len(instrument_data.dataframe.loc[mask]) + periods_in_position 
+                print(f'{symbol}: something went wrong while getting the model from database')
+                continue
 
             self.__instrument_dicts_list.append(instrument_data)
 
     def _handle_entry_signal(self, instrument_data: MlSystemInstrumentData):
-        if instrument_data.market_state_data[TradingSystemAttributes.MARKET_STATE] == MarketState.ENTRY.value and \
-            instrument_data.dataframe['date'].iloc[-2] == pd.Timestamp(instrument_data.market_state_data[TradingSystemAttributes.SIGNAL_DT]) and \
-                not instrument_data.position_list[-1].active_position:
-            instrument_data.position_list[-1].enter_market(
+        if (
+            instrument_data.market_state_data[TradingSystemAttributes.MARKET_STATE] == MarketState.ENTRY.value and
+            instrument_data.dataframe['date'].iloc[-2] == pd.Timestamp(instrument_data.market_state_data[TradingSystemAttributes.SIGNAL_DT]) and
+            not instrument_data.position.active_position
+        ):
+            instrument_data.position.enter_market(
                 instrument_data.dataframe['open'].iloc[-1], instrument_data.dataframe['date'].iloc[-1]
             )
             print(
@@ -142,31 +122,15 @@ class MlTradingSystemStateHandler:
         capital=10000, num_of_sims=2500, yearly_periods=251, plot_fig=True, 
         **kwargs
     ):
-        def generate_position_sequence(**kwargs):
-            for pos in instrument_data.position_list:
-                yield pos
-    
         entry_signal, direction = entry_logic_function(
             instrument_data.dataframe.iloc[-entry_args[TradingSystemAttributes.ENTRY_PERIOD_LOOKBACK]:], 
             entry_args
         )
-        if entry_signal and not instrument_data.position_list[-1].active_position and \
-            not instrument_data.position_list[-1].exit_signal_dt == instrument_data.dataframe['date'].iloc[-2]:
-            # create mask to filter dataframe where the 'date' is between the first element of 
-            # position_list's entry_dt and the last elements exit_signal_dt
-            mask = (instrument_data.dataframe['date'] > instrument_data.position_list[0].entry_dt) & \
-                (instrument_data.dataframe['date'] <= instrument_data.position_list[-1].exit_signal_dt)
-            avg_yearly_positions = int(
-                len(instrument_data.position_list) / (instrument_data.num_testing_periods / yearly_periods) + 0.5
-            )
-            
-            position_manager = PositionManager(
-                instrument_data.symbol, instrument_data.num_testing_periods, capital, 1.0,
-                asset_price_series=[float(close) for close in instrument_data.dataframe.loc[mask]['close']]
-            )
-            position_manager.generate_positions(generate_position_sequence)
-            position_manager.summarize_performance(plot_fig=plot_fig)
-
+        if (
+            entry_signal and
+            not instrument_data.position.active_position and
+            not instrument_data.position.exit_signal_dt == instrument_data.dataframe['date'].iloc[-2]
+        ):
             self.__signal_handler.handle_entry_signal(
                 instrument_data.symbol, 
                 {
@@ -177,13 +141,8 @@ class MlTradingSystemStateHandler:
                     TradingSystemAttributes.MARKET_STATE: MarketState.ENTRY.value
                 }
             )
-            self.__signal_handler.add_system_evaluation_data(
-                position_manager.metrics.summary_data_dict,
-                TradingSystemMetrics.system_evaluation_fields
-            )
             
-            instrument_data.position_list.pop(0)
-            instrument_data.position_list.append(Position(capital, direction))
+            instrument_data.position = Position(capital, direction)
             print(f'\nEntry signal, buy next open\nIndex {len(instrument_data.dataframe)}')
 
     def _handle_active_pos_state(self, instrument_data: MlSystemInstrumentData):
@@ -191,32 +150,32 @@ class MlTradingSystemStateHandler:
             instrument_data.market_state_data[TradingSystemAttributes.MARKET_STATE] == MarketState.EXIT.value and
             instrument_data.dataframe['date'].iloc[-2] == pd.Timestamp(instrument_data.market_state_data[TradingSystemAttributes.SIGNAL_DT])
         ):
-            instrument_data.position_list[-1].exit_market(
+            instrument_data.position.exit_market(
                 instrument_data.dataframe['open'].iloc[-1],
                 pd.Timestamp(instrument_data.market_state_data[TradingSystemAttributes.SIGNAL_DT]),
                 instrument_data.dataframe['date'].iloc[-1]
             ) 
             print(
-                f'Exit index {len(instrument_data.dataframe)}: {format(instrument_data.dataframe["open"].iloc[-1], ".3f")}, ' + 
+                f'Exit index {len(instrument_data.dataframe)}: {format(instrument_data.dataframe["open"].iloc[-1], ".3f")}, '
                 f'{instrument_data.dataframe["date"].iloc[-1]}\n'
-                f'Realised return: {instrument_data.position_list[-1].position_return}'
+                f'Realised return: {instrument_data.position.position_return}'
             )
             return False
         else:
             if instrument_data.dataframe['date'].iloc[-1] != pd.Timestamp(instrument_data.market_state_data[TradingSystemAttributes.SIGNAL_DT]):
-                instrument_data.position_list[-1].update(
+                instrument_data.position.update(
                     Decimal(instrument_data.dataframe['close'].iloc[-1]),
                     instrument_data.dataframe['date'].iloc[-1]
                 )
-            instrument_data.position_list[-1].print_position_stats()
+            instrument_data.position.print_position_stats()
             self.__signal_handler.handle_active_position(
                 instrument_data.symbol, 
                 {
                     TradingSystemAttributes.SIGNAL_INDEX: len(instrument_data.dataframe), 
                     TradingSystemAttributes.SIGNAL_DT: instrument_data.dataframe['date'].iloc[-1], 
                     TradingSystemAttributes.SYMBOL: instrument_data.symbol, 
-                    TradingSystemAttributes.PERIODS_IN_POSITION: len(instrument_data.position_list[-1].returns_list),
-                    TradingSystemAttributes.UNREALISED_RETURN: instrument_data.position_list[-1].unrealised_return,
+                    TradingSystemAttributes.PERIODS_IN_POSITION: len(instrument_data.position.returns_list),
+                    TradingSystemAttributes.UNREALISED_RETURN: instrument_data.position.unrealised_return,
                     TradingSystemAttributes.MARKET_STATE: MarketState.ACTIVE.value 
                 }
             )
@@ -225,9 +184,9 @@ class MlTradingSystemStateHandler:
     def _handle_exit_market_state(
         self, instrument_data: MlSystemInstrumentData, exit_logic_function, exit_args
     ):
-        exit_condition, trailing_exit, trailing_exit_price = exit_logic_function(
+        exit_condition, _, _ = exit_logic_function(
             instrument_data.dataframe.iloc[-exit_args[TradingSystemAttributes.EXIT_PERIOD_LOOKBACK]:], False, None,
-            instrument_data.position_list[-1].entry_price, exit_args, len(instrument_data.position_list[-1].returns_list)
+            instrument_data.position.entry_price, exit_args, len(instrument_data.position.returns_list)
         )
         if exit_condition:
             self.__signal_handler.handle_exit_signal(
@@ -236,8 +195,8 @@ class MlTradingSystemStateHandler:
                     TradingSystemAttributes.SIGNAL_INDEX: len(instrument_data.dataframe), 
                     TradingSystemAttributes.SIGNAL_DT: instrument_data.dataframe['date'].iloc[-1],
                     TradingSystemAttributes.SYMBOL: instrument_data.symbol, 
-                    TradingSystemAttributes.PERIODS_IN_POSITION: len(instrument_data.position_list[-1].returns_list),
-                    TradingSystemAttributes.UNREALISED_RETURN: instrument_data.position_list[-1].unrealised_return,
+                    TradingSystemAttributes.PERIODS_IN_POSITION: len(instrument_data.position.returns_list),
+                    TradingSystemAttributes.UNREALISED_RETURN: instrument_data.position.unrealised_return,
                     TradingSystemAttributes.MARKET_STATE: MarketState.EXIT.value 
                 }
             )
@@ -255,11 +214,16 @@ class MlTradingSystemStateHandler:
     ):
         instrument_data: MlSystemInstrumentData
         for instrument_data in self.__instrument_dicts_list:
-            if not TradingSystemAttributes.ENTRY_PERIOD_LOOKBACK in entry_args.keys() or \
-                not TradingSystemAttributes.EXIT_PERIOD_LOOKBACK in exit_args.keys():
-                raise Exception("Given parameter for 'entry_args' or 'exit_args' is missing required key(s).")
+            if (
+                not TradingSystemAttributes.ENTRY_PERIOD_LOOKBACK in entry_args.keys() or
+                not TradingSystemAttributes.EXIT_PERIOD_LOOKBACK in exit_args.keys()
+            ):
+                raise Exception("given parameter for 'entry_args' or 'exit_args' is missing required key(s)")
 
             if instrument_data.dataframe['date'].iloc[-1] != pd.Timestamp(instrument_data.market_state_data[TradingSystemAttributes.SIGNAL_DT]):
+                if instrument_data.position is None:
+                    instrument_data.position = Position(0, '')
+
                 self._handle_entry_signal(instrument_data)
                 latest_data_point = instrument_data.dataframe.iloc[-1].copy()
                 latest_data_point['pred'] = instrument_data.model_pipeline.predict(instrument_data.pred_data[-1].reshape(1, -1))[0]
@@ -270,16 +234,30 @@ class MlTradingSystemStateHandler:
                     ignore_index=True
                 )
             
-                if isinstance(instrument_data.position_list[-1], Position) and instrument_data.position_list[-1].active_position:
+                if isinstance(instrument_data.position, Position) and instrument_data.position.active_position is True:
                     active_pos = self._handle_active_pos_state(instrument_data)
-                    if active_pos:
+                    if active_pos is True:
                         self._handle_exit_market_state(instrument_data, exit_logic_function, exit_args)
                     else:
-                        if insert_into_db:
-                            # Position objects in json format are inserted into database after position exit
-                            client_db.insert_single_symbol_position_list(
-                                self.__system_name, instrument_data.symbol, 
-                                instrument_data.position_list, instrument_data.num_testing_periods,
+                        if insert_into_db is True:
+                            latest_position: Position = self.__systems_db.get_single_symbol_latest_position(
+                                self.__system_name, instrument_data.symbol
+                            )
+                            num_periods = (
+                                len(
+                                    instrument_data.dataframe.loc[
+                                        instrument_data.dataframe['date'] > latest_position.exit_signal_dt
+                                    ]
+                                )
+                                if latest_position is not None else len(instrument_data.dataframe)
+                            )
+
+                            self.__systems_db.insert_single_symbol_position(
+                                self.__system_name, instrument_data.symbol, instrument_data.position, num_periods,
+                                serialized_format=True
+                            )
+                            client_db.insert_single_symbol_position(
+                                self.__system_name, instrument_data.symbol, instrument_data.position, num_periods,
                                 json_format=True
                             )
                 else:
@@ -288,20 +266,18 @@ class MlTradingSystemStateHandler:
                         capital=capital, plot_fig=plot_fig
                     )
 
-                result = self.__systems_db.insert_single_symbol_position_list(
-                    self.__system_name, instrument_data.symbol, 
-                    instrument_data.position_list, instrument_data.num_testing_periods,
-                    serialized_format=True
+                result = self.__systems_db.insert_current_position(
+                    self.__system_name, instrument_data.symbol, instrument_data.position
                 )
 
-                if not result:
+                if result is False:
                     print(
                         'List of Position objects were not modified.\n' + 
-                        'Insert position list result: ' + str(result)
+                        f'Insert position list result: {str(result)}'
                     )
 
         print(self.__signal_handler)
-        if insert_into_db:
+        if insert_into_db is True:
             self.__signal_handler.insert_into_db(self.__systems_db, self.__system_name)
             if client_db is not self.__systems_db:
                 self.__signal_handler.insert_into_db(client_db, self.__system_name)

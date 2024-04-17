@@ -259,14 +259,15 @@ class TradingSystem:
                             )
 
                 if insert_data_to_db_bool:
+                    num_periods = len(data.loc[data['date'] <= pos_manager.position_list[-1].exit_dt])
                     self.__systems_db.insert_single_symbol_position_list(
                         self.__system_name, instrument, 
-                        pos_manager.position_list[:], len(data),
+                        pos_manager.position_list[:], num_periods,
                         serialized_format=True
                     )
                     self.__client_db.insert_single_symbol_position_list(
                         self.__system_name, instrument,
-                        pos_manager.position_list[:], len(data),
+                        pos_manager.position_list[:], num_periods,
                         json_format=True
                     )
 
@@ -385,7 +386,7 @@ class TradingSystem:
             position: Position = self.__systems_db.get_current_position(
                 self.__system_name, instrument
             )
-            if position and position.datetime_check(data.index[-1]) is False: 
+            if position is not None and position.datetime_check(data.index[-1]) is False: 
                 continue
 
             trading_session = TradingSession(
@@ -406,15 +407,17 @@ class TradingSystem:
                 #     self.__system_name, instrument, position
                 # )
 
-            if(
+            if (
                 position.exit_dt is not None and position.exit_dt == data.index[-1] and
                 insert_data_to_db_bool is True
             ):
                 latest_position: Position = self.__systems_db.get_single_symbol_latest_position(
                     self.__system_name, instrument
                 )
-                mask = data.index > latest_position.exit_signal_dt
-                num_periods = len(data.loc[mask])
+                num_periods = (
+                    len(data.loc[data.index > latest_position.exit_signal_dt]) 
+                    if latest_position is not None else len(data)
+                )
 
                 self.__systems_db.insert_single_symbol_position(
                     self.__system_name, instrument, position, num_periods,
