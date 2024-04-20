@@ -398,6 +398,21 @@ class TradingSystem:
                 print_data=print_data, **kwargs
             )
 
+            if position.entry_signal_given == True and position.active_position == False:
+                latest_position: Position = self.__systems_db.get_single_symbol_latest_position(
+                    self.__system_name, instrument
+                )
+                num_of_periods = (
+                    len(data.loc[data.index > latest_position.exit_dt]) 
+                    if latest_position != None else len(data)
+                )
+                self.__systems_db.increment_num_of_periods(
+                    self.__system_name, instrument, num_of_periods
+                )
+                self.__client_db.increment_num_of_periods(
+                    self.__system_name, instrument, num_of_periods
+                )
+
             if insert_data_to_db_bool is True:
                 self.__systems_db.insert_current_position(
                     self.__system_name, instrument, position
@@ -411,20 +426,12 @@ class TradingSystem:
                 position.exit_dt is not None and position.exit_dt == data.index[-1] and
                 insert_data_to_db_bool is True
             ):
-                latest_position: Position = self.__systems_db.get_single_symbol_latest_position(
-                    self.__system_name, instrument
-                )
-                num_periods = (
-                    len(data.loc[data.index > latest_position.exit_signal_dt]) 
-                    if latest_position is not None else len(data)
-                )
-
                 self.__systems_db.insert_single_symbol_position(
-                    self.__system_name, instrument, position, num_periods,
+                    self.__system_name, instrument, position, len(position.returns_list),
                     serialized_format=True
                 )
                 self.__client_db.insert_single_symbol_position(
-                    self.__system_name, instrument, position, num_periods,
+                    self.__system_name, instrument, position, len(position.returns_list),
                     json_format=True
                 )
                 self.__systems_db.insert_position(

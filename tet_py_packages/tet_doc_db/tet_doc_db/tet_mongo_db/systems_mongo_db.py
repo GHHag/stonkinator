@@ -439,6 +439,25 @@ class TetSystemsMongoDb(ITetSystemsDocumentDatabase):
         if query is not None:
             return pickle.loads(query[self.__CURRENT_POSITION_FIELD])
 
+    def increment_num_of_periods(self, system_name, symbol, num_of_periods):
+        system_id = self._get_system_id(system_name)
+        if not system_id:
+            self._insert_system(system_name)
+            system_id = self._get_system_id(system_name)
+        result = self.__single_symbol_positions.update_one(
+            {
+                self.__SYSTEM_ID_FIELD: system_id, 
+                self.__SYSTEM_NAME_FIELD: system_name,
+                self.__SYMBOL_FIELD: symbol
+            },
+            {
+                '$inc':{
+                    self.__NUMBER_OF_PERIODS_FIELD: num_of_periods
+                }
+            }
+        )
+        return result.modified_count > 0
+
     def get_historic_data(self, system_name):
         position_list = self.get_position_list(system_name)
         system_metrics = json.loads(self.get_system_metrics(system_name))
