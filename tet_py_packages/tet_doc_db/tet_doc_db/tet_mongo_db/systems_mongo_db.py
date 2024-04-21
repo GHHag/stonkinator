@@ -89,6 +89,26 @@ class TetSystemsMongoDb(ITetSystemsDocumentDatabase):
         )
         return json.dumps(query, default=json_util.default)
 
+    def update_current_datetime(self, system_name, current_datetime):
+        system_id = self._get_system_id(system_name)
+        if not system_id:
+            self._insert_system(system_name)
+            system_id = self._get_system_id(system_name)
+        result = self.__systems.update_one(
+            {self.__ID_FIELD: system_id, self.__NAME_FIELD: system_name},
+            {'$set': {'current_datetime': current_datetime}},
+            upsert=True
+        )
+        return result.modified_count > 0
+
+    def get_current_datetime(self, system_name):
+        system_id = self._get_system_id(system_name)
+        query = self.__systems.find_one(
+            {self.__ID_FIELD: system_id, self.__NAME_FIELD: system_name},
+            {'current_datetime': 1}
+        )
+        return json.dumps(query, default=json_util.default)
+
     def insert_market_state_data(self, system_name, data):
         data: dict[str, object] = json.loads(data)
         system_id = self._get_system_id(system_name)
