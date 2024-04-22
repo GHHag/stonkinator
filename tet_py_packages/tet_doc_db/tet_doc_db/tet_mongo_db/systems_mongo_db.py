@@ -107,7 +107,7 @@ class TetSystemsMongoDb(ITetSystemsDocumentDatabase):
             {self.__ID_FIELD: system_id, self.__NAME_FIELD: system_name},
             {'current_datetime': 1}
         )
-        return json.dumps(query, default=json_util.default)
+        return query.get('current_datetime')
 
     def insert_market_state_data(self, system_name, data):
         data: dict[str, object] = json.loads(data)
