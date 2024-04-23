@@ -64,6 +64,10 @@ class TradingSystemProcessor:
         self.__preprocess_data(self.__start_dt, self.__end_dt)
 
     @property
+    def system_name(self):
+        return self.__ts_properties.system_name
+
+    @property
     def penult_dt(self):
         return self.__penult_dt
 
@@ -256,8 +260,28 @@ class TradingSystemProcessor:
             **self.__ts_properties.position_sizer.position_sizer_data_dict
         )
 
+    def _check_end_datetime(self, end_dt: dt.datetime):
+        end_dt = pd.to_datetime(end_dt).tz_localize('UTC')
+        if self.__current_dt != end_dt:
+            raise ValueError(
+                'datetime mismatch between position and input data:\n'
+                f'current datetime found: {self.__current_dt}\n'
+                f'input datetime: {end_dt}'
+            )
+
+        last_processed_dt = self.__systems_db.get_current_datetime(
+            self.__ts_properties.system_name
+        )
+        last_processed_dt = pd.to_datetime(last_processed_dt).tz_localize('UTC')
+        if last_processed_dt != self.__penult_dt:
+            raise ValueError(
+                'datetime mismatch between position and input data:\n'
+                f'penultimate datetime found: {self.__penult_dt}\n'
+                f'last processed datetime: {last_processed_dt}'
+            )
+
     def __call__(
-        self, current_datetime: dt.datetime, full_run: bool,
+        self, end_dt: dt.datetime, full_run: bool,
         time_series_db=None, insert_into_db=False, **kwargs
     ):
         # get new data here and append it to __data member
@@ -267,33 +291,21 @@ class TradingSystemProcessor:
         # call reprocess_data if new data is available
         # self.reprocess_data(date)
 
-        if full_run != True:
-            current_datetime = pd.to_datetime(current_datetime).tz_localize('UTC')
-            if self.__current_dt != current_datetime:
-                raise ValueError(
-                    'datetime mismatch between position and input data:\n'
-                    f'current datetime found: {self.__current_dt}\n'
-                    f'input datetime: {current_datetime}'
-                )
-
-            last_processed_dt = self.__systems_db.get_current_datetime(
-                self.__ts_properties.system_name
-            )
-            last_processed_dt = pd.to_datetime(last_processed_dt).tz_localize('UTC')
-            if last_processed_dt != self.__penult_dt:
-                raise ValueError(
-                    'datetime mismatch between position and input data:\n'
-                    f'penultimate datetime found: {self.__penult_dt}\n'
-                    f'last processed datetime: {last_processed_dt}'
-                )
-
         if self.__ts_properties.ts_category == 'regular':
+            if full_run != True:
+                self._check_end_datetime(end_dt)
+
             self._handle_trading_system(
                 full_run,
                 time_series_db=time_series_db, 
                 insert_into_db=insert_into_db,
                 **kwargs
             )
+
+            self.__systems_db.update_current_datetime(
+                self.__ts_properties.system_name, self.__current_dt
+            )
+
         if self.__ts_properties.ts_category == 'ml':
             self._handle_ml_trading_system(
                 full_run,
@@ -301,10 +313,6 @@ class TradingSystemProcessor:
                 insert_into_db=insert_into_db,
                 **kwargs
             )
-
-        self.__systems_db.update_current_datetime(
-            self.__ts_properties.system_name, self.__current_dt
-        )
 
 
 class TradingSystemHandler:
@@ -328,11 +336,15 @@ class TradingSystemHandler:
         self, current_datetime: dt.datetime, full_run: bool,
         time_series_db=None
     ):
-        for trading_system_state_handler in self.__trading_systems:
-            trading_system_state_handler(
-                current_datetime, full_run, 
-                time_series_db=time_series_db, insert_into_db=True
-            )
+        for trading_system_processor in self.__trading_systems:
+            try:
+                trading_system_processor(
+                    current_datetime, full_run, 
+                    time_series_db=time_series_db, insert_into_db=True
+                )
+            except ValueError as e:
+                print(f'ValueError - trading system "{trading_system_processor.system_name}"\n{e}')
+                continue
 
 
 if __name__ == '__main__':
@@ -368,6 +380,7 @@ if __name__ == '__main__':
     trading_system_properties_list = []
     for ts_module in trading_system_modules:
         if ts_module == 'ml_trading_system_example':
+        # if ts_module != 'ml_trading_system_example':
         # if ts_module != 'trading_system_example':
             continue
         ts_properties = __globals[ts_module].get_ts_properties(
@@ -376,11 +389,11 @@ if __name__ == '__main__':
         )
         trading_system_properties_list.append(ts_properties)
 
-    #start_dt = dt.datetime(1999, 1, 1)
-    #end_dt = dt.datetime(2011, 1, 1)
+    # start_dt = dt.datetime(1999, 1, 1)
+    # end_dt = dt.datetime(2011, 1, 1)
     start_dt = dt.datetime(2015, 9, 16)
-    end_dt = dt.datetime.now()
-    # end_dt = dt.datetime(2023, 3, 2)
+    # end_dt = dt.datetime.now()
+    end_dt = dt.datetime(2023, 3, )
 
     ts_handler = TradingSystemHandler(
         trading_system_properties_list, 

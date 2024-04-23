@@ -13,6 +13,8 @@ from tet_doc_db.instruments_mongo_db.instruments_mongo_db import InstrumentsMong
 
 from tet_trading_systems.trading_system_development.trading_systems.trading_system_properties.trading_system_properties \
     import TradingSystemProperties
+from tet_trading_systems.trading_system_development.trading_systems.trading_system_handler \
+    import TradingSystemProcessor
 from tet_trading_systems.trading_system_management.position_sizer.safe_f_position_sizer \
     import SafeFPositionSizer
 from tet_trading_systems.trading_system_state_handler.instrument_selection.pd_instrument_selector \
@@ -81,7 +83,8 @@ def exit_logic_example(
 
 
 def preprocess_data(
-    symbols_list, benchmark_symbol, get_data_function,
+    symbols_list, ts_processor: TradingSystemProcessor, 
+    benchmark_symbol, get_data_function,
     entry_args, exit_args, start_dt, end_dt
 ):
     df_dict = {}
@@ -110,6 +113,9 @@ def preprocess_data(
                 'symbol': f'symbol{benchmark_col_suffix}'
             }
         )
+        if ts_processor != None:
+            ts_processor.penult_dt = pd.to_datetime(df_benchmark['date'].iloc[-2])
+            ts_processor.current_dt = pd.to_datetime(df_benchmark['date'].iloc[-1])
 
     for symbol, data in dict(df_dict).items():
         if data.empty or len(data) < entry_args[TradingSystemAttributes.REQ_PERIOD_ITERS]:

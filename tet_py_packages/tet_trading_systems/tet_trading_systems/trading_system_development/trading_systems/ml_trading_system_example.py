@@ -21,6 +21,8 @@ from tet_doc_db.instruments_mongo_db.instruments_mongo_db import InstrumentsMong
 
 from tet_trading_systems.trading_system_development.trading_systems.trading_system_properties.trading_system_properties \
     import TradingSystemProperties
+from tet_trading_systems.trading_system_development.trading_systems.trading_system_handler \
+    import TradingSystemProcessor
 from tet_trading_systems.trading_system_management.position_sizer.safe_f_position_sizer import SafeFPositionSizer
 from tet_trading_systems.trading_system_development.ml_utils.ml_system_utils import serialize_models
 
@@ -52,7 +54,8 @@ def create_reg_models(
     target_col='close', target_period=1
 ):
     models_df_dict = {}
-    for symbol, df in data_dict.items():
+    for symbol, data in data_dict.items():
+        df = data.copy()
         print(symbol)
 
         # shifted dataframe column
@@ -139,14 +142,15 @@ def create_classification_models(
     target_col='close', target_period=1
 ):
     models_df_dict = {}
-    for symbol, df in data_dict.items():
+    for symbol, data in data_dict.items():
+        df = data.copy()
         print(symbol)
 
         # shifted dataframe column
         df['Return_shifted'] = \
             df[target_col].pct_change(periods=target_period).shift(-target_period).mul(100)
         df['Target'] = df['Return_shifted'] > 0
-        df = df.drop(columns=['Return_shifted'])
+        df = df.drop(['Return_shifted'], axis=1)
         df = df.dropna()
 
         # assign target column/feature
@@ -245,7 +249,7 @@ def create_production_models(
         df['Target_col_shifted'] = \
             df[target_col].pct_change(periods=target_period).shift(-target_period).mul(100)
         df['Target'] = df['Target_col_shifted'] > 0
-        df = df.drop(columns=['Target_col_shifted'])
+        df = df.drop(['Target_col_shifted'], axis=1)
         df = df.dropna()
 
         # assign target column/feature
@@ -295,7 +299,8 @@ def create_production_models(
 
 
 def preprocess_data(
-    symbols_list, benchmark_symbol, get_data_function,
+    symbols_list, ts_processor: TradingSystemProcessor, 
+    benchmark_symbol, get_data_function,
     entry_args, exit_args, start_dt, end_dt, 
     target_period=1
 ):
@@ -325,6 +330,9 @@ def preprocess_data(
                 'symbol': f'symbol{benchmark_col_suffix}'
             }
         )
+        if ts_processor != None:
+            ts_processor.penult_dt = pd.to_datetime(df_benchmark['date'].iloc[-2])
+            ts_processor.current_dt = pd.to_datetime(df_benchmark['date'].iloc[-1])
 
     pred_features_df_dict = {}
     for symbol, data in dict(df_dict).items():
@@ -396,6 +404,7 @@ def get_ts_properties(
 if __name__ == '__main__':
     import tet_trading_systems.trading_system_development.trading_systems.env as env
     SYSTEMS_DB = TetSystemsMongoDb(env.LOCALHOST_MONGO_DB_URL, env.SYSTEMS_DB)
+    CLIENT_DB = TetSystemsMongoDb(env.LOCALHOST_MONGO_DB_URL, env.CLIENT_DB)
     INSTRUMENTS_DB = InstrumentsMongoDb(env.ATLAS_MONGO_DB_URL, env.CLIENT_DB)
 
     start_dt = dt.datetime(1999, 1, 1)
@@ -406,7 +415,7 @@ if __name__ == '__main__':
     insert_into_db = False
 
     df_dict, pred_features = system_props.preprocess_data_function(
-        system_props.system_instruments_list,
+        system_props.system_instruments_list, None,
         *system_props.preprocess_data_args, start_dt, end_dt,
         target_period=target_period
     )
@@ -425,7 +434,7 @@ if __name__ == '__main__':
         system_props.system_name,
         system_props.entry_logic_function,
         system_props.exit_logic_function,
-        SYSTEMS_DB, SYSTEMS_DB
+        SYSTEMS_DB, CLIENT_DB
     )
 
     trading_system.run_trading_system_backtest(
