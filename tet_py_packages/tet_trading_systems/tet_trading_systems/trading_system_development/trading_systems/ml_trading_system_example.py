@@ -7,7 +7,7 @@ from sklearn.linear_model import LinearRegression
 from sklearn.tree import DecisionTreeClassifier, DecisionTreeRegressor
 from sklearn.model_selection import TimeSeriesSplit
 from sklearn.preprocessing import StandardScaler
-from sklearn.pipeline import Pipeline
+from sklearn.pipeline import make_pipeline
 from sklearn.metrics import mean_squared_error, r2_score, classification_report, \
     confusion_matrix, precision_score
 
@@ -70,7 +70,7 @@ def create_reg_models(
         X_df = df.copy()
         X_df = X_df.drop(
             [
-                'open', 'high', 'low', 'close', 'Pct_chg', 'date', 
+                'open', 'high', 'low', 'close', 'Pct_chg',
                 'open_benchmark', 'high_benchmark', 'low_benchmark', 'close_benchmark',
                 'volume_benchmark', 'symbol', 'symbol_benchmark', 
                 'Target'
@@ -100,15 +100,14 @@ def create_reg_models(
                 top_choice_param = 0
                 for i in optimizable_params1:
                     for n in optimizable_params2:
-                        steps = [
-                            ('scaler', StandardScaler()),
-                            ('linreg', LinearRegression())
-                        ]
-                        #steps = [
-                        #    ('scaler', StandardScaler()),
-                        #    ('dtr', DecisionTreeRegressor(criterion='mse', max_depth=3))
-                        #]
-                        pipeline = Pipeline(steps)
+                        pipeline = make_pipeline(
+                            StandardScaler(),
+                            LinearRegression()
+                        )
+                        # pipeline = make_pipeline(
+                        #    StandardScaler(),
+                        #    DecisionTreeRegressor(criterion='mse', max_depth=3)
+                        # )
                         pipeline.fit(X_train, y_train)
                         y_pred = pipeline.predict(X_test)
                         pred_df = df.iloc[-len(X_test):].copy()
@@ -160,7 +159,7 @@ def create_classification_models(
         X_df = df.copy()
         X_df = X_df.drop(
             [
-                'open', 'high', 'low', 'close', 'Pct_chg', 'date',
+                'open', 'high', 'low', 'close', 'Pct_chg',
                 'open_benchmark', 'high_benchmark', 'low_benchmark', 'close_benchmark',
                 'volume_benchmark', 'symbol', 'symbol_benchmark',
                 'Target'
@@ -190,11 +189,10 @@ def create_classification_models(
                 top_choice_param = 0
                 for i in optimizable_params1:
                     for n in optimizable_params2:
-                        steps = [
-                            ('scaler', StandardScaler()),
-                            ('dt', DecisionTreeClassifier())
-                        ]
-                        pipeline = Pipeline(steps)
+                        pipeline = make_pipeline(
+                            StandardScaler(),
+                            DecisionTreeClassifier()
+                        )
                         pipeline.fit(X_train, y_train)
                         y_pred = pipeline.predict(X_test)
                         cf_score_dict = {
@@ -259,7 +257,7 @@ def create_production_models(
         X_df = df.copy()
         X_df = X_df.drop(
             [
-                'open', 'high', 'low', 'close', 'Pct_chg', 'date',
+                'open', 'high', 'low', 'close', 'Pct_chg',
                 'open_benchmark', 'high_benchmark', 'low_benchmark', 'close_benchmark',
                 'volume_benchmark', 'symbol', 'symbol_benchmark',
                 'Target' 
@@ -273,15 +271,14 @@ def create_production_models(
         y = y_df.to_numpy()
 
         try:
-            """ steps = [
-                ('scaler', StandardScaler()),
-                ('linreg', LinearRegression())
-            ] """
-            steps = [
-                ('scaler', StandardScaler()),
-                ('dt', DecisionTreeClassifier())
-            ]
-            model = Pipeline(steps)
+            # model = make_pipeline(
+            #     StandardScaler(),
+            #     LinearRegression()
+            # )
+            model = make_pipeline(
+                StandardScaler(),
+                DecisionTreeClassifier()
+            )
             model.fit(X, y)
             models_dict[symbol] = model
         except ValueError:
@@ -354,8 +351,8 @@ def preprocess_data(
             df_dict[symbol]['Lag1'] = df_dict[symbol]['Pct_chg'].shift(1)
             df_dict[symbol]['Lag2'] = df_dict[symbol]['Pct_chg'].shift(2)
             df_dict[symbol]['Lag5'] = df_dict[symbol]['Pct_chg'].shift(5)
+
             df_dict[symbol] = df_dict[symbol].dropna()
-            df_dict[symbol] = df_dict[symbol].reset_index()
 
             pred_features_df_dict[symbol] = df_dict[symbol][['Lag1', 'Lag2', 'Lag5', 'volume']].to_numpy()
 
