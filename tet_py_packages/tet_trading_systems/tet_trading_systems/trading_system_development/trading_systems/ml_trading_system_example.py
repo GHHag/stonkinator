@@ -59,8 +59,7 @@ def create_reg_models(
         print(symbol)
 
         # shifted dataframe column
-        df['Target'] = \
-            df[target_col].pct_change(periods=target_period).shift(-target_period).mul(100)
+        df['Target'] = df[target_col].pct_change(periods=target_period).shift(-target_period).mul(100)
         df = df.dropna()
 
         # assign target column/feature
@@ -110,7 +109,7 @@ def create_reg_models(
                         # )
                         pipeline.fit(X_train, y_train)
                         y_pred = pipeline.predict(X_test)
-                        pred_df = df.iloc[-len(X_test):].copy()
+                        pred_df = df.iloc[val_index].copy()
                         pred_df['pred'] = y_pred.tolist()
                         r_squared = r2_score(y_test, y_pred)
                         print(f'R^2: {r_squared}')
@@ -125,10 +124,10 @@ def create_reg_models(
                         elif rmse > top_choice_param:
                             top_model = pred_df
                             top_choice_param = rmse
-                    if models_df_dict[symbol] is None:
-                        models_df_dict[symbol] = top_model
-                    else:
-                        models_df_dict[symbol]._append(top_model)
+                if models_df_dict[symbol] is None:
+                    models_df_dict[symbol] = top_model
+                else:
+                    models_df_dict[symbol] = pd.concat([models_df_dict[symbol], top_model])
         except ValueError:
             print('ValueError')
             print(len(df))
@@ -146,8 +145,7 @@ def create_classification_models(
         print(symbol)
 
         # shifted dataframe column
-        df['Return_shifted'] = \
-            df[target_col].pct_change(periods=target_period).shift(-target_period).mul(100)
+        df['Return_shifted'] = df[target_col].pct_change(periods=target_period).shift(-target_period).mul(100)
         df['Target'] = df['Return_shifted'] > 0
         df = df.drop(['Return_shifted'], axis=1)
         df = df.dropna()
@@ -200,7 +198,7 @@ def create_classification_models(
                             'Classification report': classification_report(y_test, y_pred),
                             'Confusion matrix': confusion_matrix(y_test, y_pred)
                         }
-                        pred_df = df.iloc[-len(X_test):].copy()
+                        pred_df = df.iloc[val_index].copy()
                         pred_df['pred'] = y_pred.tolist()
                         pred_precision = precision_score(y_test, y_pred)
                         tn, fp, fn, tp = confusion_matrix(y_test, y_pred).ravel()
@@ -222,10 +220,10 @@ def create_classification_models(
                         elif pred_precision > top_choice_param:
                             top_model = pred_df
                             top_choice_param = pred_precision
-                    if models_df_dict[symbol] is None:
-                        models_df_dict[symbol] = top_model
-                    else:
-                        models_df_dict[symbol]._append(top_model)
+                if models_df_dict[symbol] is None:
+                    models_df_dict[symbol] = top_model
+                else:
+                    models_df_dict[symbol] = pd.concat([models_df_dict[symbol], top_model])
         except ValueError:
             print('ValueError')
             print(len(df))
@@ -241,11 +239,10 @@ def create_production_models(
     models_dict = {}
     for symbol, df in df_dict.items():
         # regression model target
-        #df['Target'] = \
-        #    df[target_col].pct_change(periods=target_period).shift(-target_period).mul(100)
+        # df['Target'] = df[target_col].pct_change(periods=target_period).shift(-target_period).mul(100)
+
         # classification model target
-        df['Target_col_shifted'] = \
-            df[target_col].pct_change(periods=target_period).shift(-target_period).mul(100)
+        df['Target_col_shifted'] = df[target_col].pct_change(periods=target_period).shift(-target_period).mul(100)
         df['Target'] = df['Target_col_shifted'] > 0
         df = df.drop(['Target_col_shifted'], axis=1)
         df = df.dropna()
@@ -291,7 +288,7 @@ def create_production_models(
     for symbol, model in binary_models.items():
         if not db.insert_ml_model(system_name, symbol, model):
             print(symbol)
-            raise Exception('Something went wrong while inserting to or updating database.')
+            raise Exception('something went wrong while inserting to or updating database')
     return True
 
 
@@ -417,7 +414,7 @@ if __name__ == '__main__':
         target_period=target_period
     )
 
-    #model_data_dict = create_reg_models(df_dict, target_period=target_period)
+    # model_data_dict = create_reg_models(df_dict, target_period=target_period)
     model_data_dict = create_classification_models(df_dict, target_period=target_period)
 
     if insert_into_db is True:
