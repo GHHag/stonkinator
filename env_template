@@ -1,15 +1,15 @@
-# docker services (service names are hard coded in docker-compose.yml)
+# docker services
 PG_DB_SERVICE = 'postgres'
 MDB_SERVICE = 'mongodb'
-TET_API_SERVICE = 'tet_api'
-TET_PY_PACKAGES_SERVICE = 'tet_py_packages'
+STONKINATOR_API_SERVICE = 'stonkinator_api'
+STONKINATOR_SERVICE = 'stonkinator'
 
 # postgres
 PG_DB_USER = 'postgres'
 PG_DB_PORT = 5432
 PG_DB_PORT_EXP = 5433
 PG_DB_PASSWORD = 'postgrespw'
-PG_DB_NAME = 'securities_db'
+PG_DB_NAME = 'stonkinator'
 
 # mongo db
 MDB_USER = 'root'
@@ -25,22 +25,21 @@ INSTRUMENTS_DB = 'instruments_db'
 TIME_SERIES_DB = 'time_series_db'
 CLIENT_DB = 'client_db'
 
-# api's
+# api
 API_URL = '/api'
-TET_API_PORT = 4001
-TET_API_PORT_EXP = 4000
+STONKINATOR_API_PORT = 4001
+STONKINATOR_API_PORT_EXP = 4000
 
 # securities db py dal
-API_HOST = TET_API_SERVICE
-API_PORT = TET_API_PORT
+API_HOST = STONKINATOR_API_SERVICE
+API_PORT = STONKINATOR_API_PORT
 DAL_LOG_FILE_PATH = '/var/log/stonkinator/'
 DAL_LOG_FILE_PATH_CRITICAL = '/var/log/stonkinator/'
 
 # frontend
 FRONTEND_PORT = 3000
 
-LIVE_SYSTEMS_DIR = 'tet_py_packages/tet_trading_systems/tet_trading_systems/trading_system_development/trading_systems/live_systems'
-LIVE_SYSTEMS_DIR_TARGET = 'app/tet_trading_systems/tet_trading_systems/trading_system_development/trading_systems/live_systems'
-
-TS_HANDLER_DIR_TARGET = '/app/tet_trading_systems/tet_trading_systems/trading_system_development/trading_systems'
+LIVE_SYSTEMS_DIR = 'stonkinator/stonkinator/trading_systems/trading_system_development/trading_systems/live_systems'
+LIVE_SYSTEMS_DIR_TARGET = 'app/stonkinator/trading_systems/trading_system_development/trading_systems/live_systems'
+TS_HANDLER_DIR_TARGET = '/app/stonkinator/trading_systems/trading_system_development/trading_systems'
 LIVE_SYSTEMS_RELATIVE_DIR = 'live_systems'

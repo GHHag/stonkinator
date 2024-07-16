@@ -1,12 +1,12 @@
--DROP DATABASE IF EXISTS "securities_db";
+-DROP DATABASE IF EXISTS "stonkinator";
 
-CREATE DATABASE "securities_db"
+CREATE DATABASE "stonkinator"
     WITH
     OWNER = postgres
     ENCODING = 'UTF-8'
     CONNECTION LIMIT = -1;
 
-\c securities_db
+\c stonkinator
 
 ---------------------------------------------------------------------------
 

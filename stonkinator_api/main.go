@@ -34,7 +34,7 @@ func main() {
 	pgPool := initPgPool()
 	mdb := initMdb()
 
-	port := os.Getenv("TET_API_PORT")
+	port := os.Getenv("STONKINATOR_API_PORT")
 	api_url := os.Getenv("API_URL")
 
 	register(port, api_url, pgPool, mdb)
