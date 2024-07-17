@@ -12,7 +12,7 @@ from trading.data.metadata.trading_system_attributes import TradingSystemAttribu
 from trading.data.metadata.market_state_enum import MarketState
 from trading.trading_system.trading_system import TradingSystem
 
-from trading_systems.trading_system_development.trading_systems.trading_system_properties.trading_system_properties \
+from trading_systems.trading_system_development.trading_systems.trading_system_properties \
     import TradingSystemProperties
 from trading_systems.trading_system_management.position_sizer.ext_position_sizer import ExtPositionSizer
 from trading_systems.trading_system_state_handler.ml_trading_system_state_handler import MlTradingSystemStateHandler
@@ -20,9 +20,9 @@ from trading_systems.trading_system_state_handler.ml_trading_system_state_handle
 from persistance.doc_database_meta_classes.tet_signals_doc_db import ITetSignalsDocumentDatabase
 from persistance.doc_database_meta_classes.tet_systems_doc_db import ITetSystemsDocumentDatabase
 from persistance.doc_database_meta_classes.time_series_doc_db import ITimeSeriesDocumentDatabase
-from persistance.tet_mongo_db.systems_mongo_db import TetSystemsMongoDb
-from persistance.time_series_mongo_db.time_series_mongo_db import TimeSeriesMongoDb
-from persistance.instruments_mongo_db.instruments_mongo_db import InstrumentsMongoDb
+from persistance.stonkinator_mongo_db.systems_mongo_db import TetSystemsMongoDb
+from persistance.stonkinator_mongo_db.time_series_mongo_db import TimeSeriesMongoDb
+from persistance.stonkinator_mongo_db.instruments_mongo_db import InstrumentsMongoDb
 import trading_systems.trading_system_development.trading_systems.env as env
 
 
@@ -272,6 +272,9 @@ class TradingSystemProcessor:
         last_processed_dt = self.__systems_db.get_current_datetime(
             self.__ts_properties.system_name
         )
+        if last_processed_dt == None:
+            return
+
         last_processed_dt = pd.to_datetime(last_processed_dt).tz_localize('UTC')
         if last_processed_dt != self.__penult_dt:
             raise ValueError(
@@ -302,9 +305,10 @@ class TradingSystemProcessor:
                 **kwargs
             )
 
-            self.__systems_db.update_current_datetime(
-                self.__ts_properties.system_name, self.__current_dt
-            )
+            if full_run != True:
+                self.__systems_db.update_current_datetime(
+                    self.__ts_properties.system_name, self.__current_dt
+                )
 
         if self.__ts_properties.ts_category == 'ml':
             self._handle_ml_trading_system(
@@ -393,7 +397,7 @@ if __name__ == '__main__':
     # end_dt = dt.datetime(2011, 1, 1)
     start_dt = dt.datetime(2015, 9, 16)
     # end_dt = dt.datetime.now()
-    end_dt = dt.datetime(2023, 3, 3)
+    end_dt = dt.datetime(2023, 3, 6)
 
     ts_handler = TradingSystemHandler(
         trading_system_properties_list, 

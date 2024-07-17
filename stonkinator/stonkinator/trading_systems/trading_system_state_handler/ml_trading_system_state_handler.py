@@ -10,7 +10,7 @@ from trading.data.metadata.trading_system_attributes import TradingSystemAttribu
 from trading.position.position import Position
 from trading.signal_events.signal_handler import SignalHandler
 
-from persistance.tet_mongo_db.systems_mongo_db import TetSystemsMongoDb
+from persistance.stonkinator_mongo_db.systems_mongo_db import TetSystemsMongoDb
 
 
 class MlSystemInstrumentData:

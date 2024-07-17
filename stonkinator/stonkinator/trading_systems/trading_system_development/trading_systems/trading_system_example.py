@@ -8,10 +8,10 @@ from persistance.securities_db_py_dal.dal import price_data_get_req
 from trading.data.metadata.trading_system_attributes import TradingSystemAttributes
 from trading.trading_system.trading_system import TradingSystem
 
-from persistance.tet_mongo_db.systems_mongo_db import TetSystemsMongoDb
-from persistance.instruments_mongo_db.instruments_mongo_db import InstrumentsMongoDb
+from persistance.stonkinator_mongo_db.systems_mongo_db import TetSystemsMongoDb
+from persistance.stonkinator_mongo_db.instruments_mongo_db import InstrumentsMongoDb
 
-from trading_systems.trading_system_development.trading_systems.trading_system_properties.trading_system_properties \
+from trading_systems.trading_system_development.trading_systems.trading_system_properties \
     import TradingSystemProperties
 from trading_systems.trading_system_development.trading_systems.trading_system_handler \
     import TradingSystemProcessor

@@ -8,7 +8,7 @@ import requests
 from yahooquery import Ticker
 import pandas as pd
 
-from persistance.instruments_mongo_db.instruments_mongo_db import InstrumentsMongoDb
+from persistance.stonkinator_mongo_db.instruments_mongo_db import InstrumentsMongoDb
 from persistance.securities_db_py_dal.market_data import get_stock_indices_symbols_list, get_futures_symbols_list
 import persistance.securities_db_py_dal.env as env
 

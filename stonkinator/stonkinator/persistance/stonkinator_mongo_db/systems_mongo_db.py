@@ -386,8 +386,11 @@ class TetSystemsMongoDb(ITetSystemsDocumentDatabase):
                 },
                 {self.__ID_FIELD: 0, self.__POSITION_LIST_FIELD: 1, self.__NUMBER_OF_PERIODS_FIELD: 1}
             )
-            if query is None:
-                raise ValueError('no serialized Position objects found')
+            if query is None or query.get(self.__POSITION_LIST_FIELD) is None:
+                raise ValueError(
+                    'no serialized Position objects found '
+                    f'system_name: {system_name} symbol: {symbol}'
+                )
             if return_num_of_periods:
                 return list(map(pickle.loads, query[self.__POSITION_LIST_FIELD])), \
                     query[self.__NUMBER_OF_PERIODS_FIELD]
@@ -416,7 +419,7 @@ class TetSystemsMongoDb(ITetSystemsDocumentDatabase):
             },
             {self.__ID_FIELD: 0, self.__POSITION_LIST_FIELD: {'$slice': -1}}
         )
-        if query is not None:
+        if query is not None and query.get(self.__POSITION_LIST_FIELD) is not None:
             return pickle.loads(query[self.__POSITION_LIST_FIELD][0])
 
     def insert_current_position(
