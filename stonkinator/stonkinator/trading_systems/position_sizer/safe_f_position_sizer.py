@@ -10,8 +10,7 @@ from trading.position.position_manager import PositionManager
 from trading.utils.metric_functions import calculate_cagr
 from trading.utils.monte_carlo_functions import monte_carlo_simulations_plot
 
-from trading_systems.trading_system_management.position_sizer.position_sizer \
-    import IPositionSizer
+from trading_systems.position_sizer.position_sizer import IPositionSizer
 
 
 class SafeFPositionSizer(IPositionSizer):

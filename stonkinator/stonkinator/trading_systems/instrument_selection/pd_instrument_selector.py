@@ -1,6 +1,6 @@
 import pandas as pd
 
-from trading_systems.trading_system_state_handler.instrument_selection.instrument_selector \
+from trading_systems.instrument_selection.instrument_selector \
     import IInstrumentSelector
 
 

@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 
-from trading_systems.trading_system_management.position_sizer.position_sizer import IPositionSizer
+from trading_systems.position_sizer.position_sizer import IPositionSizer
 
 
 @dataclass(frozen=True)

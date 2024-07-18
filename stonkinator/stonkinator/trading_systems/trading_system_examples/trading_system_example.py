@@ -11,14 +11,10 @@ from trading.trading_system.trading_system import TradingSystem
 from persistance.stonkinator_mongo_db.systems_mongo_db import TetSystemsMongoDb
 from persistance.stonkinator_mongo_db.instruments_mongo_db import InstrumentsMongoDb
 
-from trading_systems.trading_system_development.trading_systems.trading_system_properties \
-    import TradingSystemProperties
-from trading_systems.trading_system_development.trading_systems.trading_system_handler \
-    import TradingSystemProcessor
-from trading_systems.trading_system_management.position_sizer.safe_f_position_sizer \
-    import SafeFPositionSizer
-from trading_systems.trading_system_state_handler.instrument_selection.pd_instrument_selector \
-    import PdInstrumentSelector
+from trading_systems.trading_system_properties import TradingSystemProperties
+from trading_systems.trading_system_handler import TradingSystemProcessor
+from trading_systems.position_sizer.safe_f_position_sizer import SafeFPositionSizer
+from trading_systems.instrument_selection.pd_instrument_selector import PdInstrumentSelector
 
 
 def entry_logic_example(df, *args, entry_args=None):
@@ -190,7 +186,7 @@ def get_ts_properties(
 
 
 if __name__ == '__main__':
-    import trading_systems.trading_system_development.trading_systems.env as env
+    import trading_systems.env as env
     SYSTEMS_DB = TetSystemsMongoDb(env.LOCALHOST_MONGO_DB_URL, env.SYSTEMS_DB)
     INSTRUMENTS_DB = InstrumentsMongoDb(env.ATLAS_MONGO_DB_URL, env.CLIENT_DB)
 
