@@ -27,6 +27,7 @@ fi
 
 run_dal=false
 full_run=false
+print_data=""
 while [[ "$#" -gt 0 ]]; do
     case "$1" in
         --run-dal)
@@ -35,6 +36,8 @@ while [[ "$#" -gt 0 ]]; do
         --full-run)
             full_run=true
         ;;
+        --print-data)
+            print_data="--print-data"
     esac
     shift
 done
@@ -53,9 +56,9 @@ if [ -n "$TS_HANDLER_DIR_TARGET" ] && [ -n "$LIVE_SYSTEMS_RELATIVE_DIR" ]; then
         echo
         echo "--full-run: $full_run"
         echo "Full run"
-        /usr/local/bin/python trading_system_handler.py -trading-systems-dir="$LIVE_SYSTEMS_RELATIVE_DIR" --full-run
+        /usr/local/bin/python trading_system_handler.py -trading-systems-dir="$LIVE_SYSTEMS_RELATIVE_DIR" --full-run $print_data
     else
-        /usr/local/bin/python trading_system_handler.py -trading-systems-dir="$LIVE_SYSTEMS_RELATIVE_DIR"
+        /usr/local/bin/python trading_system_handler.py -trading-systems-dir="$LIVE_SYSTEMS_RELATIVE_DIR" $print_data
     fi
 else
     echo "$0 - Error: Missing values for TS_HANDLER_DIR_TARGET or LIVE_SYSTEMS_RELATIVE_DIR variables."

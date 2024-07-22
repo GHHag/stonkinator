@@ -10,6 +10,7 @@ class TradingSystemAttributes:
     __SIGNAL_DT = 'signal_dt'
     __SYMBOL = 'symbol'
     __DIRECTION = 'direction'
+    __ORDER = 'order'
     __PERIODS_IN_POSITION = 'periods_in_position'
     __CURRENT_POSITION = 'current_position'
     __UNREALISED_RETURN = 'unrealised_return'
@@ -53,6 +54,10 @@ class TradingSystemAttributes:
     @classproperty
     def DIRECTION(cls):
         return cls.__DIRECTION
+
+    @classproperty
+    def ORDER(cls):
+        return cls.__ORDER
 
     @classproperty
     def PERIODS_IN_POSITION(cls):

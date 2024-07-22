@@ -132,10 +132,16 @@ class TradingSession:
             return position
 
         if position.active_position is False and position.entry_signal_given is True:
-            position.enter_market(
-                dataframe[open_price_col_name].iloc[-1],
-                dataframe.index[-1]
-            )
+            if position.limit_order == False:
+                position.enter_market(dataframe[open_price_col_name].iloc[-1], dataframe.index[-1])
+            elif (
+                position.limit_order == True and 
+                position.limit_order_value > dataframe[low_price_col_name].iloc[-1]
+            ):
+                position.enter_market(position.limit_order_value, dataframe.index[-1])
+            else:
+                position.update_limit_order_not_filled(dataframe.index[-1])
+
             if print_data:
                 print(
                     f'\nEntry index: {dataframe.index[-1]}: '
@@ -181,8 +187,8 @@ class TradingSession:
                 )
                 if print_data: 
                     print(f'\nExit signal, exit next open\nIndex: {dataframe.index[-1]}')
-        elif position.active_position is False:
-            entry_signal, direction = self.__entry_logic_function(
+        elif position.active_position is False and position.limit_order == False:
+            entry_signal, direction, limit_order, limit_order_period_duration = self.__entry_logic_function(
                 dataframe, entry_args=entry_args
             )
             if entry_signal == True:
@@ -193,12 +199,21 @@ class TradingSession:
                     commission_pct_cost=commission_pct_cost
                 )
                 position.entry_signal_given = True
+                position.limit_order = limit_order
+                position.limit_order_value = dataframe[close_price_col_name].iloc[-1]
+                position.limit_order_period_duration = limit_order_period_duration
                 self.__signal_handler.handle_entry_signal(
                     self.__symbol, {
                         TradingSystemAttributes.SIGNAL_INDEX: dataframe.index[-1], 
                         TradingSystemAttributes.SIGNAL_DT: dataframe.index[-1],
                         TradingSystemAttributes.SYMBOL: self.__symbol,
                         TradingSystemAttributes.DIRECTION: direction,
+                        # TODO: Add order field here
+                        TradingSystemAttributes.ORDER: {
+                            'order_type': 'limit' if position.limit_order else 'market', 
+                            'value': position.limit_order_value,
+                            'order_period_duration': position.limit_order_period_duration
+                        },
                         TradingSystemAttributes.PERIODS_IN_POSITION: 0,
                         self.__market_state_column: MarketState.ENTRY.value
                     }
@@ -390,8 +405,30 @@ class BacktestTradingSession:
                     yield position
                 continue
 
+            if (
+                position.active_position is False and
+                position.limit_order == True and 
+                position.limit_order_value > self.__dataframe[low_price_col_name].iloc[index-1]
+            ):
+                position.enter_market(
+                    position.limit_order_value,
+                    self.__dataframe[datetime_col_name].iloc[index-1]
+                )
+                if print_data:
+                    print(
+                        f'\nEntry index {index}: '
+                        f'{format(self.__dataframe[open_price_col_name].iloc[index], ".3f")}, '
+                        f'{self.__dataframe[datetime_col_name].iloc[index]}'
+                    )
+            elif (
+                position.active_position is False and
+                position.limit_order == True and 
+                position.limit_order_value <= self.__dataframe[low_price_col_name].iloc[index-1]
+            ):
+                position.update_limit_order_not_filled(self.__dataframe[datetime_col_name].iloc[index-1])
+                
             if position.active_position is False:
-                entry_signal, direction = self.__entry_logic_function(
+                entry_signal, direction, limit_order, limit_order_period_duration = self.__entry_logic_function(
                     self.__dataframe.iloc[:index], entry_args=entry_args
                 )
                 if entry_signal == True:
@@ -401,10 +438,17 @@ class BacktestTradingSession:
                         fixed_position_size=fixed_position_size, 
                         commission_pct_cost=commission_pct_cost
                     )
-                    position.enter_market(
-                        self.__dataframe[open_price_col_name].iloc[index],
-                        self.__dataframe[datetime_col_name].iloc[index]
-                    )
+                    position.limit_order = limit_order
+                    position.limit_order_value = self.__dataframe[close_price_col_name].iloc[index-1]
+                    position.limit_order_period_duration = limit_order_period_duration
+                    
+                    if position.limit_order == False:
+                        position.enter_market(
+                            self.__dataframe[open_price_col_name].iloc[index],
+                            self.__dataframe[datetime_col_name].iloc[index]
+                        )
+                    else:
+                        continue
                     if print_data:
                         print(
                             f'\nEntry index {index}: '
@@ -459,7 +503,7 @@ class BacktestTradingSession:
                 if print_data: 
                     print(f'\nExit signal, exit next open\nIndex {len(self.__dataframe)}')
         elif position.active_position is False and generate_signals:
-            entry_signal, direction = self.__entry_logic_function(
+            entry_signal, direction, limit_order, limit_order_period_duration = self.__entry_logic_function(
                 self.__dataframe, entry_args=entry_args
             )
             if entry_signal == True:
@@ -469,6 +513,12 @@ class BacktestTradingSession:
                         TradingSystemAttributes.SIGNAL_DT: self.__dataframe[datetime_col_name].iloc[-1], 
                         TradingSystemAttributes.SYMBOL: self.__symbol,
                         TradingSystemAttributes.DIRECTION: direction,
+                        # TODO: Add order field here
+                        TradingSystemAttributes.ORDER: {
+                            'order_type': 'limit' if position.limit_order else 'market', 
+                            'value': position.limit_order_value,
+                            'order_period_duration': position.limit_order_period_duration
+                        },
                         TradingSystemAttributes.PERIODS_IN_POSITION: 0,
                         self.__market_state_column: MarketState.ENTRY.value
                     }

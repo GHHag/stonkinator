@@ -44,6 +44,8 @@ services:
     build: ./stonkinator
     volumes:
       - ./${LIVE_SYSTEMS_DIR}:/${LIVE_SYSTEMS_DIR_TARGET}
+      - ./stonkinator/stonkinator/trading_systems/trading_system_examples/trading_system_example.py:/${LIVE_SYSTEMS_DIR_TARGET}/trading_system_example.py
+      - ./stonkinator/stonkinator/trading_systems/trading_system_examples/ml_trading_system_example.py:/${LIVE_SYSTEMS_DIR_TARGET}/ml_trading_system_example.py
       - ./stonkinator:/app
 
   frontend:

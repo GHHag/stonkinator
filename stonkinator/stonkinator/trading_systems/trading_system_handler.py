@@ -161,7 +161,8 @@ class TradingSystemProcessor:
             self._run_trading_system(
                 full_run,
                 insert_into_db=insert_data,
-                **self.__ts_properties.position_sizer.position_sizer_data_dict
+                **self.__ts_properties.position_sizer.position_sizer_data_dict,
+                **kwargs
             )
 
             if isinstance(self.__ts_properties.position_sizer, ExtPositionSizer):
@@ -337,13 +338,14 @@ class TradingSystemHandler:
 
     def run_trading_systems(
         self, current_datetime: dt.datetime, full_run: bool,
-        time_series_db=None
+        time_series_db=None, print_data=False
     ):
         for trading_system_processor in self.__trading_systems:
             try:
                 trading_system_processor(
                     current_datetime, full_run, 
-                    time_series_db=time_series_db, insert_into_db=True
+                    time_series_db=time_series_db, insert_into_db=True,
+                    print_data=print_data
                 )
             except ValueError as e:
                 print(f'ValueError - trading system "{trading_system_processor.system_name}"\n{e}')
@@ -359,10 +361,15 @@ if __name__ == '__main__':
         '--full-run', action='store_true', dest='full_run',
         help='Run trading systems from the date of the latest exit of each instrument',
     )
+    arg_parser.add_argument(
+        '--print-data', action='store_true', dest='print_data',
+        help='Print position and trading system data while running the program',
+    )
 
     cli_args = arg_parser.parse_args()
     live_systems_dir = cli_args.ts_dir
     full_run = cli_args.full_run
+    print_data = cli_args.print_data
 
     file_dir = os.path.dirname(os.path.abspath(__file__))
     __globals = globals()
@@ -401,4 +408,4 @@ if __name__ == '__main__':
         SYSTEMS_DB, CLIENT_DB,
         start_dt, end_dt
     )
-    ts_handler.run_trading_systems(end_dt, full_run)
+    ts_handler.run_trading_systems(end_dt, full_run, print_data=print_data)

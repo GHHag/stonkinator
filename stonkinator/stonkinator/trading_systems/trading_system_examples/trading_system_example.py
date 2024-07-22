@@ -39,7 +39,7 @@ def entry_logic_example(df, *args, entry_args=None):
 
     entry_period_param = TradingSystemAttributes.ENTRY_PERIOD_LOOKBACK
     return df['close'].iloc[-1] >= max(df['close'].iloc[-entry_args[entry_period_param]:]), \
-        'long'
+        'long', False, None
 
 
 def exit_logic_example(

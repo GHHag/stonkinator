@@ -15,15 +15,15 @@ class Position:
         The direction of the Position. Expected value is either
         'long' or 'short'.
     entry_signal_dt : 'Pandas Timestamp/Datetime/None'
-        Time and date of the entry signal that the position was 
+        Time and date of the entry signal that the position was
         initialized upon. Default value=None
     fixed_position_size : Keyword arg 'bool'
         True/False decides if the position size should be the same
         fixed amount. The variable is used in the class' exit_market
         functions return statement control flow. Default value=True
     commission_pct_cost : Keyword arg 'float'
-        The transaction cost given as a percentage 
-        (a float from 0.0 to 1.0) of the total transaction. 
+        The transaction cost given as a percentage
+        (a float from 0.0 to 1.0) of the total transaction.
         Default value=0.0
     """
 
@@ -55,6 +55,10 @@ class Position:
         self.__trailing_exit = False
         self.__trailing_exit_price = None
         self.__entry_signal_given = False
+        self.__limit_order = False
+        self.__limit_order_value = 0
+        self.__limit_order_periods_without_fill = 0
+        self.__limit_order_period_duration = 0
         self.__price_data_json = None
 
     @property
@@ -88,11 +92,11 @@ class Position:
     @property
     def entry_signal_dt(self):
         return self.__entry_signal_dt
-    
+
     @property
     def exit_signal_dt(self):
         return self.__exit_signal_dt
-    
+
     @exit_signal_dt.setter
     def exit_signal_dt(self, value):
         self.__exit_signal_dt = value
@@ -215,7 +219,7 @@ class Position:
         :return:
             'int/float/Decimal'
         """
-        
+
         if np.max(self.__returns_list) > 0:
             return np.max(self.__returns_list)
         else:
@@ -248,6 +252,34 @@ class Position:
     @entry_signal_given.setter
     def entry_signal_given(self, value):
         self.__entry_signal_given = value
+
+    @property
+    def limit_order(self):
+        return self.__limit_order
+
+    @limit_order.setter
+    def limit_order(self, value):
+        self.__limit_order = value
+
+    @property
+    def limit_order_value(self):
+        return self.__limit_order_value
+
+    @limit_order_value.setter
+    def limit_order_value(self, value):
+        self.__limit_order_value = value
+
+    @property
+    def limit_order_periods_without_fill(self):
+        return self.__limit_order_periods_without_fill
+
+    @property
+    def limit_order_period_duration(self):
+        return self.__limit_order_period_duration
+
+    @limit_order_period_duration.setter
+    def limit_order_period_duration(self, value):
+        self.__limit_order_period_duration = value
 
     @property
     def price_data_json(self):
@@ -368,6 +400,7 @@ class Position:
             self.__exit_signal_dt = exit_signal_dt
         self.__exit_dt = exit_dt
         self.__active_position = False
+        self.__limit_order = False
         self.__commission += (self.__position_size * self.__exit_price) * self.__commission_pct_cost
 
         if not self.__fixed_position_size:
@@ -467,6 +500,13 @@ class Position:
         self._unrealised_return(price)
         self._unrealised_profit_loss(price)
         self.__current_dt = current_dt
+
+    def update_limit_order_not_filled(self, current_dt):
+        self.__limit_order_periods_without_fill += 1
+        self.__current_dt = current_dt
+        if self.__limit_order_period_duration <= self.__limit_order_periods_without_fill:
+            self.__entry_signal_given = False
+            self.__limit_order = False
 
     def print_position_status(self):
         """
