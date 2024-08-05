@@ -6,6 +6,8 @@ import pandas as pd
 from persistance.securities_db_py_dal.dal import price_data_get_req
 
 from trading.data.metadata.trading_system_attributes import TradingSystemAttributes
+from trading.position.order import Order, LimitOrder, MarketOrder
+from trading.position.position import Position
 from trading.trading_system.trading_system import TradingSystem
 
 from persistance.stonkinator_mongo_db.systems_mongo_db import TetSystemsMongoDb
@@ -35,17 +37,21 @@ def entry_logic_example(df, *args, entry_args=None):
     :return:
         'bool' : True/False depending on if the entry logic
         condition is met or not.
+        TODO: Update documentation for this return
     """
 
     entry_period_param = TradingSystemAttributes.ENTRY_PERIOD_LOOKBACK
-    return df['close'].iloc[-1] >= max(df['close'].iloc[-entry_args[entry_period_param]:]), \
-        'long', False, None
+    entry_order = None
+    entry_condition = df['close'].iloc[-1] >= max(df['close'].iloc[-entry_args[entry_period_param]:])
+    if entry_condition:
+        # TODO: How should duration argument be passed to LimitOrder?
+        entry_order = LimitOrder('long', 'entry', df['date'].iloc[-1], df['close'].iloc[-1], 5)
+    return entry_condition, entry_order
+    # return df['close'].iloc[-1] >= max(df['close'].iloc[-entry_args[entry_period_param]:]), \
+    #     'long', False, None
 
 
-def exit_logic_example(
-    df, trail, trailing_exit_price, entry_price, periods_in_pos, 
-    *args, exit_args=None
-):
+def exit_logic_example(df, position: Position, *args, exit_args=None) -> tuple[bool, Order | None]:
     """
     An example of an exit logic function. Returns True/False
     depending on the conditional statement.
@@ -55,14 +61,8 @@ def exit_logic_example(
     :param df:
         'Pandas DataFrame' : Data in the form of a Pandas DataFrame
         or a slice of a Pandas DataFrame.
-    :param trail:
-        'Boolean' : Additional conditions can be used to
-        activate a mechanism for using trailing exit logic.
-    :param trailing_exit_price:
-        'float/Decimal' : Upon activating a trailing exit
-        mechanism, this variable could for example be given
-        a price to use as a limit for returning the exit
-        condition as True if the last price would fall below it.
+    :param position:
+        TODO: Document this parameter
     :param args:
         'tuple' : A tuple with parameters used with the exit logic.
     :param exit_args:
@@ -71,11 +71,17 @@ def exit_logic_example(
     :return:
         'bool' : True/False depending on if the exit logic
         condition is met or not.
+        TODO: Add documentation for Order object return
     """
 
     exit_period_param = TradingSystemAttributes.EXIT_PERIOD_LOOKBACK
-    return df['close'].iloc[-1] <= min(df['close'].iloc[-exit_args[exit_period_param]:]), \
-        trail, trailing_exit_price
+    exit_order = None
+    exit_condition = df['close'].iloc[-1] <= min(df['close'].iloc[-exit_args[exit_period_param]:])
+    if exit_condition == True:
+        exit_order = MarketOrder('', 'exit', df['date'].iloc[-1])
+    return exit_condition, exit_order
+    # return df['close'].iloc[-1] <= min(df['close'].iloc[-exit_args[exit_period_param]:]), \
+    #     trail, trailing_exit_price
 
 
 def preprocess_data(
