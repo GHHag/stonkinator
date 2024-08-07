@@ -22,15 +22,10 @@ class BaseOrder(metaclass=ABCMeta):
     def created_dt(self):
         ...
 
-    # @property
-    # @abstractmethod
-    # def filled_dt(self):
-    #     ...
-
-    # @filled_dt.setter
-    # @abstractmethod
-    # def filled_dt(self, value):
-    #     ...
+    @property
+    @abstractmethod
+    def active(self):
+        ...
 
     @property
     @abstractmethod
@@ -39,7 +34,7 @@ class BaseOrder(metaclass=ABCMeta):
 
     # TODO: Can a single execute implementation support both entry and exit functionality?
     @abstractmethod
-    def execute_entry(self) -> Position:
+    def execute_entry(self):
         ...
 
     @abstractmethod
@@ -51,12 +46,13 @@ class Order(BaseOrder):
     __direction: str
     __action: str
     __created_dt: datetime
-    # __filled_dt: datetime
+    __active: bool
 
     def __init__(self, direction, action, dt):
         self.__direction = direction
         self.__action = action
         self.__created_dt = dt
+        self.__active = True
 
     @property
     def direction(self):
@@ -70,13 +66,13 @@ class Order(BaseOrder):
     def created_dt(self):
         return self.__created_dt
 
-    # @property
-    # def filled_dt(self):
-    #     return self.__filled_dt
+    @property
+    def active(self):
+        return self.__active
 
-    # @filled_dt.setter
-    # def filled_dt(self, value):
-    #     self.__filled_dt = value
+    @active.setter
+    def active(self, value):
+        self.__active = value
 
     @property
     def as_dict(self):
@@ -84,10 +80,9 @@ class Order(BaseOrder):
             'direction': self.__direction,
             'action': self.__action,
             'created_dt': self.__created_dt,
-            # 'filled_dt': self.__filled_dt
+            'active': self.__active
         }
 
-    # TODO: Define comission_pct_cost somewhere else? Maybe fixed_pos_size too
     def execute_entry(
         self, capital, price_data_point, fixed_position_size, 
         commission_pct_cost
@@ -98,10 +93,9 @@ class Order(BaseOrder):
             fixed_position_size=fixed_position_size, 
             commission_pct_cost=commission_pct_cost
         )
-        position.entry_signal_given = True
-        # TODO: Is this field needed? Set it in Position instead?
-        # self.__filled_dt = price_data_point['date']
+        position.entry_signal_given = True  # TODO: Handle this with order instead?
         position.enter_market(price_data_point['open'], price_data_point['date'])
+        self.__active = False
         return position
 
     def execute_exit(self, position: Position, price_data_point, prior_dt):
@@ -110,6 +104,7 @@ class Order(BaseOrder):
             # current datetime checks?
             price_data_point['open'], prior_dt, price_data_point['date']
         )
+        self.__active = False
         return capital
 
 
@@ -121,20 +116,24 @@ class MarketOrder(Order):
 
 class LimitOrder(Order):
     __price: float
+    __max_duration: int
     __duration: int
 
-    def __init__(self, direction, action, dt, price, duration):
+    def __init__(self, direction, action, dt, price, max_duration):
         super().__init__(direction, action, dt)
         self.__price = price
-        self.__duration = duration
+        self.__max_duration = max_duration
+        self.__duration = 0
 
+    # TODO: Is this field needed publicly?
     @property
     def price(self):
         return self.__price
 
+    # TODO: Is this field needed publicly?
     @property
-    def duration(self):
-        return self.__duration
+    def max_duration(self):
+        return self.__max_duration
 
     @property
     def as_dict(self):
@@ -142,31 +141,36 @@ class LimitOrder(Order):
             'direction': self.direction,
             'action': self.action,
             'created_dt': self.created_dt,
-            # 'filled_dt': self.filled_dt,
+            'active': self.active,
             'price': self.__price,
+            'max_duration': self.__max_duration,
             'duration': self.__duration
         }
 
-    # TODO: Define comission_pct_cost somewhere else? Maybe fixed_pos_size too
     def execute_entry(
         self, capital, price_data_point, fixed_position_size, 
         commission_pct_cost
-    ) -> Position:
-        position = Position(
-            capital, self.direction,
-            entry_signal_dt=self.created_dt,
-            fixed_position_size=fixed_position_size, 
-            commission_pct_cost=commission_pct_cost
-        )
-        position.entry_signal_given = True
-
+    ) -> Position | None:
         if self.__price > price_data_point['low']:
+            position = Position(
+                capital, self.direction,
+                entry_signal_dt=self.created_dt,
+                fixed_position_size=fixed_position_size, 
+                commission_pct_cost=commission_pct_cost
+            )
+            position.entry_signal_given = True
             position.enter_market(self.__price, price_data_point['date'])
-            # TODO: Is this field needed? Set it in Position instead?
-            # self.filled_dt = price_data_point['date']
+            # TODO: Does this work without defining a setter in super class?
+            self.active = False
+            return position
         else:
-            position.update_limit_order_not_filled(price_data_point['date'])
-        return position
+            self.__duration += 1
+            if self.__duration >= self.__max_duration:
+                self.active = False
+            # TODO: Is the current_dt needed? Could it be defined in Order class instead?
+            # position.current_dt = price_data_point['date']
+            return None
+
 
     def execute_exit(self, position: Position, price_data_point, prior_dt):
         position.exit_signal_given = True
@@ -178,6 +182,14 @@ class LimitOrder(Order):
             )
             return capital
         else:
-            position.update_limit_order_not_filled(price_data_point['date'])
+            self.__duration += 1
+            position.current_dt = price_data_point['date']
+            if self.active == False:
+                # TODO: Does this need to be set to False here?
+                position.entry_signal_given = False
+                position.exit_signal_given = False
+                if self.__duration >= self.__max_duration:
+                    # TODO: Does this work without defining a setter in super class?
+                    self.active = False
             # TODO: How to handle this return?
             return None
