@@ -1,5 +1,6 @@
 from abc import ABCMeta, abstractmethod
 from datetime import datetime
+from decimal import Decimal
 
 from trading.position.position import Position
 
@@ -32,7 +33,6 @@ class BaseOrder(metaclass=ABCMeta):
     def as_dict(self):
         ...
 
-    # TODO: Can a single execute implementation support both entry and exit functionality?
     @abstractmethod
     def execute_entry(self):
         ...
@@ -84,25 +84,21 @@ class Order(BaseOrder):
         }
 
     def execute_entry(
-        self, capital, price_data_point, fixed_position_size, 
-        commission_pct_cost
+        self, capital, price_data_point,
+        fixed_position_size=True, commission_pct_cost=0.0
     ) -> Position:
         position = Position(
-            capital, self.__direction,
-            entry_signal_dt=self.__created_dt,
+            capital, self.__direction, self.__created_dt,
             fixed_position_size=fixed_position_size, 
             commission_pct_cost=commission_pct_cost
         )
-        position.entry_signal_given = True  # TODO: Handle this with order instead?
         position.enter_market(price_data_point['open'], price_data_point['date'])
         self.__active = False
         return position
 
-    def execute_exit(self, position: Position, price_data_point, prior_dt):
+    def execute_exit(self, position: Position, price_data_point) -> Decimal:
         capital = position.exit_market(
-            # TODO: Can I pass self.__created_dt here instead of prior_dt? Does it break
-            # current datetime checks?
-            price_data_point['open'], prior_dt, price_data_point['date']
+            price_data_point['open'], self.__created_dt, price_data_point['date']
         )
         self.__active = False
         return capital
@@ -125,16 +121,6 @@ class LimitOrder(Order):
         self.__max_duration = max_duration
         self.__duration = 0
 
-    # TODO: Is this field needed publicly?
-    @property
-    def price(self):
-        return self.__price
-
-    # TODO: Is this field needed publicly?
-    @property
-    def max_duration(self):
-        return self.__max_duration
-
     @property
     def as_dict(self):
         return {
@@ -148,48 +134,38 @@ class LimitOrder(Order):
         }
 
     def execute_entry(
-        self, capital, price_data_point, fixed_position_size, 
-        commission_pct_cost
+        self, capital, price_data_point,
+        fixed_position_size=True, commission_pct_cost=0.0
     ) -> Position | None:
+        # TODO: This condition will not work for short positions
         if self.__price > price_data_point['low']:
             position = Position(
-                capital, self.direction,
-                entry_signal_dt=self.created_dt,
+                capital, self.direction, self.created_dt,
                 fixed_position_size=fixed_position_size, 
                 commission_pct_cost=commission_pct_cost
             )
-            position.entry_signal_given = True
             position.enter_market(self.__price, price_data_point['date'])
-            # TODO: Does this work without defining a setter in super class?
             self.active = False
             return position
         else:
             self.__duration += 1
             if self.__duration >= self.__max_duration:
                 self.active = False
-            # TODO: Is the current_dt needed? Could it be defined in Order class instead?
-            # position.current_dt = price_data_point['date']
             return None
 
 
-    def execute_exit(self, position: Position, price_data_point, prior_dt):
+    def execute_exit(self, position: Position, price_data_point) -> Decimal | None:
         position.exit_signal_given = True
+        # TODO: This condition will not work for short positions
         if price_data_point['high'] > self.__price:
             capital = position.exit_market(
-                # TODO: Should I pass self.__created_dt here instead of prior_dt? Does it break
-                # current datetime checks?
-                self.__price, prior_dt, price_data_point['date']
+                self.__price, self.created_dt, price_data_point['date']
             )
+            self.active = False
             return capital
         else:
             self.__duration += 1
-            position.current_dt = price_data_point['date']
-            if self.active == False:
-                # TODO: Does this need to be set to False here?
-                position.entry_signal_given = False
+            if self.__duration >= self.__max_duration:
+                self.active = False
                 position.exit_signal_given = False
-                if self.__duration >= self.__max_duration:
-                    # TODO: Does this work without defining a setter in super class?
-                    self.active = False
-            # TODO: How to handle this return?
             return None

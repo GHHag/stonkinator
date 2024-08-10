@@ -19,7 +19,7 @@ from trading_systems.position_sizer.safe_f_position_sizer import SafeFPositionSi
 from trading_systems.instrument_selection.pd_instrument_selector import PdInstrumentSelector
 
 
-def entry_logic_example(df, *args, entry_args=None):
+def entry_logic_example(df, *args, entry_args=None) -> Order | None:
     """
     An example of an entry logic function. Returns True/False
     depending on the conditional statement.
@@ -41,17 +41,15 @@ def entry_logic_example(df, *args, entry_args=None):
     """
 
     entry_period_param = TradingSystemAttributes.ENTRY_PERIOD_LOOKBACK
-    entry_order = None
+    order = None
     entry_condition = df['close'].iloc[-1] >= max(df['close'].iloc[-entry_args[entry_period_param]:])
     if entry_condition:
         # TODO: How should duration argument be passed to LimitOrder?
-        entry_order = LimitOrder('long', 'entry', df['date'].iloc[-1], df['close'].iloc[-1], 5)
-    return entry_condition, entry_order
-    # return df['close'].iloc[-1] >= max(df['close'].iloc[-entry_args[entry_period_param]:]), \
-    #     'long', False, None
+        order = LimitOrder('long', 'entry', df['date'].iloc[-1], df['close'].iloc[-1], 5)
+    return order
 
 
-def exit_logic_example(df, position: Position, *args, exit_args=None) -> tuple[bool, Order | None]:
+def exit_logic_example(df, position: Position, *args, exit_args=None) -> Order | None:
     """
     An example of an exit logic function. Returns True/False
     depending on the conditional statement.
@@ -75,13 +73,11 @@ def exit_logic_example(df, position: Position, *args, exit_args=None) -> tuple[b
     """
 
     exit_period_param = TradingSystemAttributes.EXIT_PERIOD_LOOKBACK
-    exit_order = None
+    order = None
     exit_condition = df['close'].iloc[-1] <= min(df['close'].iloc[-exit_args[exit_period_param]:])
     if exit_condition == True:
-        exit_order = MarketOrder('', 'exit', df['date'].iloc[-1])
-    return exit_condition, exit_order
-    # return df['close'].iloc[-1] <= min(df['close'].iloc[-exit_args[exit_period_param]:]), \
-    #     trail, trailing_exit_price
+        order = MarketOrder('', 'exit', df['date'].iloc[-1])
+    return order
 
 
 def preprocess_data(
@@ -173,6 +169,7 @@ def get_ts_properties(
                 )
             )
 
+    symbols_list = ['EVO', 'HM_B', 'CAST', 'SHB_A', 'ATCO_B']
     return TradingSystemProperties(
         system_name, 2, 'regular',
         symbols_list,
