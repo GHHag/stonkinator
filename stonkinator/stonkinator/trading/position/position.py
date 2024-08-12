@@ -14,9 +14,9 @@ class Position:
     direction : 'str'
         The direction of the Position. Expected value is either
         'long' or 'short'.
-    entry_signal_dt : 'Pandas Timestamp/Datetime/None'
+    entry_signal_dt : 'Pandas Timestamp/Datetime'
         Time and date of the entry signal that the position was
-        initialized upon. Default value=None
+        initialized upon.
     fixed_position_size : Keyword arg 'bool'
         True/False decides if the position size should be the same
         fixed amount. The variable is used in the class' exit_market
@@ -28,19 +28,17 @@ class Position:
     """
 
     def __init__(
-        self, capital, direction,
-        entry_signal_dt=None,
+        self, capital, direction, entry_signal_dt,
         fixed_position_size=True, commission_pct_cost=0.0
     ):
-        self.__entry_price = None
-        self.__exit_price = None
+        self.__entry_price, self.__exit_price = None, None
         self.__position_size = None
         self.__entry_dt, self.__exit_dt = None, None
         self.__current_dt = None
         self.__capital = Decimal(capital)
         self.__direction = direction
-        self.__entry_signal_dt = entry_signal_dt
-        self.__exit_signal_dt = None
+        self.__entry_signal_dt = entry_signal_dt  # TODO: Only used in datetime_check, remove if datetime check is refactored?
+        self.__exit_signal_dt = None  # TODO: Remove if datetime checks are refactored?
         self.__uninvested_capital = 0
         self.__fixed_position_size = fixed_position_size
         self.__commission_pct_cost = Decimal(commission_pct_cost)
@@ -54,12 +52,7 @@ class Position:
         self.__position_profit_loss_list = np.array([])
         self.__trailing_exit = False
         self.__trailing_exit_price = None
-        self.__entry_signal_given = False
-        self.__limit_order = False
-        self.__limit_order_value = 0
-        self.__limit_order_periods_without_fill = 0
-        self.__limit_order_period_duration = 0
-        self.__price_data_json = None
+        self.__exit_signal_given = False
 
     @property
     def entry_price(self):
@@ -88,6 +81,10 @@ class Position:
     @property
     def current_dt(self):
         return self.__current_dt
+
+    @current_dt.setter
+    def current_dt(self, value):
+        self.__current_dt = value
 
     @property
     def entry_signal_dt(self):
@@ -134,6 +131,7 @@ class Position:
             'Decimal'
         """
 
+        # TODO: Replace 'long' and 'short' literals with some meta data attribute
         if self.__direction == 'long':
             return Decimal(
                 ((self.__exit_price - self.__entry_price) / self.__entry_price) * 100
@@ -246,48 +244,12 @@ class Position:
         self.__trailing_exit_price = value
 
     @property
-    def entry_signal_given(self):
-        return self.__entry_signal_given
+    def exit_signal_given(self):
+        return self.__exit_signal_given
 
-    @entry_signal_given.setter
-    def entry_signal_given(self, value):
-        self.__entry_signal_given = value
-
-    @property
-    def limit_order(self):
-        return self.__limit_order
-
-    @limit_order.setter
-    def limit_order(self, value):
-        self.__limit_order = value
-
-    @property
-    def limit_order_value(self):
-        return self.__limit_order_value
-
-    @limit_order_value.setter
-    def limit_order_value(self, value):
-        self.__limit_order_value = value
-
-    @property
-    def limit_order_periods_without_fill(self):
-        return self.__limit_order_periods_without_fill
-
-    @property
-    def limit_order_period_duration(self):
-        return self.__limit_order_period_duration
-
-    @limit_order_period_duration.setter
-    def limit_order_period_duration(self, value):
-        self.__limit_order_period_duration = value
-
-    @property
-    def price_data_json(self):
-        return self.__price_data_json
-
-    @price_data_json.setter
-    def price_data_json(self, value):
-        self.__price_data_json = value
+    @exit_signal_given.setter
+    def exit_signal_given(self, value):
+        self.__exit_signal_given = value
 
     @property
     def as_dict(self):
@@ -303,8 +265,7 @@ class Position:
             'gross_result': float(self.gross_result),
             'profit_loss': float(self.profit_loss),
             'mae': float(self.mae),
-            'mfe': float(self.mfe),
-            'price_data': self.__price_data_json
+            'mfe': float(self.mfe)
        }
 
     def datetime_check(self, input_datetime):
@@ -350,10 +311,9 @@ class Position:
             the market.
         """
 
-        assert (self.__active_position is False), 'A position is already active'
+        assert (self.__active_position == False), 'A position is already active'
 
         self.__entry_price = Decimal(entry_price)
-        self.__entry_signal_given = False
         self.__position_size = int(self.__capital / self.__entry_price)
         self.__uninvested_capital = self.__capital - (self.__position_size * self.__entry_price)
         self.__commission = (self.__position_size * self.__entry_price) * self.__commission_pct_cost
@@ -385,7 +345,9 @@ class Position:
             market.
         """
 
-        if self.__current_dt != exit_signal_dt or not self.__current_dt < exit_dt:
+        # TODO: What to check here?
+        # if self.__current_dt != exit_signal_dt or not self.__current_dt < exit_dt:
+        if self.__current_dt < exit_dt == False:
             raise ValueError(
                 f'Date mismatch.\n'
                 f'self.__current_dt != exit_signal_dt: {self.__current_dt != exit_signal_dt}, '
@@ -400,7 +362,6 @@ class Position:
             self.__exit_signal_dt = exit_signal_dt
         self.__exit_dt = exit_dt
         self.__active_position = False
-        self.__limit_order = False
         self.__commission += (self.__position_size * self.__exit_price) * self.__commission_pct_cost
 
         if not self.__fixed_position_size:
@@ -501,19 +462,12 @@ class Position:
         self._unrealised_profit_loss(price)
         self.__current_dt = current_dt
 
-    def update_limit_order_not_filled(self, current_dt):
-        self.__limit_order_periods_without_fill += 1
-        self.__current_dt = current_dt
-        if self.__limit_order_period_duration <= self.__limit_order_periods_without_fill:
-            self.__entry_signal_given = False
-            self.__limit_order = False
-
     def print_position_status(self):
         """
         Prints the status of the Position.
         """
 
-        if self.__active_position:
+        if self.__active_position == True:
             print(
                 f'Active position\n'
                 f'Periods in position: {len(self.__returns_list)}\n'
