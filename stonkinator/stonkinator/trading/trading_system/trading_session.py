@@ -58,9 +58,7 @@ class TradingSession:
     ):
         """
         Generates positions using the __entry_logic_function and 
-        __exit_logic_function members. If the given value for 
-        generate_signals is True, signals will be generated from 
-        the most recent data.
+        __exit_logic_function members.
 
         Parameters
         ----------
@@ -138,13 +136,8 @@ class TradingSession:
                 fixed_position_size=fixed_position_size,
                 commission_pct_cost=commission_pct_cost
             )
-
-            if position and position.active_position == True and print_data:
-                print(
-                    f'\nEntry index: {dataframe.index[-1]}: '
-                    f'{format(dataframe[open_price_col_name].iloc[-1], ".3f")}, '
-                    f'{dataframe.index[-1]}'
-                )
+            if print_data:
+                print(f'\nEntry order:\n{order.as_dict}')
 
         # TODO: rename active_position property to active instead
         if position and position.active_position == True:
@@ -165,7 +158,8 @@ class TradingSession:
                     self.__market_state_column: MarketState.ACTIVE.value
                 }
             )
-            order = self.__exit_logic_function(dataframe, position, exit_args=exit_args)
+            if position.exit_signal_given == False:
+                order = self.__exit_logic_function(dataframe, position, exit_args=exit_args)
             if order and order.active == True:
                 self.__signal_handler.handle_exit_signal(
                     self.__symbol, {
@@ -178,14 +172,9 @@ class TradingSession:
                         self.__market_state_column: MarketState.EXIT.value
                     }
                 )
-                if print_data: 
-                    print(
-                        '\nExit signal'
-                        f'\nIndex: {dataframe.index[-1]}'
-                        'Order data:'
-                        f'\n{order.as_dict}'
-                    )
-        elif position and position.active_position == False and order.active == False:
+                if print_data:
+                    print(f'\nExit order:\n{order.as_dict}')
+        elif order is None or order.active == False:
             order = self.__entry_logic_function(dataframe, entry_args=entry_args)
             if order and order.active == True:
                 self.__signal_handler.handle_entry_signal(
@@ -199,12 +188,7 @@ class TradingSession:
                     }
                 )
                 if print_data: 
-                    print(
-                        '\nEntry signal'
-                        f'\nIndex: {dataframe.index[-1]}'
-                        '\nOrder data:'
-                        f'\n{order.as_dict}'
-                    )
+                    print(f'\nEntry order:\n{order.as_dict}')
         return order, position
 
 
@@ -386,13 +370,8 @@ class BacktestTradingSession:
                     fixed_position_size=fixed_position_size, 
                     commission_pct_cost=commission_pct_cost
                 )
-
-                if position and position.active_position == True and print_data:
-                    print(
-                        f'\nEntry index {index}: '
-                        f'{format(self.__dataframe[open_price_col_name].iloc[index], ".3f")}, '
-                        f'{self.__dataframe[datetime_col_name].iloc[index]}'
-                    )
+                if print_data:
+                    print(f'\nEntry order:\n{order.as_dict}')
             else:
                 order = self.__entry_logic_function(
                     self.__dataframe.iloc[:index], entry_args=entry_args
@@ -404,86 +383,65 @@ class BacktestTradingSession:
                         fixed_position_size=fixed_position_size, 
                         commission_pct_cost=commission_pct_cost
                     )
-                    
-                    if position and position.active_position == True and print_data:
-                        print(
-                            f'\nEntry index {index}: '
-                            f'{format(self.__dataframe[open_price_col_name].iloc[index], ".3f")}, '
-                            f'{self.__dataframe[datetime_col_name].iloc[index]}'
-                        )
+                    if print_data:
+                        print(f'\nEntry order:\n{order.as_dict}')
 
         # Handle the trading sessions current market state/events/signals.
-        if market_state_null_default and generate_signals:
-            self.__signal_handler.handle_entry_signal(
-                self.__symbol, {
-                    TradingSystemAttributes.SIGNAL_DT: self.__dataframe[datetime_col_name].iloc[-1],
-                    self.__market_state_column: MarketState.NULL.value
-                }
-            )
-            return
-        if position and position.active_position == True and generate_signals:
-            position.update(
-                Decimal(self.__dataframe[close_price_col_name].iloc[-1]),
-                self.__dataframe[datetime_col_name].iloc[-1]
-            )
-            if print_data:
-                position.print_position_status()
-            self.__signal_handler.handle_active_position(
-                self.__symbol, {
-                    TradingSystemAttributes.SIGNAL_INDEX: len(self.__dataframe), 
-                    TradingSystemAttributes.SIGNAL_DT: self.__dataframe[datetime_col_name].iloc[-1], 
-                    TradingSystemAttributes.SYMBOL: self.__symbol, 
-                    TradingSystemAttributes.ORDER: order.as_dict if order else None,
-                    TradingSystemAttributes.PERIODS_IN_POSITION: len(position.returns_list), 
-                    TradingSystemAttributes.UNREALISED_RETURN: position.unrealised_return,
-                    self.__market_state_column: MarketState.ACTIVE.value
-                }
-            )
-            order = self.__exit_logic_function(self.__dataframe, position, exit_args=exit_args)
-            if order and order.active == True:
-                self.__signal_handler.handle_exit_signal(
+        if generate_signals:
+            if market_state_null_default:
+                self.__signal_handler.handle_entry_signal(
+                    self.__symbol, {
+                        TradingSystemAttributes.SIGNAL_DT: self.__dataframe[datetime_col_name].iloc[-1],
+                        self.__market_state_column: MarketState.NULL.value
+                    }
+                )
+                return
+            if position and position.active_position == True:
+                position.update(
+                    Decimal(self.__dataframe[close_price_col_name].iloc[-1]),
+                    self.__dataframe[datetime_col_name].iloc[-1]
+                )
+                if print_data:
+                    position.print_position_status()
+                self.__signal_handler.handle_active_position(
                     self.__symbol, {
                         TradingSystemAttributes.SIGNAL_INDEX: len(self.__dataframe), 
                         TradingSystemAttributes.SIGNAL_DT: self.__dataframe[datetime_col_name].iloc[-1], 
                         TradingSystemAttributes.SYMBOL: self.__symbol, 
-                        TradingSystemAttributes.ORDER: order.as_dict,
-                        TradingSystemAttributes.PERIODS_IN_POSITION: len(position.returns_list),
+                        TradingSystemAttributes.ORDER: order.as_dict if order else None,
+                        TradingSystemAttributes.PERIODS_IN_POSITION: len(position.returns_list), 
                         TradingSystemAttributes.UNREALISED_RETURN: position.unrealised_return,
-                        self.__market_state_column: MarketState.EXIT.value
+                        self.__market_state_column: MarketState.ACTIVE.value
                     }
                 )
-                if print_data: 
-                    # print(f'\nExit signal, exit next open\nIndex {len(self.__dataframe)}')
-                    print(
-                        '\nExit signal'
-                        f'\nIndex: {len(self.__dataframe)}'
-                        f'\nIndex: {self.__dataframe.index[-1]}'
-                        'Order data:'
-                        f'\n{order.as_dict}'
+                if position.exit_signal_given == False:
+                    order = self.__exit_logic_function(self.__dataframe, position, exit_args=exit_args)
+                if order and order.active == True:
+                    self.__signal_handler.handle_exit_signal(
+                        self.__symbol, {
+                            TradingSystemAttributes.SIGNAL_INDEX: len(self.__dataframe), 
+                            TradingSystemAttributes.SIGNAL_DT: self.__dataframe[datetime_col_name].iloc[-1], 
+                            TradingSystemAttributes.SYMBOL: self.__symbol, 
+                            TradingSystemAttributes.ORDER: order.as_dict,
+                            TradingSystemAttributes.PERIODS_IN_POSITION: len(position.returns_list),
+                            TradingSystemAttributes.UNREALISED_RETURN: position.unrealised_return,
+                            self.__market_state_column: MarketState.EXIT.value
+                        }
                     )
-                    # TODO:
-                    input('compare index prints')
-        elif position and position.active_position == False and generate_signals:
-            order = self.__entry_logic_function(self.__dataframe, entry_args=entry_args)
-            if order and order.active == True:
-                self.__signal_handler.handle_entry_signal(
-                    self.__symbol, {
-                        TradingSystemAttributes.SIGNAL_INDEX: len(self.__dataframe), 
-                        TradingSystemAttributes.SIGNAL_DT: self.__dataframe[datetime_col_name].iloc[-1], 
-                        TradingSystemAttributes.SYMBOL: self.__symbol,
-                        TradingSystemAttributes.ORDER: order.as_dict,
-                        TradingSystemAttributes.PERIODS_IN_POSITION: 0,
-                        self.__market_state_column: MarketState.ENTRY.value
-                    }
-                )
-                if print_data: 
-                    # print(f'\nEntry signal, buy next open\nIndex {len(self.__dataframe)}')
-                    print(
-                        '\nEntry signal'
-                        f'\nIndex: {len(self.__dataframe)}'
-                        f'\nIndex: {self.__dataframe.index[-1]}'
-                        '\nOrder data:'
-                        f'\n{order.as_dict}'
+                    if print_data: 
+                        print(f'\nExit order:\n{order.as_dict}')
+            elif order is None or order.active == False:
+                order = self.__entry_logic_function(self.__dataframe, entry_args=entry_args)
+                if order and order.active == True:
+                    self.__signal_handler.handle_entry_signal(
+                        self.__symbol, {
+                            TradingSystemAttributes.SIGNAL_INDEX: len(self.__dataframe), 
+                            TradingSystemAttributes.SIGNAL_DT: self.__dataframe[datetime_col_name].iloc[-1], 
+                            TradingSystemAttributes.SYMBOL: self.__symbol,
+                            TradingSystemAttributes.ORDER: order.as_dict,
+                            TradingSystemAttributes.PERIODS_IN_POSITION: 0,
+                            self.__market_state_column: MarketState.ENTRY.value
+                        }
                     )
-                    # TODO:
-                    input('compare index prints')
+                    if print_data: 
+                        print(f'\nEntry order:\n{order.as_dict}')
