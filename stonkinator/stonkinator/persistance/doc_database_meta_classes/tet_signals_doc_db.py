@@ -26,5 +26,21 @@ class ITetSignalsDocumentDatabase(metaclass=ABCMeta):
         ...
 
     @abstractmethod
+    def get_market_state_data(self):
+        ...
+
+    @abstractmethod
+    def get_market_state_data_for_symbol(self):
+        ...
+
+    @abstractmethod
     def update_market_state_data(self):
+        ...
+
+    @abstractmethod
+    def insert_current_order(self):
+        ...
+
+    @abstractmethod
+    def get_current_order(self):
         ...

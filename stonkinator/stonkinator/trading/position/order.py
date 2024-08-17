@@ -76,29 +76,32 @@ class Order(BaseOrder):
 
     @property
     def as_dict(self):
-        return {
-            'direction': self.__direction,
+        order_dict = {
+            'type': type(self).__name__,
             'action': self.__action,
             'created_dt': self.__created_dt,
             'active': self.__active
         }
+        if self.direction:
+            order_dict['direction'] = self.direction
+        return order_dict
 
     def execute_entry(
         self, capital, price_data_point,
         fixed_position_size=True, commission_pct_cost=0.0
     ) -> Position:
         position = Position(
-            capital, self.__direction, self.__created_dt,
+            capital, self.__direction,
             fixed_position_size=fixed_position_size, 
             commission_pct_cost=commission_pct_cost
         )
-        position.enter_market(price_data_point['open'], price_data_point['date'])
+        position.enter_market(price_data_point['open'], price_data_point.name)
         self.__active = False
         return position
 
     def execute_exit(self, position: Position, price_data_point) -> Decimal:
         capital = position.exit_market(
-            price_data_point['open'], self.__created_dt, price_data_point['date']
+            price_data_point['open'], price_data_point.name
         )
         self.__active = False
         return capital
@@ -123,8 +126,8 @@ class LimitOrder(Order):
 
     @property
     def as_dict(self):
-        return {
-            'direction': self.direction,
+        order_dict = {
+            'type': type(self).__name__,
             'action': self.action,
             'created_dt': self.created_dt,
             'active': self.active,
@@ -132,6 +135,9 @@ class LimitOrder(Order):
             'max_duration': self.__max_duration,
             'duration': self.__duration
         }
+        if self.direction:
+            order_dict['direction'] = self.direction
+        return order_dict
 
     def execute_entry(
         self, capital, price_data_point,
@@ -140,11 +146,11 @@ class LimitOrder(Order):
         # TODO: This condition will not work for short positions
         if self.__price > price_data_point['low']:
             position = Position(
-                capital, self.direction, self.created_dt,
+                capital, self.direction,
                 fixed_position_size=fixed_position_size, 
                 commission_pct_cost=commission_pct_cost
             )
-            position.enter_market(self.__price, price_data_point['date'])
+            position.enter_market(self.__price, price_data_point.name)
             self.active = False
             return position
         else:
@@ -158,9 +164,7 @@ class LimitOrder(Order):
         position.exit_signal_given = True
         # TODO: This condition will not work for short positions
         if price_data_point['high'] > self.__price:
-            capital = position.exit_market(
-                self.__price, self.created_dt, price_data_point['date']
-            )
+            capital = position.exit_market(self.__price, price_data_point.name)
             self.active = False
             return capital
         else:

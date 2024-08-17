@@ -20,14 +20,6 @@ class ITetSystemsDocumentDatabase(ITetSignalsDocumentDatabase):
         ...
 
     @abstractmethod
-    def get_market_state_data(self):
-        ...
-
-    @abstractmethod
-    def get_market_state_data_for_symbol(self):
-        ...
-
-    @abstractmethod
     def insert_position_list(self):
         ...
 
@@ -65,12 +57,4 @@ class ITetSystemsDocumentDatabase(ITetSignalsDocumentDatabase):
 
     @abstractmethod
     def increment_num_of_periods(self):
-        ...
-
-    @abstractmethod
-    def get_historic_data(self):
-        ...
-
-    @abstractmethod
-    def get_single_symbol_historic_data(self):
         ...

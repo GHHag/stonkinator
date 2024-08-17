@@ -1,3 +1,4 @@
+from trading.position.order import Order
 from trading.signal_events.signals.entry_signal import EntrySignals
 from trading.signal_events.signals.exit_signal import ExitSignals
 from trading.signal_events.signals.active_position import ActivePositions
@@ -12,6 +13,8 @@ class SignalHandler:
     TODO: Implement methods _execute_signals and __call__.
     """
 
+    __current_order: tuple[Order | None, str]
+
     def __init__(self):
         self.__entry_signals = EntrySignals()
         self.__exit_signals = ExitSignals()
@@ -21,6 +24,14 @@ class SignalHandler:
     @property
     def entry_signal_given(self):
         return self.__entry_signal_given
+
+    @property
+    def current_order(self) -> tuple[Order | None, str]:
+        return self.__current_order
+
+    @current_order.setter
+    def current_order(self, value: tuple[Order | None, str]):
+        self.__current_order = value
 
     def handle_entry_signal(self, symbol, data_dict):
         """
