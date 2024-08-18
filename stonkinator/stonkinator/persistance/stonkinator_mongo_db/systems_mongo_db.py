@@ -9,8 +9,9 @@ from persistance.doc_database_meta_classes.tet_systems_doc_db import ITetSystems
 
 from trading.data.metadata.market_state_enum import MarketState
 from trading.data.metadata.trading_system_attributes import TradingSystemAttributes
+from trading.position.order import Order
 from trading.position.position import Position
-from trading.position.position_manager import PositionManager
+# from trading.position.position_manager import PositionManager
 
 
 class TetSystemsMongoDb(ITetSystemsDocumentDatabase):
@@ -28,20 +29,21 @@ class TetSystemsMongoDb(ITetSystemsDocumentDatabase):
     __ML_MODEL_FIELD = TradingSystemAttributes.ML_MODEL
     __INSTRUMENT_FIELD = TradingSystemAttributes.INSTRUMENT
     __SIGNAL_DT_FIELD = TradingSystemAttributes.SIGNAL_DT
-    __START_DT = TradingSystemAttributes.START_DT
-    __END_DT = TradingSystemAttributes.END_DT
-    __MARKET_TO_MARKET_RETURNS = TradingSystemAttributes.MARKET_TO_MARKET_RETURNS
-    __EQUITY_LIST = TradingSystemAttributes.EQUITY_LIST
-    __RETURNS_LIST = TradingSystemAttributes.RETURNS_LIST
-    __MAE_LIST = TradingSystemAttributes.MAE_LIST
-    __MFE_LIST = TradingSystemAttributes.MFE_LIST
-    __POSITION_PERIOD_LENGTHS_LIST = TradingSystemAttributes.POSITION_PERIOD_LENGTHS_LIST
+    # __START_DT = TradingSystemAttributes.START_DT
+    # __END_DT = TradingSystemAttributes.END_DT
+    # __MARKET_TO_MARKET_RETURNS = TradingSystemAttributes.MARKET_TO_MARKET_RETURNS
+    # __EQUITY_LIST = TradingSystemAttributes.EQUITY_LIST
+    # __RETURNS_LIST = TradingSystemAttributes.RETURNS_LIST
+    # __MAE_LIST = TradingSystemAttributes.MAE_LIST
+    # __MFE_LIST = TradingSystemAttributes.MFE_LIST
+    # __POSITION_PERIOD_LENGTHS_LIST = TradingSystemAttributes.POSITION_PERIOD_LENGTHS_LIST
 
     def __init__(self, client_uri, client_name):
         mongo_client = MongoClient(client_uri)
         self.__client = mongo_client[client_name]
         self.__systems: Collection = self.__client.systems
         self.__market_states: Collection = self.__client.market_states
+        self.__orders: Collection = self.__client.orders
         self.__positions: Collection = self.__client.positions
         self.__single_symbol_positions: Collection = self.__client.single_symbol_positions
         self.__ml_models: Collection = self.__client.ml_models
@@ -193,6 +195,28 @@ class TetSystemsMongoDb(ITetSystemsDocumentDatabase):
             return json.dumps({self.__MARKET_STATE_FIELD: None, self.__SIGNAL_DT_FIELD: None})
         else:
             return json.dumps(query, default=json_util.default)
+
+    def insert_current_order(self, system_name, symbol, order: Order):
+        system_id = self._get_system_id(system_name)
+        result = self.__orders.update_one(
+            {
+                self.__SYSTEM_ID_FIELD: system_id,
+                self.__SYSTEM_NAME_FIELD: system_name,
+                self.__SYMBOL_FIELD: symbol
+            },
+            {'$set': {'order': pickle.dumps(order) }},
+            upsert=True
+        )
+        return result.modified_count > 0
+
+    def get_current_order(self, system_name, symbol):
+        system_id = self._get_system_id(system_name)
+        query = self.__orders.find_one(
+            {self.__SYSTEM_ID_FIELD: system_id, self.__SYMBOL_FIELD: symbol},
+            {self.__ID_FIELD: 0, 'order': 1}
+        )
+        if query is not None:
+            return pickle.loads(query.get('order'))
 
     def insert_position_list(
         self, system_name, position_list: list[Position], num_of_periods,
@@ -481,76 +505,76 @@ class TetSystemsMongoDb(ITetSystemsDocumentDatabase):
         )
         return result.modified_count > 0
 
-    def get_historic_data(self, system_name):
-        position_list = self.get_position_list(system_name)
-        system_metrics = json.loads(self.get_system_metrics(system_name))
+    # def get_historic_data(self, system_name):
+    #     position_list = self.get_position_list(system_name)
+    #     system_metrics = json.loads(self.get_system_metrics(system_name))
 
-        start_dt = position_list[0].entry_dt
-        end_dt = position_list[-1].exit_signal_dt if position_list[-1].exit_signal_dt is not None \
-            else position_list[-2].exit_signal_dt
+    #     start_dt = position_list[0].entry_dt
+    #     end_dt = position_list[-1].exit_signal_dt if position_list[-1].exit_signal_dt is not None \
+    #         else position_list[-2].exit_signal_dt
 
-        position_manager = PositionManager(
-            system_name, system_metrics[self.__NUMBER_OF_PERIODS_FIELD], 10000, 1.0
-        )
+    #     position_manager = PositionManager(
+    #         system_name, system_metrics[self.__NUMBER_OF_PERIODS_FIELD], 10000, 1.0
+    #     )
 
-        def generate_pos_sequence(position_list, **kwargs):
-            for pos in position_list:
-                yield pos
+    #     def generate_pos_sequence(position_list, **kwargs):
+    #         for pos in position_list:
+    #             yield pos
 
-        if position_list[-1].active_position or position_list[-1].entry_dt is None:
-            position_manager.generate_positions(generate_pos_sequence, position_list[:-1])
-        else:
-            position_manager.generate_positions(generate_pos_sequence, position_list[:])
+    #     if position_list[-1].active_position or position_list[-1].entry_dt is None:
+    #         position_manager.generate_positions(generate_pos_sequence, position_list[:-1])
+    #     else:
+    #         position_manager.generate_positions(generate_pos_sequence, position_list[:])
 
-        return json.dumps(
-            {
-                self.__START_DT: str(start_dt),
-                self.__END_DT: str(end_dt),
-                self.__MARKET_TO_MARKET_RETURNS: list(
-                        map(float, position_manager.metrics.market_to_market_returns_list)
-                    ),
-                self.__EQUITY_LIST: list(map(float, position_manager.metrics.equity_list)),
-                self.__RETURNS_LIST: list(position_manager.metrics.returns_list),
-                self.__MAE_LIST: list(position_manager.metrics.mae_list),
-                self.__MFE_LIST: list(position_manager.metrics.mfe_list),
-                self.__POSITION_PERIOD_LENGTHS_LIST: list(position_manager.metrics.pos_period_lengths_list)
-            }
-        )
+    #     return json.dumps(
+    #         {
+    #             self.__START_DT: str(start_dt),
+    #             self.__END_DT: str(end_dt),
+    #             self.__MARKET_TO_MARKET_RETURNS: list(
+    #                     map(float, position_manager.metrics.market_to_market_returns_list)
+    #                 ),
+    #             self.__EQUITY_LIST: list(map(float, position_manager.metrics.equity_list)),
+    #             self.__RETURNS_LIST: list(position_manager.metrics.returns_list),
+    #             self.__MAE_LIST: list(position_manager.metrics.mae_list),
+    #             self.__MFE_LIST: list(position_manager.metrics.mfe_list),
+    #             self.__POSITION_PERIOD_LENGTHS_LIST: list(position_manager.metrics.pos_period_lengths_list)
+    #         }
+    #     )
 
-    def get_single_symbol_historic_data(self, system_name, symbol):
-        position_list, num_of_periods = self.get_single_symbol_position_list(
-            system_name, symbol, return_num_of_periods=True
-        )
+    # def get_single_symbol_historic_data(self, system_name, symbol):
+    #     position_list, num_of_periods = self.get_single_symbol_position_list(
+    #         system_name, symbol, return_num_of_periods=True
+    #     )
 
-        start_dt = position_list[0].entry_dt
-        end_dt = position_list[-1].exit_signal_dt if position_list[-1].exit_signal_dt is not None \
-            else position_list[-2].exit_signal_dt
+    #     start_dt = position_list[0].entry_dt
+    #     end_dt = position_list[-1].exit_signal_dt if position_list[-1].exit_signal_dt is not None \
+    #         else position_list[-2].exit_signal_dt
 
-        position_manager = PositionManager(symbol, num_of_periods, 10000, 1.0)
+    #     position_manager = PositionManager(symbol, num_of_periods, 10000, 1.0)
 
-        def generate_pos_sequence(position_list, **kwargs):
-            for pos in position_list:
-                yield pos
+    #     def generate_pos_sequence(position_list, **kwargs):
+    #         for pos in position_list:
+    #             yield pos
 
-        if position_list[-1].active_position or position_list[-1].entry_dt is None:
-            position_manager.generate_positions(generate_pos_sequence, position_list[:-1])
-        else:
-            position_manager.generate_positions(generate_pos_sequence, position_list[:])
+    #     if position_list[-1].active_position or position_list[-1].entry_dt is None:
+    #         position_manager.generate_positions(generate_pos_sequence, position_list[:-1])
+    #     else:
+    #         position_manager.generate_positions(generate_pos_sequence, position_list[:])
 
-        return json.dumps(
-            {
-                self.__START_DT: str(start_dt),
-                self.__END_DT: str(end_dt),
-                self.__MARKET_TO_MARKET_RETURNS: list(
-                    position_manager.metrics.market_to_market_returns_list.astype(float)
-                ),
-                self.__EQUITY_LIST: list(position_manager.metrics.equity_list.astype(float)),
-                self.__RETURNS_LIST: list(position_manager.metrics.returns_list),
-                self.__MAE_LIST: list(position_manager.metrics.mae_list),
-                self.__MFE_LIST: list(position_manager.metrics.mfe_list),
-                self.__POSITION_PERIOD_LENGTHS_LIST: list(position_manager.metrics.pos_period_lengths_list)
-            }
-        )
+    #     return json.dumps(
+    #         {
+    #             self.__START_DT: str(start_dt),
+    #             self.__END_DT: str(end_dt),
+    #             self.__MARKET_TO_MARKET_RETURNS: list(
+    #                 position_manager.metrics.market_to_market_returns_list.astype(float)
+    #             ),
+    #             self.__EQUITY_LIST: list(position_manager.metrics.equity_list.astype(float)),
+    #             self.__RETURNS_LIST: list(position_manager.metrics.returns_list),
+    #             self.__MAE_LIST: list(position_manager.metrics.mae_list),
+    #             self.__MFE_LIST: list(position_manager.metrics.mfe_list),
+    #             self.__POSITION_PERIOD_LENGTHS_LIST: list(position_manager.metrics.pos_period_lengths_list)
+    #         }
+    #     )
 
     def insert_ml_model(self, system_name, instrument, model):
         system_id = self._get_system_id(system_name)

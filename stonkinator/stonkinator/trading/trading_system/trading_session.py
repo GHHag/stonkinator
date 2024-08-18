@@ -110,16 +110,13 @@ class TradingSession:
         TODO: Add return to method documentation
         """
 
-        if position and position.active_position == True:
-            # TODO: Replace this check with something equal?
-            # if position.exit_signal_dt != dataframe.index[-2]:
-            #     return position
+        if position and position.active == True:
             if position.current_dt != dataframe.index[-2]:
                 return order, position
 
             if order and order.active == True or position.exit_signal_given == True:
                 capital = order.execute_exit(position, dataframe.iloc[-1])
-            if position.active_position == False:
+            if position.active == False:
                 if print_data:
                     position.print_position_stats()
                     print(
@@ -139,8 +136,7 @@ class TradingSession:
             if print_data:
                 print(f'\nEntry order:\n{order.as_dict}')
 
-        # TODO: rename active_position property to active instead
-        if position and position.active_position == True:
+        if position and position.active == True:
             position.update(
                 Decimal(dataframe[close_price_col_name].iloc[-1]),
                 dataframe.index[-1]
@@ -230,7 +226,6 @@ class BacktestTradingSession:
         self, *args, 
         entry_args=None, exit_args=None, 
         max_req_periods_feature=TradingSystemAttributes.REQ_PERIOD_ITERS, 
-        datetime_col_name='date',
         open_price_col_name='open',
         high_price_col_name='high',
         low_price_col_name='low',
@@ -263,9 +258,6 @@ class BacktestTradingSession:
             that should have the value of the number of periods required 
             for all features to be calculated before being able to 
             generate signals from the data. Default value='req_period_iters'
-        :param datetime_col_name:
-            Keyword arg 'str' : The column of the objects __dataframe that
-            contains time and date data. Default value='date'
         :param open_price_col_name:
             Keyword arg 'str' : The column of the objects __dataframe that
             contains values for open prices. Default value='open'
@@ -318,47 +310,44 @@ class BacktestTradingSession:
         order: Order = None
         position: Position = None
 
-        if isinstance(self.__dataframe.index, pd.DatetimeIndex):
-            self.__dataframe.reset_index(level=0, inplace=True)
-
-        for index, _ in enumerate(self.__dataframe.itertuples()):
+        for idx, _ in enumerate(self.__dataframe.itertuples()):
             # entry_args[max_req_periods_feature] is the parameter used 
             # with the longest period lookback required to calculate.
-            if index <= entry_args[max_req_periods_feature]:
+            if idx <= entry_args[max_req_periods_feature]:
                 continue
 
-            if position and position.active_position == True:
+            if position and position.active == True:
                 position.update(
-                    Decimal(self.__dataframe[close_price_col_name].iloc[index-1]),
-                    self.__dataframe[datetime_col_name].iloc[index-1]
+                    Decimal(self.__dataframe[close_price_col_name].iloc[idx-1]),
+                    self.__dataframe.index[idx-1]
                 )
                 if position.exit_signal_given == False:
                     order = self.__exit_logic_function(
-                        self.__dataframe.iloc[:index], position, exit_args=exit_args
+                        self.__dataframe.iloc[:idx], position, exit_args=exit_args
                     )
                 if order and order.active == True or position.exit_signal_given == True:
-                    capital = order.execute_exit(position, self.__dataframe.iloc[index])
-                if position.active_position == False:
+                    capital = order.execute_exit(position, self.__dataframe.iloc[idx])
+                if position.active == False:
                     if print_data:
                         position.print_position_stats()
                         print(
-                            f'Exit index {index}: '
-                            f'{format(self.__dataframe[open_price_col_name].iloc[index], ".3f")}, '
-                            f'{self.__dataframe[datetime_col_name].iloc[index]}\n'
+                            f'Exit index {idx}: '
+                            f'{format(self.__dataframe[open_price_col_name].iloc[idx], ".3f")}, '
+                            f'{self.__dataframe.index[idx]}\n'
                             f'Realised return: {position.position_return}'
                         )
                     if plot_positions:
                         if save_position_figs_path is not None:
                             position_figs_path = save_position_figs_path + (
-                                fr'\{self.__dataframe.iloc[(index - len(position.returns_list))].Date.strftime("%Y-%m-%d")}.jpg'
+                                fr'\{self.__dataframe.iloc[(idx - len(position.returns_list))].Date.strftime("%Y-%m-%d")}.jpg'
                             )
                         else:
                             position_figs_path = save_position_figs_path
                         candlestick_plot(
-                            self.__dataframe.iloc[(index-len(position.returns_list)-20):(index+15)],
+                            self.__dataframe.iloc[(idx-len(position.returns_list)-20):(idx+15)],
                             position.entry_dt, position.entry_price, 
-                            self.__dataframe[datetime_col_name].iloc[index], 
-                            self.__dataframe[open_price_col_name].iloc[index], 
+                            self.__dataframe.index[idx], 
+                            self.__dataframe[open_price_col_name].iloc[idx], 
                             save_fig_to_path=position_figs_path
                         )
                     yield position
@@ -366,7 +355,7 @@ class BacktestTradingSession:
             elif position is None and order and order.active == True:
                 position = order.execute_entry(
                     capital,
-                    self.__dataframe.iloc[index],
+                    self.__dataframe.iloc[idx],
                     fixed_position_size=fixed_position_size, 
                     commission_pct_cost=commission_pct_cost
                 )
@@ -374,12 +363,12 @@ class BacktestTradingSession:
                     print(f'\nEntry order:\n{order.as_dict}')
             else:
                 order = self.__entry_logic_function(
-                    self.__dataframe.iloc[:index], entry_args=entry_args
+                    self.__dataframe.iloc[:idx], entry_args=entry_args
                 )
                 if order and order.active == True:
                     position = order.execute_entry(
                         capital,
-                        self.__dataframe.iloc[index],
+                        self.__dataframe.iloc[idx],
                         fixed_position_size=fixed_position_size, 
                         commission_pct_cost=commission_pct_cost
                     )
@@ -391,22 +380,22 @@ class BacktestTradingSession:
             if market_state_null_default:
                 self.__signal_handler.handle_entry_signal(
                     self.__symbol, {
-                        TradingSystemAttributes.SIGNAL_DT: self.__dataframe[datetime_col_name].iloc[-1],
+                        TradingSystemAttributes.SIGNAL_DT: self.__dataframe.index[-1],
                         self.__market_state_column: MarketState.NULL.value
                     }
                 )
                 return
-            if position and position.active_position == True:
+            if position and position.active == True:
                 position.update(
                     Decimal(self.__dataframe[close_price_col_name].iloc[-1]),
-                    self.__dataframe[datetime_col_name].iloc[-1]
+                    self.__dataframe.index[-1]
                 )
                 if print_data:
                     position.print_position_status()
                 self.__signal_handler.handle_active_position(
                     self.__symbol, {
                         TradingSystemAttributes.SIGNAL_INDEX: len(self.__dataframe), 
-                        TradingSystemAttributes.SIGNAL_DT: self.__dataframe[datetime_col_name].iloc[-1], 
+                        TradingSystemAttributes.SIGNAL_DT: self.__dataframe.index[-1], 
                         TradingSystemAttributes.SYMBOL: self.__symbol, 
                         TradingSystemAttributes.ORDER: order.as_dict if order else None,
                         TradingSystemAttributes.PERIODS_IN_POSITION: len(position.returns_list), 
@@ -420,7 +409,7 @@ class BacktestTradingSession:
                     self.__signal_handler.handle_exit_signal(
                         self.__symbol, {
                             TradingSystemAttributes.SIGNAL_INDEX: len(self.__dataframe), 
-                            TradingSystemAttributes.SIGNAL_DT: self.__dataframe[datetime_col_name].iloc[-1], 
+                            TradingSystemAttributes.SIGNAL_DT: self.__dataframe.index[-1], 
                             TradingSystemAttributes.SYMBOL: self.__symbol, 
                             TradingSystemAttributes.ORDER: order.as_dict,
                             TradingSystemAttributes.PERIODS_IN_POSITION: len(position.returns_list),
@@ -436,7 +425,7 @@ class BacktestTradingSession:
                     self.__signal_handler.handle_entry_signal(
                         self.__symbol, {
                             TradingSystemAttributes.SIGNAL_INDEX: len(self.__dataframe), 
-                            TradingSystemAttributes.SIGNAL_DT: self.__dataframe[datetime_col_name].iloc[-1], 
+                            TradingSystemAttributes.SIGNAL_DT: self.__dataframe.index[-1], 
                             TradingSystemAttributes.SYMBOL: self.__symbol,
                             TradingSystemAttributes.ORDER: order.as_dict,
                             TradingSystemAttributes.PERIODS_IN_POSITION: 0,
@@ -445,3 +434,5 @@ class BacktestTradingSession:
                     )
                     if print_data: 
                         print(f'\nEntry order:\n{order.as_dict}')
+            
+            self.__signal_handler.current_order = (order, self.__symbol)

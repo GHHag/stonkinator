@@ -14,9 +14,6 @@ class Position:
     direction : 'str'
         The direction of the Position. Expected value is either
         'long' or 'short'.
-    entry_signal_dt : 'Pandas Timestamp/Datetime'
-        Time and date of the entry signal that the position was
-        initialized upon.
     fixed_position_size : Keyword arg 'bool'
         True/False decides if the position size should be the same
         fixed amount. The variable is used in the class' exit_market
@@ -28,22 +25,19 @@ class Position:
     """
 
     def __init__(
-        self, capital, direction, entry_signal_dt,
+        self, capital, direction,
         fixed_position_size=True, commission_pct_cost=0.0
     ):
         self.__entry_price, self.__exit_price = None, None
         self.__position_size = None
-        self.__entry_dt, self.__exit_dt = None, None
-        self.__current_dt = None
+        self.__entry_dt, self.__exit_dt, self.__current_dt = None, None, None
         self.__capital = Decimal(capital)
         self.__direction = direction
-        self.__entry_signal_dt = entry_signal_dt  # TODO: Only used in datetime_check, remove if datetime check is refactored?
-        self.__exit_signal_dt = None  # TODO: Remove if datetime checks are refactored?
         self.__uninvested_capital = 0
         self.__fixed_position_size = fixed_position_size
         self.__commission_pct_cost = Decimal(commission_pct_cost)
         self.__commission = 0
-        self.__active_position = False
+        self.__active = False
         self.__last_price = None
         self.__unrealised_return = 0
         self.__unrealised_profit_loss = 0
@@ -67,8 +61,8 @@ class Position:
         return self.__commission
 
     @property
-    def active_position(self):
-        return self.__active_position
+    def active(self):
+        return self.__active
 
     @property
     def entry_dt(self):
@@ -87,40 +81,12 @@ class Position:
         self.__current_dt = value
 
     @property
-    def entry_signal_dt(self):
-        return self.__entry_signal_dt
-
-    @property
-    def exit_signal_dt(self):
-        return self.__exit_signal_dt
-
-    @exit_signal_dt.setter
-    def exit_signal_dt(self, value):
-        self.__exit_signal_dt = value
-
-    @property
-    def capital(self):
-        return self.__capital
-
-    @property
-    def direction(self):
-        return self.__direction
-
-    @property
-    def fixed_position_size(self):
-        return self.__fixed_position_size
-
-    @property
     def returns_list(self):
         return self.__returns_list
 
     @property
     def unrealised_return(self):
         return self.__unrealised_return
-
-    @property
-    def unrealised_profit_loss(self):
-        return self.__unrealised_profit_loss
 
     @property
     def position_return(self):
@@ -255,7 +221,7 @@ class Position:
     def as_dict(self):
         return {
             'entry_dt': self.entry_dt,
-            'exit_signal_dt': self.exit_signal_dt,
+            'exit_dt': self.exit_dt,
             'entry_price': float(self.entry_price),
             'exit_price': float(self.__exit_price),
             'returns_list': [float(x) for x in self.returns_list],
@@ -267,35 +233,6 @@ class Position:
             'mae': float(self.mae),
             'mfe': float(self.mfe)
        }
-
-    def datetime_check(self, input_datetime):
-        """
-        Checks date and time properties against a given datetime
-        value. Useful to make sure data points of the same date
-        and time are not processed multiple times.
-        
-        Parameters
-        ----------
-        :param input_datetime:
-            'Pandas Timestamp/Datetime' : Date and time to check
-            against.
-        :return:
-            'bool' : Returns True/False depending on the result
-            of the datetime comparisons.
-        """
-
-        if self.__exit_dt is not None:
-            check = not self.__exit_dt >= input_datetime
-        elif self.__exit_signal_dt is not None:
-            check = not self.__exit_signal_dt >= input_datetime
-        elif self.__current_dt is not None:
-            check = not self.__current_dt >= input_datetime
-        elif self.__entry_signal_dt is not None:
-            check = not self.__entry_signal_dt >= input_datetime
-        else:
-            check = True
-
-        return check
 
     def enter_market(self, entry_price, entry_dt):
         """
@@ -311,7 +248,7 @@ class Position:
             the market.
         """
 
-        assert (self.__active_position == False), 'A position is already active'
+        assert (self.__active == False), 'A position is already active'
 
         self.__entry_price = Decimal(entry_price)
         self.__position_size = int(self.__capital / self.__entry_price)
@@ -319,9 +256,9 @@ class Position:
         self.__commission = (self.__position_size * self.__entry_price) * self.__commission_pct_cost
         self.__entry_dt = entry_dt
         self.__current_dt = entry_dt
-        self.__active_position = True
+        self.__active = True
 
-    def exit_market(self, exit_price, exit_signal_dt, exit_dt):
+    def exit_market(self, exit_price, exit_dt):
         """
         Exits the market at the given price.
 
@@ -330,9 +267,6 @@ class Position:
         :param exit_price:
             'int/float/Decimal' : The price of the asset when exiting
             the market.
-        :param exit_signal_dt:
-            'Pandas Timestamp/Datetime' : Time and date when the signal
-            to exit market was given.
         :param exit_dt:
             'Pandas Timestamp/Datetime' : Time and date when the order
             to exit market was made.
@@ -345,23 +279,17 @@ class Position:
             market.
         """
 
-        # TODO: What to check here?
-        # if self.__current_dt != exit_signal_dt or not self.__current_dt < exit_dt:
-        if self.__current_dt < exit_dt == False:
+        if self.__current_dt >= exit_dt:
             raise ValueError(
                 f'Date mismatch.\n'
-                f'self.__current_dt != exit_signal_dt: {self.__current_dt != exit_signal_dt}, '
-                'should be True\n'
-                f'not self.__current_dt < exit_dt: {not self.__current_dt < exit_dt}, '
-                'should be True'
+                f'self.__current_dt >= exit_dt: {self.__current_dt >= exit_dt}, '
+                'should be False'
             )
 
         self.__exit_price = Decimal(exit_price)
-        self.update(self.__exit_price, exit_signal_dt)
-        if self.__exit_signal_dt is None:
-            self.__exit_signal_dt = exit_signal_dt
+        self.update(self.__exit_price, exit_dt)
         self.__exit_dt = exit_dt
-        self.__active_position = False
+        self.__active = False
         self.__commission += (self.__position_size * self.__exit_price) * self.__commission_pct_cost
 
         if not self.__fixed_position_size:
@@ -467,12 +395,11 @@ class Position:
         Prints the status of the Position.
         """
 
-        if self.__active_position == True:
-            print(
-                f'Active position\n'
-                f'Periods in position: {len(self.__returns_list)}\n'
-                f'Unrealised return sequence: {list(map(float, self.__returns_list))}'
-            )
+        print(
+            f'Active position\n'
+            f'Periods in position: {len(self.__returns_list)}\n'
+            f'Unrealised return sequence: {list(map(float, self.__returns_list))}'
+        )
 
     def print_position_stats(self):
         """
