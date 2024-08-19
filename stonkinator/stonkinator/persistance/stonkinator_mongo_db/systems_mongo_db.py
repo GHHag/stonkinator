@@ -204,7 +204,7 @@ class TetSystemsMongoDb(ITetSystemsDocumentDatabase):
                 self.__SYSTEM_NAME_FIELD: system_name,
                 self.__SYMBOL_FIELD: symbol
             },
-            {'$set': {'order': pickle.dumps(order) }},
+            {'$set': {TradingSystemAttributes.ORDER: pickle.dumps(order) }},
             upsert=True
         )
         return result.modified_count > 0
@@ -213,10 +213,10 @@ class TetSystemsMongoDb(ITetSystemsDocumentDatabase):
         system_id = self._get_system_id(system_name)
         query = self.__orders.find_one(
             {self.__SYSTEM_ID_FIELD: system_id, self.__SYMBOL_FIELD: symbol},
-            {self.__ID_FIELD: 0, 'order': 1}
+            {self.__ID_FIELD: 0, TradingSystemAttributes.ORDER: 1}
         )
         if query is not None:
-            return pickle.loads(query.get('order'))
+            return pickle.loads(query.get(TradingSystemAttributes.ORDER))
 
     def insert_position_list(
         self, system_name, position_list: list[Position], num_of_periods,
@@ -603,7 +603,3 @@ class TetSystemsMongoDb(ITetSystemsDocumentDatabase):
         )
         if query is not None:
             return pickle.loads(query[self.__ML_MODEL_FIELD])
-
-
-if __name__ == '__main__':
-    pass

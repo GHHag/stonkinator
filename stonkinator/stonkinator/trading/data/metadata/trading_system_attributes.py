@@ -5,6 +5,8 @@ class classproperty(property):
 
 class TradingSystemAttributes:
 
+    __LONG = 'long'
+    __SHORT = 'short'
     __MARKET_STATE = 'market_state'
     __SIGNAL_INDEX = 'signal_index'
     __SIGNAL_DT = 'signal_dt'
@@ -34,6 +36,14 @@ class TradingSystemAttributes:
     __ENTRY_PERIOD_LOOKBACK = 'entry_period_lookback'
     __EXIT_PERIOD_LOOKBACK = 'exit_period_lookback'
     __REQ_PERIOD_ITERS = 'req_period_iters'
+
+    @classproperty
+    def LONG(cls):
+        return cls.__LONG
+
+    @classproperty
+    def SHORT(cls):
+        return cls.__SHORT
 
     @classproperty
     def MARKET_STATE(cls):

@@ -115,7 +115,7 @@ class TradingSession:
                 return order, position
 
             if order and order.active == True or position.exit_signal_given == True:
-                capital = order.execute_exit(position, dataframe.iloc[-1])
+                capital = order.execute_exit(position, dataframe.iloc[-1], dataframe.index[-1])
             if position.active == False:
                 if print_data:
                     position.print_position_stats()
@@ -130,6 +130,7 @@ class TradingSession:
             position = order.execute_entry(
                 capital, 
                 dataframe.iloc[-1],
+                dataframe.index[-1],
                 fixed_position_size=fixed_position_size,
                 commission_pct_cost=commission_pct_cost
             )
@@ -326,7 +327,9 @@ class BacktestTradingSession:
                         self.__dataframe.iloc[:idx], position, exit_args=exit_args
                     )
                 if order and order.active == True or position.exit_signal_given == True:
-                    capital = order.execute_exit(position, self.__dataframe.iloc[idx])
+                    capital = order.execute_exit(
+                        position, self.__dataframe.iloc[idx], self.__dataframe.index[idx]
+                    )
                 if position.active == False:
                     if print_data:
                         position.print_position_stats()
@@ -356,6 +359,7 @@ class BacktestTradingSession:
                 position = order.execute_entry(
                     capital,
                     self.__dataframe.iloc[idx],
+                    self.__dataframe.index[idx],
                     fixed_position_size=fixed_position_size, 
                     commission_pct_cost=commission_pct_cost
                 )
@@ -369,6 +373,7 @@ class BacktestTradingSession:
                     position = order.execute_entry(
                         capital,
                         self.__dataframe.iloc[idx],
+                        self.__dataframe.index[idx],
                         fixed_position_size=fixed_position_size, 
                         commission_pct_cost=commission_pct_cost
                     )

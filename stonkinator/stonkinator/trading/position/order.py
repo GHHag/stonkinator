@@ -3,15 +3,13 @@ from datetime import datetime
 from decimal import Decimal
 
 from trading.position.position import Position
+from trading.data.metadata.price import Price
+from trading.data.metadata.trading_system_attributes import TradingSystemAttributes
+
 
 class BaseOrder(metaclass=ABCMeta):
     
     __metaclass__ = ABCMeta
-
-    @property
-    @abstractmethod
-    def direction(self):
-        ...
 
     @property
     @abstractmethod
@@ -30,6 +28,11 @@ class BaseOrder(metaclass=ABCMeta):
 
     @property
     @abstractmethod
+    def direction(self):
+        ...
+
+    @property
+    @abstractmethod
     def as_dict(self):
         ...
 
@@ -43,20 +46,16 @@ class BaseOrder(metaclass=ABCMeta):
 
 
 class Order(BaseOrder):
-    __direction: str
     __action: str
     __created_dt: datetime
     __active: bool
+    __direction: str
 
-    def __init__(self, direction, action, dt):
-        self.__direction = direction
+    def __init__(self, action, dt, direction):
         self.__action = action
         self.__created_dt = dt
         self.__active = True
-
-    @property
-    def direction(self):
-        return self.__direction
+        self.__direction = direction
 
     @property
     def action(self):
@@ -75,6 +74,10 @@ class Order(BaseOrder):
         self.__active = value
 
     @property
+    def direction(self):
+        return self.__direction
+
+    @property
     def as_dict(self):
         order_dict = {
             'type': type(self).__name__,
@@ -87,7 +90,7 @@ class Order(BaseOrder):
         return order_dict
 
     def execute_entry(
-        self, capital, price_data_point,
+        self, capital, price_data_point, data_point_dt, 
         fixed_position_size=True, commission_pct_cost=0.0
     ) -> Position:
         position = Position(
@@ -95,22 +98,22 @@ class Order(BaseOrder):
             fixed_position_size=fixed_position_size, 
             commission_pct_cost=commission_pct_cost
         )
-        position.enter_market(price_data_point['open'], price_data_point.name)
+        position.enter_market(price_data_point[Price.OPEN], data_point_dt)
         self.__active = False
         return position
 
-    def execute_exit(self, position: Position, price_data_point) -> Decimal:
-        capital = position.exit_market(
-            price_data_point['open'], price_data_point.name
-        )
+    def execute_exit(
+        self, position: Position, price_data_point, data_point_dt
+    ) -> Decimal:
+        capital = position.exit_market(price_data_point[Price.OPEN], data_point_dt)
         self.__active = False
         return capital
 
 
 class MarketOrder(Order):
 
-    def __init__(self, direction, action, dt):
-        super().__init__(direction, action, dt)
+    def __init__(self, action, dt, direction=TradingSystemAttributes.LONG):
+        super().__init__(action, dt, direction)
 
 
 class LimitOrder(Order):
@@ -118,8 +121,11 @@ class LimitOrder(Order):
     __max_duration: int
     __duration: int
 
-    def __init__(self, direction, action, dt, price, max_duration):
-        super().__init__(direction, action, dt)
+    def __init__(
+        self, action, dt, price, max_duration,
+        direction=TradingSystemAttributes.LONG
+    ):
+        super().__init__(action, dt, direction)
         self.__price = price
         self.__max_duration = max_duration
         self.__duration = 0
@@ -140,17 +146,17 @@ class LimitOrder(Order):
         return order_dict
 
     def execute_entry(
-        self, capital, price_data_point,
+        self, capital, price_data_point, data_point_dt,
         fixed_position_size=True, commission_pct_cost=0.0
     ) -> Position | None:
         # TODO: This condition will not work for short positions
-        if self.__price > price_data_point['low']:
+        if self.__price > price_data_point[Price.LOW]:
             position = Position(
                 capital, self.direction,
                 fixed_position_size=fixed_position_size, 
                 commission_pct_cost=commission_pct_cost
             )
-            position.enter_market(self.__price, price_data_point.name)
+            position.enter_market(self.__price, data_point_dt)
             self.active = False
             return position
         else:
@@ -159,12 +165,13 @@ class LimitOrder(Order):
                 self.active = False
             return None
 
-
-    def execute_exit(self, position: Position, price_data_point) -> Decimal | None:
+    def execute_exit(
+        self, position: Position, price_data_point, data_point_dt
+    ) -> Decimal | None:
         position.exit_signal_given = True
         # TODO: This condition will not work for short positions
-        if price_data_point['high'] > self.__price:
-            capital = position.exit_market(self.__price, price_data_point.name)
+        if price_data_point[Price.HIGH] > self.__price:
+            capital = position.exit_market(self.__price, data_point_dt)
             self.active = False
             return capital
         else:

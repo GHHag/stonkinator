@@ -2,6 +2,8 @@ from decimal import Decimal
 
 import numpy as np
 
+from trading.data.metadata.trading_system_attributes import TradingSystemAttributes
+
 
 class Position:
     """
@@ -12,8 +14,7 @@ class Position:
     capital : 'int/float/Decimal'
         The amount of capital to purchase assets with.
     direction : 'str'
-        The direction of the Position. Expected value is either
-        'long' or 'short'.
+        The direction of the Position.
     fixed_position_size : Keyword arg 'bool'
         True/False decides if the position size should be the same
         fixed amount. The variable is used in the class' exit_market
@@ -97,12 +98,11 @@ class Position:
             'Decimal'
         """
 
-        # TODO: Replace 'long' and 'short' literals with some meta data attribute
-        if self.__direction == 'long':
+        if self.__direction == TradingSystemAttributes.LONG:
             return Decimal(
                 ((self.__exit_price - self.__entry_price) / self.__entry_price) * 100
             ).quantize(Decimal('0.02'))
-        elif self.__direction == 'short':
+        elif self.__direction == TradingSystemAttributes.SHORT:
             return Decimal(
                 ((self.__entry_price - self.__exit_price) / self.__entry_price) * 100
             ).quantize(Decimal('0.02'))
@@ -116,12 +116,12 @@ class Position:
             'Decimal'
         """
 
-        if self.__direction == 'long':
+        if self.__direction == TradingSystemAttributes.LONG:
             return Decimal(
                 (self.__position_size * self.__exit_price) - ((self.__position_size * self.__entry_price) + \
                                                                 self.__commission)
             ).quantize(Decimal('0.02'))
-        elif self.__direction == 'short':
+        elif self.__direction == TradingSystemAttributes.SHORT:
             return Decimal(
                 (self.__position_size * self.__entry_price) - ((self.__position_size * self.__exit_price) + \
                                                                 self.__commission)
@@ -136,11 +136,11 @@ class Position:
             'Decimal'
         """
 
-        if self.__direction == 'long':
+        if self.__direction == TradingSystemAttributes.LONG:
             return Decimal(
                 (self.__position_size * self.__exit_price) - (self.__position_size * self.__entry_price)
             ).quantize(Decimal('0.02'))
-        elif self.__direction == 'short':
+        elif self.__direction == TradingSystemAttributes.SHORT:
             return Decimal(
                 (self.__position_size * self.__entry_price) - (self.__position_size * self.__exit_price)
             ).quantize(Decimal('0.02'))
@@ -154,9 +154,9 @@ class Position:
             'Decimal'
         """
 
-        if self.__direction == 'long':
+        if self.__direction == TradingSystemAttributes.LONG:
             return Decimal(self.__exit_price - self.__entry_price).quantize(Decimal('0.02'))
-        elif self.__direction == 'short':
+        elif self.__direction == TradingSystemAttributes.SHORT:
             return Decimal(self.__entry_price - self.__exit_price).quantize(Decimal('0.02'))
 
     @property
@@ -311,14 +311,14 @@ class Position:
             'int/float/Decimal' : The assets most recent price.
         """
 
-        if self.__direction == 'long':
+        if self.__direction == TradingSystemAttributes.LONG:
             self.__unrealised_profit_loss = Decimal(
                 current_price - self.__entry_price
             ).quantize(Decimal('0.02'))
             self.__position_profit_loss_list = np.append(
                 self.__position_profit_loss_list, self.__unrealised_profit_loss
             )
-        elif self.__direction == 'short':
+        elif self.__direction == TradingSystemAttributes.SHORT:
             self.__unrealised_profit_loss = Decimal(
                 self.__entry_price - current_price
             ).quantize(Decimal('0.02'))
@@ -341,7 +341,7 @@ class Position:
         if self.__last_price is None:
             self.__last_price = self.__entry_price
 
-        if self.__direction == 'long':
+        if self.__direction == TradingSystemAttributes.LONG:
             unrealised_return = Decimal(
                 ((current_price - self.__entry_price) / self.__entry_price) * 100
             ).quantize(Decimal('0.02'))
@@ -356,7 +356,7 @@ class Position:
             )
             self.__last_price = current_price
             self.__unrealised_return = unrealised_return
-        elif self.__direction == 'short':
+        elif self.__direction == TradingSystemAttributes.SHORT:
             unrealised_return = Decimal(
                 ((self.__entry_price - current_price) / self.__entry_price) * 100
             ).quantize(Decimal('0.02'))
