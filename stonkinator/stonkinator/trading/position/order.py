@@ -46,16 +46,12 @@ class BaseOrder(metaclass=ABCMeta):
 
 
 class Order(BaseOrder):
-    __action: str
-    __created_dt: datetime
-    __active: bool
-    __direction: str
 
     def __init__(self, action, dt, direction):
-        self.__action = action
-        self.__created_dt = dt
-        self.__active = True
-        self.__direction = direction
+        self.__action: str = action
+        self.__created_dt: datetime = dt
+        self.__active: bool = True
+        self.__direction: str = direction
 
     @property
     def action(self):
@@ -117,18 +113,15 @@ class MarketOrder(Order):
 
 
 class LimitOrder(Order):
-    __price: float
-    __max_duration: int
-    __duration: int
 
     def __init__(
         self, action, dt, price, max_duration,
         direction=TradingSystemAttributes.LONG
     ):
         super().__init__(action, dt, direction)
-        self.__price = price
-        self.__max_duration = max_duration
-        self.__duration = 0
+        self.__price: float = price
+        self.__max_duration: int = max_duration
+        self.__duration: int = 0
 
     @property
     def as_dict(self):

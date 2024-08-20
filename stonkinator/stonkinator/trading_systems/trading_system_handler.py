@@ -39,10 +39,6 @@ INSTRUMENTS_DB = InstrumentsMongoDb(env.ATLAS_MONGO_DB_URL, env.CLIENT_DB)
 
 class TradingSystemProcessor:
     
-    # __data: dict[str, TimeSeriesDataHandler] = {}
-    __data: dict[str, pd.DataFrame] = {}
-    __pred_features_data: dict[str, pd.DataFrame] = {}
-    
     def __init__(
         self, ts_properties: TradingSystemProperties, 
         systems_db: ITetSystemsDocumentDatabase, 
@@ -71,16 +67,16 @@ class TradingSystemProcessor:
         return self.__penult_dt
 
     @penult_dt.setter
-    def penult_dt(self, penult_dt):
-        self.__penult_dt = penult_dt
+    def penult_dt(self, value):
+        self.__penult_dt = value
 
     @property
     def current_dt(self):
         return self.__current_dt
 
     @current_dt.setter
-    def current_dt(self, current_dt):
-        self.__current_dt = current_dt
+    def current_dt(self, value):
+        self.__current_dt = value
 
     def __preprocess_data(self, start_dt: dt.datetime, end_dt: dt.datetime):
         self.__data, self.__pred_features_data = self.__ts_properties.preprocess_data_function(
@@ -89,6 +85,7 @@ class TradingSystemProcessor:
         )
 
     def reprocess_data(self, end_dt: dt.datetime):
+        # TODO: Implement this method.
         pass
 
     def _run_trading_system(
@@ -138,10 +135,10 @@ class TradingSystemProcessor:
                 self.__data,
                 capital=capital,
                 capital_fraction=capital_fraction,
-                commission_pct_cost=0.0025,  # goes into **kwargs
-                entry_args=self.__ts_properties.entry_function_args,  # goes into **kwargs
-                exit_args=self.__ts_properties.exit_function_args,  # goes into **kwargs
-                fixed_position_size=True,  # goes into **kwargs
+                commission_pct_cost=0.0025,
+                entry_args=self.__ts_properties.entry_function_args,
+                exit_args=self.__ts_properties.exit_function_args,
+                fixed_position_size=True,
                 print_data=print_data,
                 write_signals_to_file_path=write_to_file_path,
                 insert_data_to_db_bool=insert_into_db
@@ -321,14 +318,13 @@ class TradingSystemProcessor:
 
 class TradingSystemHandler:
 
-    __trading_systems: list[TradingSystemProcessor] = []
-
     def __init__(
         self, trading_system_properties_list: list[TradingSystemProperties],
         systems_db: ITetSystemsDocumentDatabase, 
         client_db: ITetSignalsDocumentDatabase,
         start_dt: dt.datetime, end_dt: dt.datetime, 
     ):
+        self.__trading_systems: list[TradingSystemProcessor] = []
         for ts_properties in trading_system_properties_list:
             self.__trading_systems.append(
                 TradingSystemProcessor(
