@@ -4,7 +4,9 @@ from inspect import isfunction
 import pandas as pd
 import numpy as np
 
+from trading.data.metadata.market_state_enum import MarketState
 from trading.data.metadata.trading_system_metrics import TradingSystemMetrics
+from trading.position.order import Order
 from trading.position.position import Position
 from trading.position.position_manager import PositionManager
 from trading.trading_system.trading_session import TradingSession, BacktestTradingSession
@@ -174,10 +176,15 @@ class TradingSystem:
                 elif f'close_{instrument}' in data:
                     asset_price_series = [float(close) for close in data[f'close_{instrument}']]
                 else:
-                    raise Exception('Column missing in DataFrame')
+                    raise Exception(f'Column missing in DataFrame, instrument: {instrument}')
             except TypeError:
                 print('TypeError', instrument)
                 continue
+
+            if not pd.api.types.is_datetime64_any_dtype(data.index):
+                raise ValueError(
+                    'Expected index of Pandas DataFrame to have a datetime-like dtype.'
+                )
 
             # if capital_fraction is a dict containing a key with the current value of
             # 'instrument', its value will be assigned to 'capital_f'
@@ -259,7 +266,12 @@ class TradingSystem:
                             )
 
                 if insert_data_to_db_bool:
-                    num_periods = len(data.loc[data['date'] <= pos_manager.position_list[-1].exit_dt])
+                    order, symbol = signal_handler.current_order
+                    if order and symbol == instrument:
+                        self.__systems_db.insert_current_order(
+                            self.__system_name, instrument, order
+                        )
+                    num_periods = len(data.loc[data.index <= pos_manager.position_list[-1].exit_dt])
                     self.__systems_db.insert_single_symbol_position_list(
                         self.__system_name, instrument, 
                         pos_manager.position_list[:], num_periods,
@@ -378,27 +390,38 @@ class TradingSystem:
         for instrument, data in data_dict.items():
             if not 'close' in data and not f'close_{instrument}' in data:
                 raise ValueError(f'Column missing in DataFrame, instrument: {instrument}')
+
             if not pd.api.types.is_datetime64_any_dtype(data.index):
                 raise ValueError(
-                    'Expected index of Pandas DataFrame to have a datetime-like dtype.'
+                    'Expected index of Pandas DataFrame to have a datetime dtype.'
                 )
+
+            order: Order = self.__systems_db.get_current_order(
+                self.__system_name, instrument
+            )
+            if order and order.created_dt >= data.index[-1]:
+                continue
 
             position: Position = self.__systems_db.get_current_position(
                 self.__system_name, instrument
             )
-            if position is not None and position.datetime_check(data.index[-1]) is False: 
+            if position and position.current_dt >= data.index[-1]:
                 continue
 
             trading_session = TradingSession(
                 self.__entry_logic_function, self.__exit_logic_function,
                 signal_handler, symbol=instrument
             )
-            position = trading_session(
-                data, position, *args,
+            order, position = trading_session(
+                data, order, position, *args,
                 print_data=print_data, **kwargs
             )
 
-            if position.entry_signal_given == True and position.active_position == False:
+            if (
+                order and order.active == True and
+                order.action == MarketState.ENTRY and
+                order.created_dt == data.index[-1]
+            ):
                 latest_position: Position = self.__systems_db.get_single_symbol_latest_position(
                     self.__system_name, instrument
                 )
@@ -413,7 +436,11 @@ class TradingSystem:
                     self.__system_name, instrument, num_of_periods
                 )
 
-            if insert_data_to_db_bool is True:
+            if insert_data_to_db_bool == True:
+                self.__systems_db.insert_current_order(
+                    self.__system_name, instrument, order
+                )
+
                 self.__systems_db.insert_current_position(
                     self.__system_name, instrument, position
                 )
@@ -423,8 +450,8 @@ class TradingSystem:
                 # )
 
             if (
-                position.exit_dt is not None and position.exit_dt == data.index[-1] and
-                insert_data_to_db_bool is True
+                position and position.exit_dt == data.index[-1] and 
+                insert_data_to_db_bool == True
             ):
                 self.__systems_db.insert_single_symbol_position(
                     self.__system_name, instrument, position, len(position.returns_list),

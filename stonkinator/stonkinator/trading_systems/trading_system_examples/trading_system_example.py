@@ -6,6 +6,8 @@ import pandas as pd
 from persistance.securities_db_py_dal.dal import price_data_get_req
 
 from trading.data.metadata.trading_system_attributes import TradingSystemAttributes
+from trading.data.metadata.market_state_enum import MarketState
+from trading.data.metadata.price import Price
 from trading.position.order import Order, LimitOrder, MarketOrder
 from trading.position.position import Position
 from trading.trading_system.trading_system import TradingSystem
@@ -44,9 +46,11 @@ def entry_logic_example(
 
     entry_period_param = TradingSystemAttributes.ENTRY_PERIOD_LOOKBACK
     order = None
-    entry_condition = df['close'].iloc[-1] >= max(df['close'].iloc[-entry_args[entry_period_param]:])
+    entry_condition = (
+        df[Price.CLOSE].iloc[-1] >= max(df[Price.CLOSE].iloc[-entry_args[entry_period_param]:])
+    )
     if entry_condition:
-        order = LimitOrder('long', 'entry', df.index[-1], df['close'].iloc[-1], 5)
+        order = LimitOrder(MarketState.ENTRY, df.index[-1], df[Price.CLOSE].iloc[-1], 5)
     return order
 
 
@@ -77,9 +81,11 @@ def exit_logic_example(
 
     exit_period_param = TradingSystemAttributes.EXIT_PERIOD_LOOKBACK
     order = None
-    exit_condition = df['close'].iloc[-1] <= min(df['close'].iloc[-exit_args[exit_period_param]:])
+    exit_condition = (
+        df[Price.CLOSE].iloc[-1] <= min(df[Price.CLOSE].iloc[-exit_args[exit_period_param]:])
+    )
     if exit_condition == True:
-        order = MarketOrder('', 'exit', df.index[-1])
+        order = MarketOrder(MarketState.EXIT, df.index[-1])
     return order
 
 

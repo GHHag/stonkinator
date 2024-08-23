@@ -54,6 +54,10 @@ class Position:
         return self.__entry_price
 
     @property
+    def exit_price(self):
+        return self.__exit_price
+
+    @property
     def position_size(self):
         return self.__position_size
 
@@ -396,7 +400,7 @@ class Position:
         """
 
         print(
-            f'Active position\n'
+            f'\nActive position\n'
             f'Periods in position: {len(self.__returns_list)}\n'
             f'Unrealised return sequence: {list(map(float, self.__returns_list))}'
         )
@@ -407,7 +411,7 @@ class Position:
         """
 
         print(
-            f'Unrealised P/L sequence: {list(map(float, self.__position_profit_loss_list))}\n'
+            f'\nUnrealised P/L sequence: {list(map(float, self.__position_profit_loss_list))}\n'
             f'Market to market returns: {list(map(float, self.__market_to_market_returns_list))}\n'
             f'Unrealised return sequence: {list(map(float, self.__returns_list))}'
         )

@@ -13,13 +13,12 @@ class SignalHandler:
     TODO: Implement methods _execute_signals and __call__.
     """
 
-    __current_order: tuple[Order | None, str]
-
     def __init__(self):
         self.__entry_signals = EntrySignals()
         self.__exit_signals = ExitSignals()
         self.__active_positions = ActivePositions()
         self.__entry_signal_given = False
+        self.__current_order = (None, '')
 
     @property
     def entry_signal_given(self):

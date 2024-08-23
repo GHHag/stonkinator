@@ -120,12 +120,12 @@ class TradingSession:
                 if print_data:
                     position.print_position_stats()
                     print(
-                        f'Exit index: {dataframe.index[-1]}: '
-                        f'{format(dataframe[open_price_col_name].iloc[-1], ".3f")}, '
+                        f'\nExit index: {dataframe.index[-1]}: '
+                        f'{format(position.exit_price, ".3f")}'
                         f'{dataframe.index[-1]}\n'
                         f'Realised return: {position.position_return}'
                     )
-                return position
+                return order, position
         elif position is None and order and order.active == True:
             position = order.execute_entry(
                 capital, 
