@@ -26,7 +26,8 @@ fi
 [[ -n "$DAL_LOG_FILE_PATH_CRITICAL" && ! -d "$DAL_LOG_FILE_PATH_CRITICAL" ]] && mkdir "$DAL_LOG_FILE_PATH_CRITICAL"
 
 run_dal=false
-full_run=false
+full_run=""
+retain_history=""
 print_data=""
 while [[ "$#" -gt 0 ]]; do
     case "$1" in
@@ -34,7 +35,10 @@ while [[ "$#" -gt 0 ]]; do
             run_dal=true
         ;;
         --full-run)
-            full_run=true
+            full_run="--full-run"
+        ;;
+        --retain-history)
+            retain_history="--retain-history"
         ;;
         --print-data)
             print_data="--print-data"
@@ -51,15 +55,8 @@ fi
 
 if [ -n "$TS_HANDLER_DIR_TARGET" ] && [ -n "$LIVE_SYSTEMS_RELATIVE_DIR" ]; then
     cd "$TS_HANDLER_DIR_TARGET"
-
-    if [ "$full_run" = true ]; then
-        echo
-        echo "--full-run: $full_run"
-        echo "Full run"
-        /usr/local/bin/python trading_system_handler.py -trading-systems-dir="$LIVE_SYSTEMS_RELATIVE_DIR" --full-run $print_data
-    else
-        /usr/local/bin/python trading_system_handler.py -trading-systems-dir="$LIVE_SYSTEMS_RELATIVE_DIR" $print_data
-    fi
+    echo "Running trading systems with arguments: $full_run, $retain_history, $print_data"
+    /usr/local/bin/python trading_system_handler.py -trading-systems-dir="$LIVE_SYSTEMS_RELATIVE_DIR" $full_run $retain_history $print_data
 else
     echo "$0 - Error: Missing values for TS_HANDLER_DIR_TARGET or LIVE_SYSTEMS_RELATIVE_DIR variables."
 fi

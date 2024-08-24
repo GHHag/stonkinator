@@ -120,9 +120,9 @@ class TradingSession:
                 if print_data:
                     position.print_position_stats()
                     print(
-                        f'\nExit index: {dataframe.index[-1]}: '
-                        f'{format(position.exit_price, ".3f")}'
-                        f'{dataframe.index[-1]}\n'
+                        f'{self.__symbol} exit:\n'
+                        f'Date: {dataframe.index[-1]}\n'
+                        f'Price: {format(position.exit_price, ".3f")}\n'
                         f'Realised return: {position.position_return}'
                     )
                 return order, position
@@ -334,9 +334,9 @@ class BacktestTradingSession:
                     if print_data:
                         position.print_position_stats()
                         print(
-                            f'Exit index {idx}: '
-                            f'{format(self.__dataframe[open_price_col_name].iloc[idx], ".3f")}, '
-                            f'{self.__dataframe.index[idx]}\n'
+                            f'{self.__symbol} exit:\n'
+                            f'Date: {self.__dataframe.index[idx]}\n'
+                            f'Price: {format(position.exit_price, ".3f")}\n'
                             f'Realised return: {position.position_return}'
                         )
                     if plot_positions:
@@ -441,3 +441,4 @@ class BacktestTradingSession:
                         print(f'\nEntry order:\n{order.as_dict}')
             
             self.__signal_handler.current_order = (order, self.__symbol)
+            self.__signal_handler.current_position = (position, self.__symbol)

@@ -271,6 +271,11 @@ class TradingSystem:
                         self.__systems_db.insert_current_order(
                             self.__system_name, instrument, order
                         )
+                    position, symbol = signal_handler.current_position
+                    if position and position.active == True and symbol == instrument:
+                        self.__systems_db.insert_current_position(
+                            self.__system_name, instrument, position
+                        )
                     num_periods = len(data.loc[data.index <= pos_manager.position_list[-1].exit_dt])
                     self.__systems_db.insert_single_symbol_position_list(
                         self.__system_name, instrument, 

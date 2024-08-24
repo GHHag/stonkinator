@@ -89,7 +89,7 @@ class TradingSystemProcessor:
         pass
 
     def _run_trading_system(
-        self, full_run,
+        self, full_run, retain_history,
         capital=10000, capital_fraction=1.0, avg_yearly_periods=251,  
         run_monte_carlo_sims=False, num_of_sims=2500,
         print_dataframe=False, plot_fig=False, plot_positions=False, write_to_file_path=None,
@@ -106,7 +106,7 @@ class TradingSystemProcessor:
                 capital=capital,
                 capital_fraction=capital_fraction,
                 avg_yearly_periods=avg_yearly_periods,
-                market_state_null_default=full_run,
+                market_state_null_default=retain_history == False,
                 plot_performance_summary=plot_fig,
                 save_summary_plot_to_path=save_summary_plot_to_path,
                 system_analysis_to_csv_path=system_analysis_to_csv_path, 
@@ -145,7 +145,7 @@ class TradingSystemProcessor:
             )
 
     def _handle_trading_system(
-        self, full_run: bool,
+        self, full_run: bool, retain_history: bool,
         time_series_db: ITimeSeriesDocumentDatabase=None, insert_into_db=False, 
         **kwargs
     ):
@@ -156,7 +156,7 @@ class TradingSystemProcessor:
                 insert_data = insert_into_db
 
             self._run_trading_system(
-                full_run,
+                full_run, retain_history,
                 insert_into_db=insert_data,
                 **self.__ts_properties.position_sizer.position_sizer_data_dict,
                 **kwargs
@@ -281,7 +281,7 @@ class TradingSystemProcessor:
             )
 
     def __call__(
-        self, end_dt: dt.datetime, full_run: bool,
+        self, end_dt: dt.datetime, full_run: bool, retain_history: bool,
         time_series_db=None, insert_into_db=False, **kwargs
     ):
         # get new data here and append it to __data member
@@ -296,7 +296,7 @@ class TradingSystemProcessor:
                 self._check_end_datetime(end_dt)
 
             self._handle_trading_system(
-                full_run,
+                full_run, retain_history,
                 time_series_db=time_series_db, 
                 insert_into_db=insert_into_db,
                 **kwargs
@@ -333,13 +333,13 @@ class TradingSystemHandler:
             )
 
     def run_trading_systems(
-        self, current_datetime: dt.datetime, full_run: bool,
+        self, current_datetime: dt.datetime, full_run: bool, retain_history: bool,
         time_series_db=None, print_data=False
     ):
         for trading_system_processor in self.__trading_systems:
             try:
                 trading_system_processor(
-                    current_datetime, full_run, 
+                    current_datetime, full_run, retain_history,
                     time_series_db=time_series_db, insert_into_db=True,
                     print_data=print_data
                 )
@@ -358,6 +358,10 @@ if __name__ == '__main__':
         help='Run trading systems from the date of the latest exit of each instrument',
     )
     arg_parser.add_argument(
+        '--retain-history', action='store_true', dest='retain_history',
+        help='Retain orders and positions from a full run of the trading systems',
+    )
+    arg_parser.add_argument(
         '--print-data', action='store_true', dest='print_data',
         help='Print position and trading system data while running the program',
     )
@@ -365,6 +369,7 @@ if __name__ == '__main__':
     cli_args = arg_parser.parse_args()
     live_systems_dir = cli_args.ts_dir
     full_run = cli_args.full_run
+    retain_history = cli_args.retain_history
     print_data = cli_args.print_data
 
     file_dir = os.path.dirname(os.path.abspath(__file__))
@@ -404,4 +409,4 @@ if __name__ == '__main__':
         SYSTEMS_DB, CLIENT_DB,
         start_dt, end_dt
     )
-    ts_handler.run_trading_systems(end_dt, full_run, print_data=print_data)
+    ts_handler.run_trading_systems(end_dt, full_run, retain_history, print_data=print_data)
