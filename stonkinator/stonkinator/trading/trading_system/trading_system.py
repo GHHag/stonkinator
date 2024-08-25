@@ -6,6 +6,7 @@ import numpy as np
 
 from trading.data.metadata.market_state_enum import MarketState
 from trading.data.metadata.trading_system_metrics import TradingSystemMetrics
+from trading.data.metadata.price import Price
 from trading.position.order import Order
 from trading.position.position import Position
 from trading.position.position_manager import PositionManager
@@ -51,20 +52,8 @@ class TradingSystem:
         assert isfunction(exit_logic_function), \
             "Parameter 'exit_logic_function' must be a function."
         self.__exit_logic_function = exit_logic_function
-
         self.__systems_db: ITetSystemsDocumentDatabase = systems_db
         self.__client_db: ITetSystemsDocumentDatabase = client_db
-        self.__metrics_df: pd.DataFrame = pd.DataFrame()
-        self.__monte_carlo_simulations_df: pd.DataFrame = pd.DataFrame()
-
-    def _print_metrics_df(self):
-        print('\nSystem performance summary: \n', self.__metrics_df.to_string())
-
-    def _print_monte_carlo_sims_df(self, num_of_monte_carlo_sims):
-        print(
-            '\nMonte carlo simulation stats (' + str(num_of_monte_carlo_sims) + ' simulations):\n',
-            self.__monte_carlo_simulations_df.to_string()
-        )
 
     def run_trading_system_backtest(
         self, data_dict: dict[str, pd.DataFrame], *args, 
@@ -168,13 +157,17 @@ class TradingSystem:
         full_market_to_market_returns_list = np.array([])
         full_mae_list = np.array([])
         full_mfe_list = np.array([])
+        metrics_df: pd.DataFrame = pd.DataFrame()
+        monte_carlo_simulations_df: pd.DataFrame = pd.DataFrame()
 
         for instrument, data in data_dict.items():
             try:
-                if 'close' in data:
-                    asset_price_series = [float(close) for close in data['close']]
-                elif f'close_{instrument}' in data:
-                    asset_price_series = [float(close) for close in data[f'close_{instrument}']]
+                if Price.CLOSE in data:
+                    asset_price_series = [float(close) for close in data[Price.CLOSE]]
+                elif f'{Price.CLOSE}_{instrument}' in data:
+                    asset_price_series = [
+                        float(close) for close in data[f'{Price.CLOSE}_{instrument}']
+                    ]
                 else:
                     raise Exception(f'Column missing in DataFrame, instrument: {instrument}')
             except TypeError:
@@ -236,10 +229,10 @@ class TradingSystem:
             if len(pos_manager.position_list) > 0:
                 # write trading system data and stats to DataFrame
                 df_to_concat = pd.DataFrame([pos_manager.metrics.summary_data_dict])
-                if self.__metrics_df.empty:
-                    self.__metrics_df = df_to_concat
+                if metrics_df.empty:
+                    metrics_df = df_to_concat
                 else:
-                    self.__metrics_df = pd.concat([self.__metrics_df, df_to_concat], ignore_index=True)
+                    metrics_df = pd.concat([metrics_df, df_to_concat], ignore_index=True)
 
                 # run Monte Carlo simulations, plot and write stats to DataFrame
                 if run_monte_carlo_sims:
@@ -257,12 +250,11 @@ class TradingSystem:
                             monte_carlo_sims_data_dicts_list
                         )
                         df_to_concat = pd.DataFrame([monte_carlo_summary_data_dict])
-                        if self.__monte_carlo_simulations_df.empty:
-                            self.__monte_carlo_simulations_df = df_to_concat
+                        if monte_carlo_simulations_df.empty:
+                            monte_carlo_simulations_df = df_to_concat
                         else:
-                            self.__monte_carlo_simulations_df = pd.concat(
-                                [self.__monte_carlo_simulations_df, df_to_concat],
-                                ignore_index=True
+                            monte_carlo_simulations_df = pd.concat(
+                                [monte_carlo_simulations_df, df_to_concat], ignore_index=True
                             )
 
                 if insert_data_to_db_bool:
@@ -305,15 +297,19 @@ class TradingSystem:
                         (full_mfe_list, pos_manager.metrics.mfe_list), axis=0                    
                     )
 
-        if print_data: self._print_metrics_df()
+        if print_data:
+            print('\nSystem performance summary: \n', metrics_df.to_string())
 
         if run_monte_carlo_sims:
-            self._print_monte_carlo_sims_df(num_of_monte_carlo_sims)
+            print(
+                f'\nMonte carlo simulation stats ({num_of_monte_carlo_sims} simulations):\n',
+                monte_carlo_simulations_df.to_string()
+            )
             if monte_carlo_analysis_to_csv_path and monte_carlo_analysis_to_csv_path.endswith('.csv'):
-                self.__monte_carlo_simulations_df.to_csv(monte_carlo_analysis_to_csv_path)
+                monte_carlo_simulations_df.to_csv(monte_carlo_analysis_to_csv_path)
 
         if system_analysis_to_csv_path and system_analysis_to_csv_path.endswith('.csv'):
-            self.__metrics_df.to_csv(system_analysis_to_csv_path)
+            metrics_df.to_csv(system_analysis_to_csv_path)
 
         if print_data: print(signal_handler)
 
@@ -393,7 +389,7 @@ class TradingSystem:
         signal_handler = SignalHandler()
 
         for instrument, data in data_dict.items():
-            if not 'close' in data and not f'close_{instrument}' in data:
+            if not Price.CLOSE in data and not f'{Price.CLOSE}_{instrument}' in data:
                 raise ValueError(f'Column missing in DataFrame, instrument: {instrument}')
 
             if not pd.api.types.is_datetime64_any_dtype(data.index):

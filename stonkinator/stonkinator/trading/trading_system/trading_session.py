@@ -4,6 +4,7 @@ import pandas as pd
 
 from trading.data.metadata.market_state_enum import MarketState
 from trading.data.metadata.trading_system_attributes import TradingSystemAttributes
+from trading.data.metadata.price import Price
 from trading.position.order import Order
 from trading.position.position import Position
 from trading.signal_events.signal_handler import SignalHandler
@@ -39,7 +40,6 @@ class TradingSession:
         self.__exit_logic_function = exit_logic_function
         self.__signal_handler = signal_handler
         self.__symbol = symbol
-        self.__market_state_column = TradingSystemAttributes.MARKET_STATE
 
     def __call__(
         self, 
@@ -48,11 +48,6 @@ class TradingSession:
         position: Position | None,
         *args,
         entry_args=None, exit_args=None,
-        open_price_col_name='open',
-        high_price_col_name='high',
-        low_price_col_name='low',
-        close_price_col_name='close', 
-        volume_col_name='volume', 
         fixed_position_size=True, capital=10000, commission_pct_cost=0.0,
         print_data=False, **kwargs
     ):
@@ -76,21 +71,6 @@ class TradingSession:
         :param exit_args:
             Keyword arg 'None/dict' : Key-value pairs with parameters used 
             with the exit logic. Default value=None
-        :param open_price_col_name:
-            Keyword arg 'str' : The column of the objects __dataframe that
-            contains values for open prices. Default value='open'
-        :param high_price_col_name:
-            Keyword arg 'str' : The column of the objects __dataframe that
-            contains values for high prices. Default value='high'
-        :param low_price_col_name:
-            Keyword arg 'str' : The column of the objects __dataframe that
-            contains values for low prices. Default value='low'
-        :param close_price_col_name:
-            Keyword arg 'str' : The column of the objects __dataframe that
-            contains values for close prices. Default value='close'
-        :param volume_col_name:
-            Keyword arg 'str' : The column of the objects __dataframe that
-            contains values for volume. Default value='volume'
         :param fixed_position_size:
             Keyword arg 'bool' : True/False decides whether the capital
             used for positions generated should be at a fixed amount or not.
@@ -139,7 +119,7 @@ class TradingSession:
 
         if position and position.active == True:
             position.update(
-                Decimal(dataframe[close_price_col_name].iloc[-1]),
+                Decimal(dataframe[Price.CLOSE].iloc[-1]),
                 dataframe.index[-1]
             )
             if print_data:
@@ -152,7 +132,7 @@ class TradingSession:
                     TradingSystemAttributes.ORDER: order.as_dict if order else None,
                     TradingSystemAttributes.PERIODS_IN_POSITION: len(position.returns_list), 
                     TradingSystemAttributes.UNREALISED_RETURN: position.unrealised_return,
-                    self.__market_state_column: MarketState.ACTIVE.value
+                    TradingSystemAttributes.MARKET_STATE: MarketState.ACTIVE.value
                 }
             )
             if position.exit_signal_given == False:
@@ -166,7 +146,7 @@ class TradingSession:
                         TradingSystemAttributes.ORDER: order.as_dict,
                         TradingSystemAttributes.PERIODS_IN_POSITION: len(position.returns_list),
                         TradingSystemAttributes.UNREALISED_RETURN: position.unrealised_return,
-                        self.__market_state_column: MarketState.EXIT.value
+                        TradingSystemAttributes.MARKET_STATE: MarketState.EXIT.value
                     }
                 )
                 if print_data:
@@ -181,7 +161,7 @@ class TradingSession:
                         TradingSystemAttributes.SYMBOL: self.__symbol,
                         TradingSystemAttributes.ORDER: order.as_dict,
                         TradingSystemAttributes.PERIODS_IN_POSITION: 0,
-                        self.__market_state_column: MarketState.ENTRY.value
+                        TradingSystemAttributes.MARKET_STATE: MarketState.ENTRY.value
                     }
                 )
                 if print_data: 
@@ -221,17 +201,11 @@ class BacktestTradingSession:
         self.__dataframe = dataframe
         self.__signal_handler = signal_handler
         self.__symbol = symbol
-        self.__market_state_column = TradingSystemAttributes.MARKET_STATE
 
     def __call__(
         self, *args, 
         entry_args=None, exit_args=None, 
         max_req_periods_feature=TradingSystemAttributes.REQ_PERIOD_ITERS, 
-        open_price_col_name='open',
-        high_price_col_name='high',
-        low_price_col_name='low',
-        close_price_col_name='close', 
-        volume_price_col_name='volume',
         fixed_position_size=True, capital=10000, commission_pct_cost=0.0,
         market_state_null_default=False,
         generate_signals=False, plot_positions=False, 
@@ -259,21 +233,6 @@ class BacktestTradingSession:
             that should have the value of the number of periods required 
             for all features to be calculated before being able to 
             generate signals from the data. Default value='req_period_iters'
-        :param open_price_col_name:
-            Keyword arg 'str' : The column of the objects __dataframe that
-            contains values for open prices. Default value='open'
-        :param high_price_col_name:
-            Keyword arg 'str' : The column of the objects __dataframe that
-            contains values for high prices. Default value='high'
-        :param low_price_col_name:
-            Keyword arg 'str' : The column of the objects __dataframe that
-            contains values for low prices. Default value='low'
-        :param close_price_col_name:
-            Keyword arg 'str' : The column of the objects __dataframe that
-            contains values for close prices. Default value='close'
-        :param volume_col_name:
-            Keyword arg 'str' : The column of the objects __dataframe that
-            contains values for volume. Default value='volume'
         :param fixed_position_size:
             Keyword arg 'bool' : True/False decides whether the capital
             used for positions generated should be at a fixed amount or not.
@@ -319,7 +278,7 @@ class BacktestTradingSession:
 
             if position and position.active == True:
                 position.update(
-                    Decimal(self.__dataframe[close_price_col_name].iloc[idx-1]),
+                    Decimal(self.__dataframe[Price.CLOSE].iloc[idx-1]),
                     self.__dataframe.index[idx-1]
                 )
                 if position.exit_signal_given == False:
@@ -350,7 +309,7 @@ class BacktestTradingSession:
                             self.__dataframe.iloc[(idx-len(position.returns_list)-20):(idx+15)],
                             position.entry_dt, position.entry_price, 
                             self.__dataframe.index[idx], 
-                            self.__dataframe[open_price_col_name].iloc[idx], 
+                            self.__dataframe[Price.OPEN].iloc[idx], 
                             save_fig_to_path=position_figs_path
                         )
                     yield position
@@ -392,7 +351,7 @@ class BacktestTradingSession:
                 return
             if position and position.active == True:
                 position.update(
-                    Decimal(self.__dataframe[close_price_col_name].iloc[-1]),
+                    Decimal(self.__dataframe[Price.CLOSE].iloc[-1]),
                     self.__dataframe.index[-1]
                 )
                 if print_data:
@@ -405,7 +364,7 @@ class BacktestTradingSession:
                         TradingSystemAttributes.ORDER: order.as_dict if order else None,
                         TradingSystemAttributes.PERIODS_IN_POSITION: len(position.returns_list), 
                         TradingSystemAttributes.UNREALISED_RETURN: position.unrealised_return,
-                        self.__market_state_column: MarketState.ACTIVE.value
+                        TradingSystemAttributes.MARKET_STATE: MarketState.ACTIVE.value
                     }
                 )
                 if position.exit_signal_given == False:
@@ -419,7 +378,7 @@ class BacktestTradingSession:
                             TradingSystemAttributes.ORDER: order.as_dict,
                             TradingSystemAttributes.PERIODS_IN_POSITION: len(position.returns_list),
                             TradingSystemAttributes.UNREALISED_RETURN: position.unrealised_return,
-                            self.__market_state_column: MarketState.EXIT.value
+                            TradingSystemAttributes.MARKET_STATE: MarketState.EXIT.value
                         }
                     )
                     if print_data: 
@@ -434,7 +393,7 @@ class BacktestTradingSession:
                             TradingSystemAttributes.SYMBOL: self.__symbol,
                             TradingSystemAttributes.ORDER: order.as_dict,
                             TradingSystemAttributes.PERIODS_IN_POSITION: 0,
-                            self.__market_state_column: MarketState.ENTRY.value
+                            TradingSystemAttributes.MARKET_STATE: MarketState.ENTRY.value
                         }
                     )
                     if print_data: 

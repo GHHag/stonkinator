@@ -8,6 +8,7 @@ class Price:
     __LOW = 'low'
     __CLOSE = 'close'
     __VOLUME = 'volume'
+    __DT = 'date'
 
     @classproperty
     def OPEN(cls):
@@ -28,3 +29,7 @@ class Price:
     @classproperty
     def VOLUME(cls):
         return cls.__VOLUME
+
+    @classproperty
+    def DT(cls):
+        return cls.__DT

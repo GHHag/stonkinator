@@ -25,14 +25,6 @@ class TradingSystemAttributes:
     __POSITION_LIST = 'position_list'
     __ML_MODEL = 'model'
     __INSTRUMENT = 'instrument'
-    __START_DT = 'start_dt'
-    __END_DT = 'end_dt'
-    __MARKET_TO_MARKET_RETURNS = 'market_to_market_returns'
-    __EQUITY_LIST = 'equity_list'
-    __RETURNS_LIST = 'returns_list'
-    __MAE_LIST = 'mae_list'
-    __MFE_LIST = 'mfe_list'
-    __POSITION_PERIOD_LENGTHS_LIST = 'pos_period_lengths_list'
     __ENTRY_PERIOD_LOOKBACK = 'entry_period_lookback'
     __EXIT_PERIOD_LOOKBACK = 'exit_period_lookback'
     __REQ_PERIOD_ITERS = 'req_period_iters'
@@ -116,38 +108,6 @@ class TradingSystemAttributes:
     @classproperty
     def INSTRUMENT(cls):
         return cls.__INSTRUMENT 
-
-    @classproperty
-    def START_DT(cls):
-        return cls.__START_DT
-
-    @classproperty
-    def END_DT(cls):
-        return cls.__END_DT
-
-    @classproperty
-    def MARKET_TO_MARKET_RETURNS(cls):
-        return cls.__MARKET_TO_MARKET_RETURNS
-
-    @classproperty
-    def EQUITY_LIST(cls):
-        return cls.__EQUITY_LIST
-
-    @classproperty
-    def RETURNS_LIST(cls):
-        return cls.__RETURNS_LIST
-
-    @classproperty
-    def MAE_LIST(cls):
-        return cls.__MAE_LIST
-
-    @classproperty
-    def MFE_LIST(cls):
-        return cls.__MFE_LIST
-
-    @classproperty
-    def POSITION_PERIOD_LENGTHS_LIST(cls):
-        return cls.__POSITION_PERIOD_LENGTHS_LIST
 
     @classproperty
     def ENTRY_PERIOD_LOOKBACK(cls):
