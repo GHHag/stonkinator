@@ -2,6 +2,8 @@ import numpy as np
 import mplfinance as mpf
 import pandas as pd
 
+from trading.data.metadata.price import Price
+
 
 def candlestick_plot(
     df_og, entry_date, entry_price, exit_date, exit_price, save_fig_to_path=None
@@ -28,8 +30,8 @@ def candlestick_plot(
     """
 
     df = df_og.copy(deep=True)
-    df.set_index(pd.to_datetime(df['date']), inplace=True)
-    df.drop(['date'], axis=1, inplace=True)
+    df.set_index(pd.to_datetime(df[Price.DT]), inplace=True)
+    df.drop([Price.DT], axis=1, inplace=True)
     df['Entry_date'] = df.index == entry_date
     df['Exit_date'] = df.index == exit_date
     df['Entry_date'].replace({False: np.nan}, inplace=True)

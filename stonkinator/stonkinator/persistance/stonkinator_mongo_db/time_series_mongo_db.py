@@ -5,6 +5,7 @@ from pymongo.mongo_client import MongoClient
 
 from persistance.doc_database_meta_classes.time_series_doc_db import ITimeSeriesDocumentDatabase
 from trading.data.metadata.trading_system_attributes import TradingSystemAttributes
+from trading.data.metadata.price import Price
 
 
 class TimeSeriesMongoDb(ITimeSeriesDocumentDatabase):
@@ -22,7 +23,7 @@ class TimeSeriesMongoDb(ITimeSeriesDocumentDatabase):
 
     def insert_pandas_time_series_data(
         self, collection_name, time_series_data, 
-        time_field='timestamp', timestamp_key='date'
+        time_field='timestamp', timestamp_key=Price.DT
     ):
         time_series_data = json.loads(time_series_data)
         self.__client[collection_name].drop()
