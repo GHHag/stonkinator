@@ -149,6 +149,11 @@ class LimitOrder(Order):
                 fixed_position_size=fixed_position_size, 
                 commission_pct_cost=commission_pct_cost
             )
+            
+            # TODO: This condition will not work for short positions
+            if self.__price > price_data_point[Price.OPEN]:
+                self.__price = price_data_point[Price.OPEN]
+
             position.enter_market(self.__price, data_point_dt)
             self.active = False
             return position
@@ -164,6 +169,11 @@ class LimitOrder(Order):
         position.exit_signal_given = True
         # TODO: This condition will not work for short positions
         if price_data_point[Price.HIGH] > self.__price:
+            
+            # TODO: This condition will not work for short positions
+            if price_data_point[Price.OPEN] > self.__price:
+                self.__price = price_data_point[Price.OPEN] 
+
             capital = position.exit_market(self.__price, data_point_dt)
             self.active = False
             return capital
