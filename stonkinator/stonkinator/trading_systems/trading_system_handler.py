@@ -302,7 +302,7 @@ class TradingSystemProcessor:
                 **kwargs
             )
 
-            if full_run != True:
+            if full_run != True or full_run == True and retain_history == True:
                 self.__systems_db.update_current_datetime(
                     self.__ts_properties.system_name, self.__current_dt
                 )
@@ -397,6 +397,10 @@ if __name__ == '__main__':
             path=f'{file_dir}/{live_systems_dir}/backtests'
         )
         trading_system_properties_list.append(ts_properties)
+
+    if full_run == True:
+        SYSTEMS_DB.drop_collections()
+        CLIENT_DB.drop_collections()
 
     # start_dt = dt.datetime(1999, 1, 1)
     # end_dt = dt.datetime(2011, 1, 1)

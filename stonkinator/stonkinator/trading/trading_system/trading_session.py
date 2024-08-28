@@ -59,7 +59,9 @@ class TradingSession:
         ----------
         :param dataframe: 
             Pandas.DataFrame : Data in the form of a Pandas DataFrame.
-        TODO: Update method comment with order param
+        :param order:
+            Order : Current or most recent order of an instrument
+            of the TradingSystem that creates this TradingSession instance.
         :param position:
             Position : Current or most recent position of an instrument
             of the TradingSystem that creates this TradingSession instance.
@@ -87,7 +89,10 @@ class TradingSession:
             of positions and signals or not. Default value=False
         :param kwargs:
             'dict' : A dictionary with keyword arguments.
-        TODO: Add return to method documentation
+        :return:
+            'tuple[Order, Position]' : Returns the current or most recent
+            order and position of the TradingSystem that creates this 
+            TradingSession instance in a tuple.
         """
 
         if position and position.active == True:
@@ -309,7 +314,7 @@ class BacktestTradingSession:
                             self.__dataframe.iloc[(idx-len(position.returns_list)-20):(idx+15)],
                             position.entry_dt, position.entry_price, 
                             self.__dataframe.index[idx], 
-                            self.__dataframe[Price.OPEN].iloc[idx], 
+                            position.exit_price,
                             save_fig_to_path=position_figs_path
                         )
                     yield position

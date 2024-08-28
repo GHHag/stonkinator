@@ -39,9 +39,8 @@ def entry_logic_example(
         Keyword arg 'None/dict' : Key-value pairs with parameters used 
         with the entry logic. Default value=None
     :return:
-        'bool' : True/False depending on if the entry logic
-        condition is met or not.
-        TODO: Update documentation for this return
+        'Order/None' : Returns an Order object if the entry logic
+        condition is met, otherwise None.
     """
 
     entry_period_param = TradingSystemAttributes.ENTRY_PERIOD_LOOKBACK
@@ -67,16 +66,15 @@ def exit_logic_example(
         'Pandas DataFrame' : Data in the form of a Pandas DataFrame
         or a slice of a Pandas DataFrame.
     :param position:
-        TODO: Document this parameter
+        'Position' : The current position of the trading system.
     :param args:
         'tuple' : A tuple with parameters used with the exit logic.
     :param exit_args:
         Keyword arg 'None/dict' : Key-value pairs with parameters used 
         with the exit logic. Default value=None
     :return:
-        'bool' : True/False depending on if the exit logic
-        condition is met or not.
-        TODO: Add documentation for Order object return
+        'Order/None' : Returns an Order object if the exit logic
+        condition is met, otherwise None.
     """
 
     exit_period_param = TradingSystemAttributes.EXIT_PERIOD_LOOKBACK
@@ -94,7 +92,7 @@ def preprocess_data(
     benchmark_symbol, get_data_function,
     entry_args, exit_args, start_dt, end_dt
 ):
-    df_dict = {}
+    df_dict: dict[str, pd.DataFrame] = {}
     for symbol in symbols_list:
         try:
             response_data, response_status = get_data_function(symbol, start_dt, end_dt)
@@ -112,32 +110,32 @@ def preprocess_data(
         df_benchmark = df_benchmark.drop('instrument_id', axis=1)
         df_benchmark = df_benchmark.rename(
             columns={
-                'open': f'open{benchmark_col_suffix}', 
-                'high': f'high{benchmark_col_suffix}', 
-                'low': f'low{benchmark_col_suffix}', 
-                'close': f'close{benchmark_col_suffix}',
-                'volume': f'volume{benchmark_col_suffix}', 
-                'symbol': f'symbol{benchmark_col_suffix}'
+                Price.OPEN: f'{Price.OPEN}{benchmark_col_suffix}', 
+                Price.HIGH: f'{Price.HIGH}{benchmark_col_suffix}', 
+                Price.LOW: f'{Price.LOW}{benchmark_col_suffix}', 
+                Price.CLOSE: f'{Price.CLOSE}{benchmark_col_suffix}',
+                Price.VOLUME: f'{Price.VOLUME}{benchmark_col_suffix}', 
+                TradingSystemAttributes.SYMBOL: f'{TradingSystemAttributes.SYMBOL}{benchmark_col_suffix}'
             }
         )
         if ts_processor != None:
-            ts_processor.penult_dt = pd.to_datetime(df_benchmark['date'].iloc[-2])
-            ts_processor.current_dt = pd.to_datetime(df_benchmark['date'].iloc[-1])
+            ts_processor.penult_dt = pd.to_datetime(df_benchmark[Price.DT].iloc[-2])
+            ts_processor.current_dt = pd.to_datetime(df_benchmark[Price.DT].iloc[-1])
 
     for symbol, data in dict(df_dict).items():
         if data.empty or len(data) < entry_args[TradingSystemAttributes.REQ_PERIOD_ITERS]:
             print(symbol, 'DataFrame empty')
             del df_dict[symbol]
         else:
-            df_benchmark['date'] = pd.to_datetime(df_benchmark['date'])
-            df_dict[symbol]['date'] = pd.to_datetime(df_dict[symbol]['date'])
+            df_benchmark[Price.DT] = pd.to_datetime(df_benchmark[Price.DT])
+            df_dict[symbol][Price.DT] = pd.to_datetime(df_dict[symbol][Price.DT])
             
-            df_dict[symbol] = pd.merge_ordered(data, df_benchmark, on='date', how='inner')
+            df_dict[symbol] = pd.merge_ordered(data, df_benchmark, on=Price.DT, how='inner')
             df_dict[symbol] = df_dict[symbol].ffill()
-            df_dict[symbol] = df_dict[symbol].set_index('date')
+            df_dict[symbol] = df_dict[symbol].set_index(Price.DT)
 
             # apply indicators/features to dataframe
-            df_dict[symbol]['SMA'] = df_dict[symbol]['close'].rolling(20).mean()
+            df_dict[symbol]['SMA'] = df_dict[symbol][Price.CLOSE].rolling(20).mean()
 
             df_dict[symbol] = df_dict[symbol].dropna()
 
@@ -159,8 +157,10 @@ def get_ts_properties(
     }
 
     if import_instruments:
-        backtest_df = pd.read_csv(f'{path}/{system_name}.csv') if path else \
+        backtest_df = (
+            pd.read_csv(f'{path}/{system_name}.csv') if path else
             pd.read_csv(f'./backtests/{system_name}')
+        )
         instrument_selector = PdInstrumentSelector('sharpe_ratio', backtest_df, 0.9)
         instrument_selector()
         symbols_list = instrument_selector.selected_instruments
