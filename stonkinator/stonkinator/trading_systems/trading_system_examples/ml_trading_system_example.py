@@ -14,6 +14,10 @@ from sklearn.metrics import mean_squared_error, r2_score, classification_report,
 from persistance.securities_db_py_dal.dal import price_data_get_req
 
 from trading.data.metadata.trading_system_attributes import TradingSystemAttributes
+from trading.data.metadata.market_state_enum import MarketState
+from trading.data.metadata.price import Price
+from trading.position.order import Order, LimitOrder, MarketOrder
+from trading.position.position import Position
 from trading.trading_system.trading_system import TradingSystem
 
 from persistance.stonkinator_mongo_db.systems_mongo_db import TetSystemsMongoDb
@@ -25,31 +29,49 @@ from trading_systems.position_sizer.safe_f_position_sizer import SafeFPositionSi
 from trading_systems.ml_utils.ml_system_utils import serialize_models
 
 
-def ml_entry_classification(df, *args, entry_args=None):
-    return df['pred'].iloc[-1] == 1, 'long'
+def ml_entry_classification(
+    df: pd.DataFrame, *args, entry_args=None
+) -> Order | None:
+    order = None
+    entry_condition = df['pred'].iloc[-1] == 1
+    if entry_condition == True:
+        order = LimitOrder(MarketState.ENTRY, df.index[-1], df[Price.CLOSE].iloc[-1], 5)
+    return order
 
 
-def ml_entry_regression(df, *args, entry_args=None):
-    return df['pred'].iloc[-1] > 0, 'long'
+def ml_entry_regression(
+    df: pd.DataFrame, *args, entry_args=None
+) -> Order | None:
+    order = None
+    entry_condition = df['pred'].iloc[-1] > 0
+    if entry_condition == True:
+        order = LimitOrder(MarketState.ENTRY, df.index[-1], df[Price.CLOSE].iloc[-1], 5)
+    return order
 
 
 def ml_exit_classification(
-    df, trail, trailing_exit_price, entry_price, periods_in_pos,
-    *args, exit_args=None
-):
-    return df['pred'].iloc[-1] == 0, trail, trailing_exit_price
+    df: pd.DataFrame, position: Position, *args, exit_args=None
+) -> Order | None:
+    order = None
+    exit_condition = df['pred'].iloc[-1] == 0
+    if exit_condition == True:
+        order = MarketOrder(MarketState.EXIT, df.index[-1])
+    return order
 
 
 def ml_exit_regression(
-    df, trail, trailing_exit_price, entry_price, periods_in_pos,
-    *args, exit_args=None
-):
-    return df['pred'].iloc[-1] < 0, trail, trailing_exit_price
+    df: pd.DataFrame, position: Position, *args, exit_args=None
+) -> Order | None:
+    order = None
+    exit_condition = df['pred'].iloc[-1] < 0
+    if exit_condition == True:
+        order = MarketOrder(MarketState.EXIT, df.index[-1])
+    return order
 
 
 def create_reg_models(
     data_dict: dict[str, pd.DataFrame], *args, 
-    target_col='close', target_period=1
+    target_col=Price.CLOSE, target_period=1
 ):
     models_df_dict = {}
     for symbol, data in data_dict.items():
@@ -67,9 +89,12 @@ def create_reg_models(
         X_df = df.copy()
         X_df = X_df.drop(
             [
-                'open', 'high', 'low', 'close', 'Pct_chg',
-                'open_benchmark', 'high_benchmark', 'low_benchmark', 'close_benchmark',
-                'volume_benchmark', 'symbol', 'symbol_benchmark', 
+                Price.OPEN, Price.HIGH, Price.LOW, Price.CLOSE, 'Pct_chg',
+                f'{Price.OPEN}_benchmark', f'{Price.HIGH}_benchmark', 
+                f'{Price.LOW}_benchmark', f'{Price.CLOSE}_benchmark',
+                f'{Price.VOLUME}_benchmark', 
+                TradingSystemAttributes.SYMBOL, 
+                f'{TradingSystemAttributes.SYMBOL}_benchmark', 
                 'Target'
             ], 
             axis=1
@@ -135,7 +160,7 @@ def create_reg_models(
 
 def create_classification_models(
     data_dict: dict[str, pd.DataFrame], *args, 
-    target_col='close', target_period=1
+    target_col=Price.CLOSE, target_period=1
 ):
     models_df_dict = {}
     for symbol, data in data_dict.items():
@@ -155,9 +180,12 @@ def create_classification_models(
         X_df = df.copy()
         X_df = X_df.drop(
             [
-                'open', 'high', 'low', 'close', 'Pct_chg',
-                'open_benchmark', 'high_benchmark', 'low_benchmark', 'close_benchmark',
-                'volume_benchmark', 'symbol', 'symbol_benchmark',
+                Price.OPEN, Price.HIGH, Price.LOW, Price.CLOSE, 'Pct_chg',
+                f'{Price.OPEN}_benchmark', f'{Price.HIGH}_benchmark', 
+                f'{Price.LOW}_benchmark', f'{Price.CLOSE}_benchmark',
+                f'{Price.VOLUME}_benchmark', 
+                TradingSystemAttributes.SYMBOL, 
+                f'{TradingSystemAttributes.SYMBOL}_benchmark',
                 'Target'
             ], 
             axis=1
@@ -232,7 +260,7 @@ def create_classification_models(
 def create_production_models(
     db: TetSystemsMongoDb, df_dict: dict[str, pd.DataFrame], 
     system_name, *args, 
-    target_col='close', target_period=1
+    target_col=Price.CLOSE, target_period=1
 ):
     models_dict = {}
     for symbol, df in df_dict.items():
@@ -252,9 +280,12 @@ def create_production_models(
         X_df = df.copy()
         X_df = X_df.drop(
             [
-                'open', 'high', 'low', 'close', 'Pct_chg',
-                'open_benchmark', 'high_benchmark', 'low_benchmark', 'close_benchmark',
-                'volume_benchmark', 'symbol', 'symbol_benchmark',
+                Price.OPEN, Price.HIGH, Price.LOW, Price.CLOSE, 'Pct_chg',
+                f'{Price.OPEN}_benchmark', f'{Price.HIGH}_benchmark', 
+                f'{Price.LOW}_benchmark', f'{Price.CLOSE}_benchmark',
+                f'{Price.VOLUME}_benchmark', 
+                TradingSystemAttributes.SYMBOL, 
+                f'{TradingSystemAttributes.SYMBOL}_benchmark',
                 'Target' 
             ], axis=1
         )
@@ -296,7 +327,7 @@ def preprocess_data(
     entry_args, exit_args, start_dt, end_dt, 
     target_period=1
 ):
-    df_dict = {}
+    df_dict: dict[str, pd.DataFrame] = {}
     for symbol in symbols_list:
         try:
             response_data, response_status = get_data_function(symbol, start_dt, end_dt)
@@ -314,17 +345,17 @@ def preprocess_data(
         df_benchmark = df_benchmark.drop('instrument_id', axis=1)
         df_benchmark = df_benchmark.rename(
             columns={
-                'open': f'open{benchmark_col_suffix}',
-                'high': f'high{benchmark_col_suffix}',
-                'low': f'low{benchmark_col_suffix}',
-                'close': f'close{benchmark_col_suffix}',
-                'volume': f'volume{benchmark_col_suffix}',
-                'symbol': f'symbol{benchmark_col_suffix}'
+                Price.OPEN: f'{Price.OPEN}{benchmark_col_suffix}', 
+                Price.HIGH: f'{Price.HIGH}{benchmark_col_suffix}', 
+                Price.LOW: f'{Price.LOW}{benchmark_col_suffix}', 
+                Price.CLOSE: f'{Price.CLOSE}{benchmark_col_suffix}',
+                Price.VOLUME: f'{Price.VOLUME}{benchmark_col_suffix}', 
+                TradingSystemAttributes.SYMBOL: f'{TradingSystemAttributes.SYMBOL}{benchmark_col_suffix}'
             }
         )
         if ts_processor != None:
-            ts_processor.penult_dt = pd.to_datetime(df_benchmark['date'].iloc[-2])
-            ts_processor.current_dt = pd.to_datetime(df_benchmark['date'].iloc[-1])
+            ts_processor.penult_dt = pd.to_datetime(df_benchmark[Price.DT].iloc[-2])
+            ts_processor.current_dt = pd.to_datetime(df_benchmark[Price.DT].iloc[-1])
 
     pred_features_df_dict = {}
     for symbol, data in dict(df_dict).items():
@@ -332,24 +363,24 @@ def preprocess_data(
             print(symbol, 'DataFrame empty')
             del df_dict[symbol]
         else:
-            df_benchmark['date'] = pd.to_datetime(df_benchmark['date'])
-            df_dict[symbol]['date'] = pd.to_datetime(df_dict[symbol]['date'])
+            df_benchmark[Price.DT] = pd.to_datetime(df_benchmark[Price.DT])
+            df_dict[symbol][Price.DT] = pd.to_datetime(df_dict[symbol][Price.DT])
 
-            df_dict[symbol] = pd.merge_ordered(data, df_benchmark, on='date', how='inner')
+            df_dict[symbol] = pd.merge_ordered(data, df_benchmark, on=Price.DT, how='inner')
             df_dict[symbol] = df_dict[symbol].ffill()
-            df_dict[symbol] = df_dict[symbol].set_index('date')
+            df_dict[symbol] = df_dict[symbol].set_index(Price.DT)
 
-            df_dict[symbol]['volume'] = df_dict[symbol]['volume'].astype(int)
+            df_dict[symbol][Price.VOLUME] = df_dict[symbol][Price.VOLUME].astype(int)
 
             # apply indicators/features to dataframe
-            df_dict[symbol]['Pct_chg'] = df_dict[symbol]['close'].pct_change().mul(100)
+            df_dict[symbol]['Pct_chg'] = df_dict[symbol][Price.CLOSE].pct_change().mul(100)
             df_dict[symbol]['Lag1'] = df_dict[symbol]['Pct_chg'].shift(1)
             df_dict[symbol]['Lag2'] = df_dict[symbol]['Pct_chg'].shift(2)
             df_dict[symbol]['Lag5'] = df_dict[symbol]['Pct_chg'].shift(5)
 
             df_dict[symbol] = df_dict[symbol].dropna()
 
-            pred_features_df_dict[symbol] = df_dict[symbol][['Lag1', 'Lag2', 'Lag5', 'volume']].to_numpy()
+            pred_features_df_dict[symbol] = df_dict[symbol][['Lag1', 'Lag2', 'Lag5', Price.VOLUME]].to_numpy()
 
     return df_dict, pred_features_df_dict 
 

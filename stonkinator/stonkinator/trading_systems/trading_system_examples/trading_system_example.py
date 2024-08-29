@@ -25,8 +25,7 @@ def entry_logic_example(
     df: pd.DataFrame, *args, entry_args=None
 ) -> Order | None:
     """
-    An example of an entry logic function. Returns True/False
-    depending on the conditional statement.
+    An example of an entry logic function.
 
     Parameters
     ----------
@@ -39,7 +38,7 @@ def entry_logic_example(
         Keyword arg 'None/dict' : Key-value pairs with parameters used 
         with the entry logic. Default value=None
     :return:
-        'Order/None' : Returns an Order object if the entry logic
+        'Order' : Returns an Order object if the entry logic
         condition is met, otherwise None.
     """
 
@@ -48,7 +47,7 @@ def entry_logic_example(
     entry_condition = (
         df[Price.CLOSE].iloc[-1] >= max(df[Price.CLOSE].iloc[-entry_args[entry_period_param]:])
     )
-    if entry_condition:
+    if entry_condition == True:
         order = LimitOrder(MarketState.ENTRY, df.index[-1], df[Price.CLOSE].iloc[-1], 5)
     return order
 
@@ -57,8 +56,7 @@ def exit_logic_example(
     df: pd.DataFrame, position: Position, *args, exit_args=None
 ) -> Order | None:
     """
-    An example of an exit logic function. Returns True/False
-    depending on the conditional statement.
+    An example of an exit logic function.
 
     Parameters
     ----------
@@ -73,7 +71,7 @@ def exit_logic_example(
         Keyword arg 'None/dict' : Key-value pairs with parameters used 
         with the exit logic. Default value=None
     :return:
-        'Order/None' : Returns an Order object if the exit logic
+        'Order' : Returns an Order object if the exit logic
         condition is met, otherwise None.
     """
 
