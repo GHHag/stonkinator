@@ -6,6 +6,8 @@ import json
 import argparse
 
 import pandas as pd
+import numpy as np
+from sklearn.pipeline import Pipeline
 from sterunets.data_handler import FeatureBlueprint, TimeSeriesDataHandler
 
 from trading.data.metadata.trading_system_attributes import TradingSystemAttributes
@@ -38,6 +40,9 @@ INSTRUMENTS_DB = InstrumentsMongoDb(env.ATLAS_MONGO_DB_URL, env.CLIENT_DB)
 
 
 class TradingSystemProcessor:
+
+    __data: dict[str, pd.DataFrame]
+    __pred_features_data: dict[str, np.ndarray]
     
     def __init__(
         self, ts_properties: TradingSystemProperties, 
@@ -56,7 +61,7 @@ class TradingSystemProcessor:
         )
         self.__start_dt: dt.datetime = start_dt
         self.__end_dt: dt.datetime = end_dt
-        self.__preprocess_data(self.__start_dt, self.__end_dt)
+        self._preprocess_data(self.__start_dt, self.__end_dt)
 
     @property
     def system_name(self):
@@ -78,11 +83,26 @@ class TradingSystemProcessor:
     def current_dt(self, value):
         self.__current_dt = value
 
-    def __preprocess_data(self, start_dt: dt.datetime, end_dt: dt.datetime):
+    def _preprocess_data(self, start_dt: dt.datetime, end_dt: dt.datetime):
         self.__data, self.__pred_features_data = self.__ts_properties.preprocess_data_function(
             self.__ts_properties.system_instruments_list, self,
             *self.__ts_properties.preprocess_data_args, start_dt, end_dt
         )
+
+    def _make_model_prediction(self):
+        for instrument, data in self.__data.items():
+            model_pipeline: Pipeline = self.__systems_db.get_ml_model(self.system_name, instrument)
+            if not model_pipeline:
+                raise ValueError("failed to get model pipeline")
+
+            pred_data = self.__pred_features_data.get(instrument)
+            latest_data_point = data.iloc[-1].copy()
+            latest_data_point['pred'] = model_pipeline.predict(pred_data[-1].reshape(1, -1))[0]
+            latest_data_point_df = pd.DataFrame(latest_data_point).transpose()
+            latest_data_point_df['pred'] = latest_data_point_df['pred'].astype('boolean')
+            self.__data[instrument] = pd.concat(
+                [data.iloc[:-1], latest_data_point_df]
+            )
 
     def reprocess_data(self, end_dt: dt.datetime):
         # TODO: Implement this method.
@@ -181,40 +201,6 @@ class TradingSystemProcessor:
                     self.__ts_properties.system_name, json.dumps(pos_sizer_data_dict)
                 )
 
-    def _handle_ml_trading_system(
-        self, full_run: bool,
-        time_series_db: ITimeSeriesDocumentDatabase=None, insert_into_db=False,
-        **kwargs
-    ):
-        if full_run is True:
-            # Train models using latest data on a regular interval
-            pass
-
-        system_state_handler = MlTradingSystemStateHandler(
-            self.__ts_properties.system_name, 
-            self.__data, self.__pred_features_data, 
-            self.__systems_db,
-        )
-
-        for _ in range(self.__ts_properties.required_runs):
-            system_state_handler(
-                self.__ts_properties.entry_logic_function, self.__ts_properties.exit_logic_function,
-                self.__ts_properties.entry_function_args, self.__ts_properties.exit_function_args,
-                client_db=self.__client_db, insert_into_db=insert_into_db,
-                **self.__ts_properties.position_sizer.position_sizer_data_dict
-            )
-            
-            if isinstance(self.__ts_properties.position_sizer, ExtPositionSizer):
-                self._run_ext_pos_sizer()
-            else:
-                self._run_pos_sizer()
-
-        if insert_into_db is True:
-            pos_sizer_data_dict = self.__ts_properties.position_sizer.get_position_sizer_data_dict()
-            self.__client_db.update_market_state_data(
-                self.__ts_properties.system_name, json.dumps(pos_sizer_data_dict)
-            )
-
     def _run_pos_sizer(self):
         market_states_data: list[dict] = json.loads(
             self.__client_db.get_market_state_data(
@@ -291,28 +277,26 @@ class TradingSystemProcessor:
         # call reprocess_data if new data is available
         # self.reprocess_data(date)
 
-        if self.__ts_properties.ts_category == 'regular':
-            if full_run != True:
-                self._check_end_datetime(end_dt)
-
-            self._handle_trading_system(
-                full_run, retain_history,
-                time_series_db=time_series_db, 
-                insert_into_db=insert_into_db,
-                **kwargs
-            )
-
-            if full_run != True or full_run == True and retain_history == True:
-                self.__systems_db.update_current_datetime(
-                    self.__ts_properties.system_name, self.__current_dt
-                )
+        if full_run != True:
+            self._check_end_datetime(end_dt)
 
         if self.__ts_properties.ts_category == 'ml':
-            self._handle_ml_trading_system(
-                full_run,
-                time_series_db=time_series_db, 
-                insert_into_db=insert_into_db,
-                **kwargs
+            if full_run is True:
+                # Train models using latest data on a regular interval
+                pass
+
+            self._make_model_prediction()
+
+        self._handle_trading_system(
+            full_run, retain_history,
+            time_series_db=time_series_db, 
+            insert_into_db=insert_into_db,
+            **kwargs
+        )
+
+        if full_run != True or full_run == True and retain_history == True:
+            self.__systems_db.update_current_datetime(
+                self.__ts_properties.system_name, self.__current_dt
             )
 
 

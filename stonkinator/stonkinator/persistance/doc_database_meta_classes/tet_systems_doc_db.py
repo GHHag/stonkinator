@@ -58,3 +58,11 @@ class ITetSystemsDocumentDatabase(ITetSignalsDocumentDatabase):
     @abstractmethod
     def increment_num_of_periods(self):
         ...
+
+    @abstractmethod
+    def insert_ml_model(self):
+        ...
+
+    @abstractmethod
+    def get_ml_model(self):
+        ...
