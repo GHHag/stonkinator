@@ -48,7 +48,7 @@ def entry_logic_example(
         df[Price.CLOSE].iloc[-1] >= max(df[Price.CLOSE].iloc[-entry_args[entry_period_param]:])
     )
     if entry_condition == True:
-        order = LimitOrder(MarketState.ENTRY, df.index[-1], df[Price.CLOSE].iloc[-1], 5)
+        order = LimitOrder(MarketState.ENTRY.value, df.index[-1], df[Price.CLOSE].iloc[-1], 5)
     return order
 
 
@@ -81,7 +81,7 @@ def exit_logic_example(
         df[Price.CLOSE].iloc[-1] <= min(df[Price.CLOSE].iloc[-exit_args[exit_period_param]:])
     )
     if exit_condition == True:
-        order = MarketOrder(MarketState.EXIT, df.index[-1])
+        order = MarketOrder(MarketState.EXIT.value, df.index[-1])
     return order
 
 

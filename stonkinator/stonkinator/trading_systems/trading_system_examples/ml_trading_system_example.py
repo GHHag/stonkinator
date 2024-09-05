@@ -35,7 +35,7 @@ def ml_entry_classification(
     order = None
     entry_condition = df['pred'].iloc[-1] == 1
     if entry_condition == True:
-        order = LimitOrder(MarketState.ENTRY, df.index[-1], df[Price.CLOSE].iloc[-1], 5)
+        order = LimitOrder(MarketState.ENTRY.value, df.index[-1], df[Price.CLOSE].iloc[-1], 5)
     return order
 
 
@@ -45,7 +45,7 @@ def ml_entry_regression(
     order = None
     entry_condition = df['pred'].iloc[-1] > 0
     if entry_condition == True:
-        order = LimitOrder(MarketState.ENTRY, df.index[-1], df[Price.CLOSE].iloc[-1], 5)
+        order = LimitOrder(MarketState.ENTRY.value, df.index[-1], df[Price.CLOSE].iloc[-1], 5)
     return order
 
 
@@ -55,7 +55,7 @@ def ml_exit_classification(
     order = None
     exit_condition = df['pred'].iloc[-1] == 0
     if exit_condition == True:
-        order = MarketOrder(MarketState.EXIT, df.index[-1])
+        order = MarketOrder(MarketState.EXIT.value, df.index[-1])
     return order
 
 
@@ -65,7 +65,7 @@ def ml_exit_regression(
     order = None
     exit_condition = df['pred'].iloc[-1] < 0
     if exit_condition == True:
-        order = MarketOrder(MarketState.EXIT, df.index[-1])
+        order = MarketOrder(MarketState.EXIT.value, df.index[-1])
     return order
 
 

@@ -1,5 +1,7 @@
 #!/bin/bash
 
+echo "Running $0"
+
 # TODO: Add help option
 
 if [ -f .env ]; then
@@ -47,15 +49,13 @@ while [[ "$#" -gt 0 ]]; do
 done
 
 if [ "$run_dal" = true ]; then
-    echo
-    echo "--run-dal: $run_dal"
-    echo "Running dal script"
+    echo -e "\n--run-dal: $run_dal\nRunning dal"
     /usr/local/bin/python /app/stonkinator/persistance/securities_db_py_dal/dal.py
 fi
 
 if [ -n "$TS_HANDLER_DIR_TARGET" ] && [ -n "$LIVE_SYSTEMS_RELATIVE_DIR" ]; then
     cd "$TS_HANDLER_DIR_TARGET"
-    echo "Running trading systems with arguments: $full_run, $retain_history, $print_data"
+    echo -e "\nRunning trading systems\n"
     /usr/local/bin/python trading_system_handler.py -trading-systems-dir="$LIVE_SYSTEMS_RELATIVE_DIR" $full_run $retain_history $print_data
 else
     echo "$0 - Error: Missing values for TS_HANDLER_DIR_TARGET or LIVE_SYSTEMS_RELATIVE_DIR variables."

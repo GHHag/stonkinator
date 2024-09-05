@@ -420,7 +420,7 @@ class TradingSystem:
 
             if (
                 order and order.active == True and
-                order.action == MarketState.ENTRY and
+                order.action == MarketState.ENTRY.value and
                 order.created_dt == data.index[-1]
             ):
                 latest_position: Position = self.__systems_db.get_single_symbol_latest_position(
