@@ -5,10 +5,9 @@ from trading_systems.position_sizer.position_sizer import IPositionSizer
 
 @dataclass(frozen=True)
 class TradingSystemProperties:
-    system_name: str
+    name: str
     required_runs: int
-    ts_category: str
-    system_instruments_list: list[str]
+    instruments_list: list[str]
     
     preprocess_data_function: callable
     preprocess_data_args: tuple

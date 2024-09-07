@@ -501,7 +501,7 @@ class TetSystemsMongoDb(ITetSystemsDocumentDatabase):
         if not system_id:
             self._insert_system(system_name)
             system_id = self._get_system_id(system_name)
-        self.__ml_models.update_one(
+        result = self.__ml_models.update_one(
             {
                 self.__SYSTEM_ID_FIELD: system_id, 
                 self.__SYSTEM_NAME_FIELD: system_name, 
@@ -509,7 +509,7 @@ class TetSystemsMongoDb(ITetSystemsDocumentDatabase):
             },
             {'$set': {self.__ML_MODEL_FIELD: model}}, upsert=True
         )
-        return True
+        return result.upserted_id != None or result.modified_count > 0
 
     def get_ml_model(self, system_name, instrument):
         system_id = self._get_system_id(system_name)

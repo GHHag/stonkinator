@@ -7,7 +7,7 @@ from trading.data.metadata.price import Price
 from trading.data.metadata.trading_system_attributes import TradingSystemAttributes
 
 
-class BaseOrder(metaclass=ABCMeta):
+class OrderBase(metaclass=ABCMeta):
     
     __metaclass__ = ABCMeta
 
@@ -45,7 +45,7 @@ class BaseOrder(metaclass=ABCMeta):
         ...
 
 
-class Order(BaseOrder):
+class Order(OrderBase):
 
     def __init__(self, action, dt, direction):
         self.__action: str = action
