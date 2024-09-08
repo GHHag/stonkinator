@@ -1,5 +1,10 @@
 from abc import ABCMeta, abstractmethod
 
+import pandas as pd
+import numpy as np
+
+from persistance.doc_database_meta_classes.tet_systems_doc_db import ITetSystemsDocumentDatabase
+
 from trading.data.metadata.trading_system_attributes import classproperty
 
 
@@ -29,7 +34,7 @@ class TradingSystemBase(metaclass=ABCMeta):
 
     @classmethod
     @abstractmethod
-    def get_ts_properties(cls):
+    def get_properties(cls):
         ...
 
 
@@ -47,5 +52,10 @@ class MLTradingSystemBase(TradingSystemBase):
 
     @classmethod
     @abstractmethod
-    def make_predictions(cls):
+    def make_predictions(
+        cls, 
+        systems_db: ITetSystemsDocumentDatabase,
+        data_dict: dict[str, pd.DataFrame],
+        pred_features_data_dict: dict[str, np.ndarray]
+    ) -> dict[str, pd.DataFrame]:
         ...

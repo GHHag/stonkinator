@@ -1,22 +1,19 @@
-import os
-import sys
-import importlib
 import datetime as dt
 import json
 import argparse
+from typing import Callable
 
 import pandas as pd
-import numpy as np
-from sklearn.pipeline import Pipeline
 from sterunets.data_handler import FeatureBlueprint, TimeSeriesDataHandler
 
 from trading.data.metadata.trading_system_attributes import TradingSystemAttributes
 from trading.data.metadata.market_state_enum import MarketState
 from trading.trading_system.trading_system import TradingSystem
 
+from trading_systems import TRADING_SYSTEM_CLASSES
+from trading_systems.trading_system_base import TradingSystemBase, MLTradingSystemBase
 from trading_systems.trading_system_properties import TradingSystemProperties
 from trading_systems.position_sizer.ext_position_sizer import ExtPositionSizer
-from trading_systems.ml_trading_system_state_handler import MlTradingSystemStateHandler
 
 from persistance.doc_database_meta_classes.tet_signals_doc_db import ITetSignalsDocumentDatabase
 from persistance.doc_database_meta_classes.tet_systems_doc_db import ITetSystemsDocumentDatabase
@@ -41,31 +38,32 @@ INSTRUMENTS_DB = InstrumentsMongoDb(env.ATLAS_MONGO_DB_URL, env.CLIENT_DB)
 
 class TradingSystemProcessor:
 
-    __data: dict[str, pd.DataFrame]
-    __pred_features_data: dict[str, np.ndarray]
-    
     def __init__(
-        self, ts_properties: TradingSystemProperties, 
+        self, ts_class: TradingSystemBase, 
         systems_db: ITetSystemsDocumentDatabase, 
         client_db: ITetSignalsDocumentDatabase,
+        instruments_db: InstrumentsMongoDb,
         start_dt: dt.datetime, end_dt: dt.datetime
     ):
-        self.__ts_properties = ts_properties
+        self.__system_name = ts_class.name
+        self.__ts_properties: TradingSystemProperties = ts_class.get_properties(instruments_db)
         self.__systems_db: ITetSystemsDocumentDatabase = systems_db
         self.__client_db: ITetSignalsDocumentDatabase = client_db
         self.__trading_system = TradingSystem(
-            self.__ts_properties.system_name,
+            self.system_name,
             self.__ts_properties.entry_logic_function, 
             self.__ts_properties.exit_logic_function,
             self.__systems_db, self.__client_db
         )
         self.__start_dt: dt.datetime = start_dt
         self.__end_dt: dt.datetime = end_dt
-        self._preprocess_data(self.__start_dt, self.__end_dt)
+        # TODO: Any way to resolve make_predictions with a type hint?
+        infer = ts_class.make_predictions if issubclass(ts_class, MLTradingSystemBase) else None
+        self._preprocess_data(self.__start_dt, self.__end_dt, infer)
 
     @property
     def system_name(self):
-        return self.__ts_properties.system_name
+        return self.__system_name
 
     @property
     def penult_dt(self):
@@ -83,26 +81,15 @@ class TradingSystemProcessor:
     def current_dt(self, value):
         self.__current_dt = value
 
-    def _preprocess_data(self, start_dt: dt.datetime, end_dt: dt.datetime):
-        self.__data, self.__pred_features_data = self.__ts_properties.preprocess_data_function(
-            self.__ts_properties.system_instruments_list, self,
-            *self.__ts_properties.preprocess_data_args, start_dt, end_dt
+    def _preprocess_data(self, start_dt: dt.datetime, end_dt: dt.datetime, infer: Callable | None):
+        self.__data, pred_features_data = self.__ts_properties.preprocess_data_function(
+            self.__ts_properties.instruments_list,
+            *self.__ts_properties.preprocess_data_args, start_dt, end_dt,
+            ts_processor=self
         )
 
-    def _make_model_prediction(self):
-        for instrument, data in self.__data.items():
-            model_pipeline: Pipeline = self.__systems_db.get_ml_model(self.system_name, instrument)
-            if not model_pipeline:
-                raise ValueError("failed to get model pipeline")
-
-            pred_data = self.__pred_features_data.get(instrument)
-            latest_data_point = data.iloc[-1].copy()
-            latest_data_point['pred'] = model_pipeline.predict(pred_data[-1].reshape(1, -1))[0]
-            latest_data_point_df = pd.DataFrame(latest_data_point).transpose()
-            latest_data_point_df['pred'] = latest_data_point_df['pred'].astype('boolean')
-            self.__data[instrument] = pd.concat(
-                [data.iloc[:-1], latest_data_point_df]
-            )
+        if infer != None:
+            self.__data = infer(self.__systems_db, self.__data, pred_features_data)
 
     def reprocess_data(self, end_dt: dt.datetime):
         # TODO: Implement this method.
@@ -170,7 +157,7 @@ class TradingSystemProcessor:
         **kwargs
     ):
         for i in range(self.__ts_properties.required_runs):
-            if full_run is True:
+            if full_run == True:
                 insert_data = i == self.__ts_properties.required_runs - 1 and insert_into_db
             else:
                 insert_data = insert_into_db
@@ -187,31 +174,28 @@ class TradingSystemProcessor:
             else:
                 self._run_pos_sizer()
 
-            if full_run is False:
+            if full_run == False:
                 break
 
-        if insert_into_db is True:
+        if insert_into_db == True:
             if isinstance(self.__ts_properties.position_sizer, ExtPositionSizer):
                 pos_sizer_data_dict = self.__ts_properties.position_sizer.get_position_sizer_data_dict()
-                self.__systems_db.insert_system_metrics(self.__ts_properties.system_name, pos_sizer_data_dict)
-                self.__client_db.insert_system_metrics(self.__ts_properties.system_name, pos_sizer_data_dict)
+                self.__systems_db.insert_system_metrics(self.system_name, pos_sizer_data_dict)
+                self.__client_db.insert_system_metrics(self.system_name, pos_sizer_data_dict)
             else:
                 pos_sizer_data_dict = self.__ts_properties.position_sizer.get_position_sizer_data_dict()
                 self.__client_db.update_market_state_data(
-                    self.__ts_properties.system_name, json.dumps(pos_sizer_data_dict)
+                    self.system_name, json.dumps(pos_sizer_data_dict)
                 )
 
     def _run_pos_sizer(self):
         market_states_data: list[dict] = json.loads(
-            self.__client_db.get_market_state_data(
-                self.__ts_properties.system_name, MarketState.ENTRY.value
-            )
+            self.__client_db.get_market_state_data(self.system_name, MarketState.ENTRY.value)
         )
         for data_dict in market_states_data:
             try:
                 position_list, num_of_periods = self.__systems_db.get_single_symbol_position_list(
-                    self.__ts_properties.system_name, 
-                    data_dict.get(TradingSystemAttributes.SYMBOL),
+                    self.system_name, data_dict.get(TradingSystemAttributes.SYMBOL),
                     serialized_format=True, return_num_of_periods=True
                 )
             except ValueError as e:
@@ -229,7 +213,7 @@ class TradingSystemProcessor:
     def _run_ext_pos_sizer(self):
         try:
             position_list, num_of_periods = self.__systems_db.get_position_list(
-                self.__ts_properties.system_name,
+                self.system_name,
                 serialized_format=True, return_num_of_periods=True
             )
         except ValueError as e:
@@ -252,9 +236,7 @@ class TradingSystemProcessor:
                 f'input datetime: {end_dt}'
             )
 
-        last_processed_dt = self.__systems_db.get_current_datetime(
-            self.__ts_properties.system_name
-        )
+        last_processed_dt = self.__systems_db.get_current_datetime(self.system_name)
         if last_processed_dt == None:
             return
 
@@ -280,13 +262,6 @@ class TradingSystemProcessor:
         if full_run != True:
             self._check_end_datetime(end_dt)
 
-        if self.__ts_properties.ts_category == 'ml':
-            if full_run is True:
-                # Train models using latest data on a regular interval
-                pass
-
-            self._make_model_prediction()
-
         self._handle_trading_system(
             full_run, retain_history,
             time_series_db=time_series_db, 
@@ -295,24 +270,23 @@ class TradingSystemProcessor:
         )
 
         if full_run != True or full_run == True and retain_history == True:
-            self.__systems_db.update_current_datetime(
-                self.__ts_properties.system_name, self.__current_dt
-            )
+            self.__systems_db.update_current_datetime(self.system_name, self.__current_dt)
 
 
 class TradingSystemHandler:
 
     def __init__(
-        self, trading_system_properties_list: list[TradingSystemProperties],
+        self, trading_system_classes: list[TradingSystemBase],
         systems_db: ITetSystemsDocumentDatabase, 
         client_db: ITetSignalsDocumentDatabase,
+        instruments_db: InstrumentsMongoDb,
         start_dt: dt.datetime, end_dt: dt.datetime, 
     ):
         self.__trading_systems: list[TradingSystemProcessor] = []
-        for ts_properties in trading_system_properties_list:
+        for ts_class in trading_system_classes:
             self.__trading_systems.append(
                 TradingSystemProcessor(
-                    ts_properties, systems_db, client_db, start_dt, end_dt
+                    ts_class, systems_db, client_db, instruments_db, start_dt, end_dt
                 )
             )
 
@@ -335,9 +309,6 @@ class TradingSystemHandler:
 if __name__ == '__main__':
     arg_parser = argparse.ArgumentParser(description='trading_system_handler CLI argument parser')
     arg_parser.add_argument(
-        '-trading-systems-dir', dest='ts_dir', help='Trading system files directory'
-    )
-    arg_parser.add_argument(
         '--full-run', action='store_true', dest='full_run',
         help='Run trading systems from the date of the latest exit of each instrument',
     )
@@ -351,36 +322,9 @@ if __name__ == '__main__':
     )
 
     cli_args = arg_parser.parse_args()
-    live_systems_dir = cli_args.ts_dir
     full_run = cli_args.full_run
     retain_history = cli_args.retain_history
     print_data = cli_args.print_data
-
-    file_dir = os.path.dirname(os.path.abspath(__file__))
-    __globals = globals()
-    sys.path.append(os.path.join(sys.path[0], live_systems_dir))
-    trading_system_modules = []
-    for file in os.listdir(f'{sys.path[0]}/{live_systems_dir}'):
-        if file == '__init__.py' or not file.endswith('.py'):
-            continue
-        module_name = file[:-3]
-        try:
-            __globals[module_name] = importlib.import_module(module_name)
-            trading_system_modules.append(module_name)
-        except ModuleNotFoundError as e:
-            print(e, module_name)
-
-    trading_system_properties_list = []
-    for ts_module in trading_system_modules:
-        if ts_module == 'ml_trading_system_example':
-        # if ts_module != 'ml_trading_system_example':
-        # if ts_module != 'trading_system_example':
-            continue
-        ts_properties = __globals[ts_module].get_ts_properties(
-            INSTRUMENTS_DB, import_instruments=False,
-            path=f'{file_dir}/{live_systems_dir}/backtests'
-        )
-        trading_system_properties_list.append(ts_properties)
 
     if full_run == True:
         SYSTEMS_DB.drop_collections()
@@ -393,7 +337,7 @@ if __name__ == '__main__':
     end_dt = dt.datetime(2023, 3, 8)
 
     ts_handler = TradingSystemHandler(
-        trading_system_properties_list, 
+        TRADING_SYSTEM_CLASSES,
         SYSTEMS_DB, CLIENT_DB,
         start_dt, end_dt
     )

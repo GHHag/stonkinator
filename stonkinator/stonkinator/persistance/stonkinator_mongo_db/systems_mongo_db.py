@@ -524,7 +524,6 @@ class TetSystemsMongoDb(ITetSystemsDocumentDatabase):
         if query is not None:
             return pickle.loads(query[self.__ML_MODEL_FIELD])
 
-
     def drop_collections(self):
         self.__client.drop_collection(self.__client.systems)
         self.__client.drop_collection(self.__client.market_states)

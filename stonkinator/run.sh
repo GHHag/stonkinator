@@ -53,10 +53,10 @@ if [ "$run_dal" = true ]; then
     /usr/local/bin/python /app/stonkinator/persistance/securities_db_py_dal/dal.py
 fi
 
-if [ -n "$TS_HANDLER_DIR_TARGET" ] && [ -n "$LIVE_SYSTEMS_RELATIVE_DIR" ]; then
+if [ -n "$TS_HANDLER_DIR_TARGET" ]; then
     cd "$TS_HANDLER_DIR_TARGET"
     echo -e "\nRunning trading systems\n"
-    /usr/local/bin/python trading_system_handler.py -trading-systems-dir="$LIVE_SYSTEMS_RELATIVE_DIR" $full_run $retain_history $print_data
+    /usr/local/bin/python trading_system_handler.py $full_run $retain_history $print_data
 else
-    echo "$0 - Error: Missing values for TS_HANDLER_DIR_TARGET or LIVE_SYSTEMS_RELATIVE_DIR variables."
+    echo "$0 - Error: Missing value for TS_HANDLER_DIR_TARGET."
 fi

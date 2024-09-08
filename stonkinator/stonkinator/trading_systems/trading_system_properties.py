@@ -5,7 +5,6 @@ from trading_systems.position_sizer.position_sizer import IPositionSizer
 
 @dataclass(frozen=True)
 class TradingSystemProperties:
-    name: str
     required_runs: int
     instruments_list: list[str]
     
