@@ -1,7 +1,7 @@
 from abc import ABCMeta, abstractmethod
 
 
-class ITetSignalsDocumentDatabase(metaclass=ABCMeta):
+class SignalsPersisterBase(metaclass=ABCMeta):
     
     __metaclass__ = ABCMeta
 

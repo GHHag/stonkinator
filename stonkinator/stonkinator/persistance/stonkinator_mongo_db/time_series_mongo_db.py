@@ -3,12 +3,13 @@ import datetime as dt
 
 from pymongo.mongo_client import MongoClient
 
-from persistance.doc_database_meta_classes.time_series_doc_db import ITimeSeriesDocumentDatabase
+from persistance.persistance_meta_classes.time_series_persister import TimeSeriesPersisterBase
+
 from trading.data.metadata.trading_system_attributes import TradingSystemAttributes
 from trading.data.metadata.price import Price
 
 
-class TimeSeriesMongoDb(ITimeSeriesDocumentDatabase):
+class TimeSeriesMongoDb(TimeSeriesPersisterBase):
 
     __ID_FIELD = TradingSystemAttributes.ID
 

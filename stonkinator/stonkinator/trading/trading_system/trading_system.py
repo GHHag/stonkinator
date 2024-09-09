@@ -16,7 +16,7 @@ from trading.utils.monte_carlo_functions import monte_carlo_simulate_returns, \
     monte_carlo_simulation_summary_data
 from trading.metrics.metrics_summary_plot import returns_distribution_plot
 
-from persistance.doc_database_meta_classes.tet_systems_doc_db import ITetSystemsDocumentDatabase
+from persistance.persistance_meta_classes.trading_systems_persister import TradingSystemsPersisterBase
 
 
 class TradingSystem:
@@ -32,18 +32,18 @@ class TradingSystem:
         The logic used for entering a position.
     exit_logic_function : 'function'
         The logic used to exit a position.
-    systems_db : 'ITetSystemsDocumentDatabase'
-        Instance of a class that implements the ITetSystemsDocumentDatabase
+    systems_db : 'TradingSystemsPersisterBase'
+        Instance of a class that implements the TradingSystemsPersisterBase
         meta class. Handles database connection and communication.
-    client_db : 'ITetSystemsDocumentDatabase'
-        Instance of a class that implements the ITetSystemsDocumentDatabase
+    client_db : 'TradingSystemsPersisterBase'
+        Instance of a class that implements the TradingSystemsPersisterBase
         meta class. Handles database connection and communication.
     """
 
     def __init__(
         self, system_name, 
         entry_logic_function: callable, exit_logic_function: callable,
-        systems_db: ITetSystemsDocumentDatabase, client_db: ITetSystemsDocumentDatabase
+        systems_db: TradingSystemsPersisterBase, client_db: TradingSystemsPersisterBase
     ):
         self.__system_name = system_name
         assert isfunction(entry_logic_function), \
@@ -52,8 +52,8 @@ class TradingSystem:
         assert isfunction(exit_logic_function), \
             "Parameter 'exit_logic_function' must be a function."
         self.__exit_logic_function = exit_logic_function
-        self.__systems_db: ITetSystemsDocumentDatabase = systems_db
-        self.__client_db: ITetSystemsDocumentDatabase = client_db
+        self.__systems_db: TradingSystemsPersisterBase = systems_db
+        self.__client_db: TradingSystemsPersisterBase = client_db
 
     def run_trading_system_backtest(
         self, data_dict: dict[str, pd.DataFrame], *args, 

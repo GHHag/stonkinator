@@ -1,7 +1,7 @@
 from abc import ABCMeta, abstractmethod
 
 
-class ITimeSeriesDocumentDatabase(metaclass=ABCMeta):
+class TimeSeriesPersisterBase(metaclass=ABCMeta):
 
     __metaclass__ = ABCMeta
 

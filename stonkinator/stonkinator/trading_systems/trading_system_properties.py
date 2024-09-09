@@ -8,11 +8,8 @@ class TradingSystemProperties:
     required_runs: int
     instruments_list: list[str]
     
-    preprocess_data_function: callable
     preprocess_data_args: tuple
     
-    entry_logic_function: callable
-    exit_logic_function: callable
     entry_function_args: dict
     exit_function_args: dict
 

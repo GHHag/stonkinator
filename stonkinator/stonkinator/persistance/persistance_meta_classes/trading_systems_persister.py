@@ -1,9 +1,9 @@
 from abc import ABCMeta, abstractmethod
 
-from persistance.doc_database_meta_classes.tet_signals_doc_db import ITetSignalsDocumentDatabase
+from persistance.persistance_meta_classes.signals_persister import SignalsPersisterBase
 
 
-class ITetSystemsDocumentDatabase(ITetSignalsDocumentDatabase):
+class TradingSystemsPersisterBase(SignalsPersisterBase):
 
     __metaclass__ = ABCMeta
 

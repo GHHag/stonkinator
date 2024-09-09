@@ -4,7 +4,7 @@ from trading.signal_events.signals.entry_signal import EntrySignals
 from trading.signal_events.signals.exit_signal import ExitSignals
 from trading.signal_events.signals.active_position import ActivePositions
 
-from persistance.doc_database_meta_classes.tet_signals_doc_db import ITetSignalsDocumentDatabase
+from persistance.persistance_meta_classes.signals_persister import SignalsPersisterBase
 
 
 class SignalHandler:
@@ -136,7 +136,7 @@ class SignalHandler:
             if self.__exit_signals.dataframe is not None:
                 self.__exit_signals.dataframe.to_csv(path, mode='a')
 
-    def insert_into_db(self, db: ITetSignalsDocumentDatabase, system_name):
+    def insert_into_db(self, db: SignalsPersisterBase, system_name):
         """
         Insert data into database from the dataframes that holds data 
         and stats for signals and positions.
@@ -144,8 +144,8 @@ class SignalHandler:
         Parameters
         ----------
         :param db:
-            'ITetSignalsDocumentDatabase' : A database object of a class that
-            implements the 'ITetSignalsDocumentDatabase' meta class.
+            'SignalsPersisterBase' : A database object of a class that
+            implements the 'SignalsPersisterBase' meta class.
         :param system_name:
             'str' : The name of a system which it will be identified by in
             in the database.

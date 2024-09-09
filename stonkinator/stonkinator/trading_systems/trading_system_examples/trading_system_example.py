@@ -12,7 +12,7 @@ from trading.position.order import Order, LimitOrder, MarketOrder
 from trading.position.position import Position
 from trading.trading_system.trading_system import TradingSystem
 
-from persistance.stonkinator_mongo_db.systems_mongo_db import TetSystemsMongoDb
+from persistance.stonkinator_mongo_db.systems_mongo_db import TradingSystemsMongoDb
 from persistance.stonkinator_mongo_db.instruments_mongo_db import InstrumentsMongoDb
 
 from trading_systems.trading_system_base import TradingSystemBase
@@ -185,12 +185,10 @@ class TradingSystemExample(TradingSystemBase):
 
         return TradingSystemProperties(
             required_runs, symbols_list,
-            cls.preprocess_data,
             (
                 benchmark_symbol, price_data_get_req,
                 entry_args, exit_args
             ),
-            cls.entry_signal_logic, cls.exit_signal_logic,
             entry_args, exit_args,
             SafeFPositionSizer(20, 0.8), (),
             {
@@ -202,7 +200,7 @@ class TradingSystemExample(TradingSystemBase):
 
 if __name__ == '__main__':
     import trading_systems.env as env
-    SYSTEMS_DB = TetSystemsMongoDb(env.LOCALHOST_MONGO_DB_URL, env.SYSTEMS_DB)
+    SYSTEMS_DB = TradingSystemsMongoDb(env.LOCALHOST_MONGO_DB_URL, env.SYSTEMS_DB)
     INSTRUMENTS_DB = InstrumentsMongoDb(env.ATLAS_MONGO_DB_URL, env.CLIENT_DB)
 
     start_dt = dt.datetime(1999, 1, 1)

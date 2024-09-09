@@ -3,7 +3,7 @@ from abc import ABCMeta, abstractmethod
 import pandas as pd
 import numpy as np
 
-from persistance.doc_database_meta_classes.tet_systems_doc_db import ITetSystemsDocumentDatabase
+from persistance.persistance_meta_classes.trading_systems_persister import TradingSystemsPersisterBase
 
 from trading.data.metadata.trading_system_attributes import classproperty
 
@@ -54,7 +54,7 @@ class MLTradingSystemBase(TradingSystemBase):
     @abstractmethod
     def make_predictions(
         cls, 
-        systems_db: ITetSystemsDocumentDatabase,
+        systems_db: TradingSystemsPersisterBase,
         data_dict: dict[str, pd.DataFrame],
         pred_features_data_dict: dict[str, np.ndarray]
     ) -> dict[str, pd.DataFrame]:

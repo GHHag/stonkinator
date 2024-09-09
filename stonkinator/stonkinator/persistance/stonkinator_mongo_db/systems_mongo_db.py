@@ -5,7 +5,7 @@ from pymongo.mongo_client import MongoClient
 from pymongo.collection import Collection
 from bson import json_util
 
-from persistance.doc_database_meta_classes.tet_systems_doc_db import ITetSystemsDocumentDatabase
+from persistance.persistance_meta_classes.trading_systems_persister import TradingSystemsPersisterBase
 
 from trading.data.metadata.market_state_enum import MarketState
 from trading.data.metadata.trading_system_attributes import TradingSystemAttributes
@@ -13,7 +13,7 @@ from trading.position.order import Order
 from trading.position.position import Position
 
 
-class TetSystemsMongoDb(ITetSystemsDocumentDatabase):
+class TradingSystemsMongoDb(TradingSystemsPersisterBase):
 
     __ID_FIELD = TradingSystemAttributes.ID
     __SYSTEM_ID_FIELD = TradingSystemAttributes.SYSTEM_ID

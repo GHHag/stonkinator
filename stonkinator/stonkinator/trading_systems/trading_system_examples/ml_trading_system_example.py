@@ -19,8 +19,8 @@ from trading.position.position import Position
 from trading.trading_system.trading_system import TradingSystem
 
 from persistance.securities_db_py_dal.dal import price_data_get_req
-from persistance.doc_database_meta_classes.tet_systems_doc_db import ITetSystemsDocumentDatabase
-from persistance.stonkinator_mongo_db.systems_mongo_db import TetSystemsMongoDb
+from persistance.persistance_meta_classes.trading_systems_persister import TradingSystemsPersisterBase
+from persistance.stonkinator_mongo_db.systems_mongo_db import TradingSystemsMongoDb
 from persistance.stonkinator_mongo_db.instruments_mongo_db import InstrumentsMongoDb
 
 from trading_systems.trading_system_base import MLTradingSystemBase
@@ -162,9 +162,6 @@ class MLTradingSystemExample(MLTradingSystemBase):
     ):
         models_dict = {}
         for symbol, df in data_dict.items():
-            # regression model target
-            # df['Target'] = df[target_col].pct_change(periods=target_period).shift(-target_period).mul(100)
-
             # classification model target
             df['Target_col_shifted'] = df[target_col].pct_change(periods=target_period).shift(-target_period).mul(100)
             df['Target'] = df['Target_col_shifted'] > 0
@@ -195,10 +192,6 @@ class MLTradingSystemExample(MLTradingSystemBase):
             y = y_df.to_numpy()
 
             try:
-                # model = make_pipeline(
-                #     StandardScaler(),
-                #     LinearRegression()
-                # )
                 model = make_pipeline(
                     StandardScaler(),
                     DecisionTreeClassifier()
@@ -215,7 +208,7 @@ class MLTradingSystemExample(MLTradingSystemBase):
 
     @classmethod
     def make_predictions(
-        cls, systems_db: ITetSystemsDocumentDatabase, 
+        cls, systems_db: TradingSystemsPersisterBase, 
         data_dict: dict[str, pd.DataFrame],
         pred_features_data_dict: dict[str, np.ndarray]
     ):
@@ -320,12 +313,10 @@ class MLTradingSystemExample(MLTradingSystemBase):
 
         return TradingSystemProperties( 
             required_runs, symbols_list,
-            cls.preprocess_data,
             (
                 benchmark_symbol, price_data_get_req,
                 entry_args, exit_args
             ),
-            cls.entry_signal_logic, cls.exit_signal_logic,
             entry_args, exit_args,
             SafeFPositionSizer(20, 0.8), (),
             {
@@ -337,8 +328,8 @@ class MLTradingSystemExample(MLTradingSystemBase):
 
 if __name__ == '__main__':
     import trading_systems.env as env
-    SYSTEMS_DB = TetSystemsMongoDb(env.LOCALHOST_MONGO_DB_URL, env.SYSTEMS_DB)
-    CLIENT_DB = TetSystemsMongoDb(env.LOCALHOST_MONGO_DB_URL, env.CLIENT_DB)
+    SYSTEMS_DB = TradingSystemsMongoDb(env.LOCALHOST_MONGO_DB_URL, env.SYSTEMS_DB)
+    CLIENT_DB = TradingSystemsMongoDb(env.LOCALHOST_MONGO_DB_URL, env.CLIENT_DB)
     INSTRUMENTS_DB = InstrumentsMongoDb(env.ATLAS_MONGO_DB_URL, env.CLIENT_DB)
 
     start_dt = dt.datetime(1999, 1, 1)

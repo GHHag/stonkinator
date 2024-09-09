@@ -1,7 +1,6 @@
 import datetime as dt
 import json
 import argparse
-from typing import Callable
 
 import pandas as pd
 from sterunets.data_handler import FeatureBlueprint, TimeSeriesDataHandler
@@ -10,15 +9,14 @@ from trading.data.metadata.trading_system_attributes import TradingSystemAttribu
 from trading.data.metadata.market_state_enum import MarketState
 from trading.trading_system.trading_system import TradingSystem
 
-from trading_systems import TRADING_SYSTEM_CLASSES
 from trading_systems.trading_system_base import TradingSystemBase, MLTradingSystemBase
 from trading_systems.trading_system_properties import TradingSystemProperties
 from trading_systems.position_sizer.ext_position_sizer import ExtPositionSizer
 
-from persistance.doc_database_meta_classes.tet_signals_doc_db import ITetSignalsDocumentDatabase
-from persistance.doc_database_meta_classes.tet_systems_doc_db import ITetSystemsDocumentDatabase
-from persistance.doc_database_meta_classes.time_series_doc_db import ITimeSeriesDocumentDatabase
-from persistance.stonkinator_mongo_db.systems_mongo_db import TetSystemsMongoDb
+from persistance.persistance_meta_classes.signals_persister import SignalsPersisterBase
+from persistance.persistance_meta_classes.trading_systems_persister import TradingSystemsPersisterBase
+from persistance.persistance_meta_classes.time_series_persister import TimeSeriesPersisterBase
+from persistance.stonkinator_mongo_db.systems_mongo_db import TradingSystemsMongoDb
 from persistance.stonkinator_mongo_db.time_series_mongo_db import TimeSeriesMongoDb
 from persistance.stonkinator_mongo_db.instruments_mongo_db import InstrumentsMongoDb
 import trading_systems.env as env
@@ -26,40 +24,46 @@ import trading_systems.env as env
 
 #INSTRUMENTS_DB = InstrumentsMongoDb(env.LOCALHOST_MONGO_DB_URL, env.INSTRUMENTS_DB)
 TIME_SERIES_DB = TimeSeriesMongoDb(env.LOCALHOST_MONGO_DB_URL, env.TIME_SERIES_DB)
-SYSTEMS_DB = TetSystemsMongoDb(env.LOCALHOST_MONGO_DB_URL, env.SYSTEMS_DB)
-CLIENT_DB = TetSystemsMongoDb(env.LOCALHOST_MONGO_DB_URL, env.CLIENT_DB)
-# CLIENT_DB = TetSystemsMongoDb(env.ATLAS_MONGO_DB_URL, env.CLIENT_DB)
+SYSTEMS_DB = TradingSystemsMongoDb(env.LOCALHOST_MONGO_DB_URL, env.SYSTEMS_DB)
+CLIENT_DB = TradingSystemsMongoDb(env.LOCALHOST_MONGO_DB_URL, env.CLIENT_DB)
+# CLIENT_DB = TradingSystemsMongoDb(env.ATLAS_MONGO_DB_URL, env.CLIENT_DB)
 
 INSTRUMENTS_DB = InstrumentsMongoDb(env.ATLAS_MONGO_DB_URL, env.CLIENT_DB)
 #TIME_SERIES_DB = TimeSeriesMongoDb(env.ATLAS_MONGO_DB_URL, env.CLIENT_DB)
-#SYSTEMS_DB = TetSystemsMongoDb(env.ATLAS_MONGO_DB_URL, env.CLIENT_DB)
-#CLIENT_DB = TetSystemsMongoDb(env.ATLAS_MONGO_DB_URL, env.CLIENT_DB)
+#SYSTEMS_DB = TradingSystemsMongoDb(env.ATLAS_MONGO_DB_URL, env.CLIENT_DB)
+#CLIENT_DB = TradingSystemsMongoDb(env.ATLAS_MONGO_DB_URL, env.CLIENT_DB)
 
 
 class TradingSystemProcessor:
 
     def __init__(
         self, ts_class: TradingSystemBase, 
-        systems_db: ITetSystemsDocumentDatabase, 
-        client_db: ITetSignalsDocumentDatabase,
+        systems_db: TradingSystemsPersisterBase, 
+        client_db: SignalsPersisterBase,
         instruments_db: InstrumentsMongoDb,
         start_dt: dt.datetime, end_dt: dt.datetime
     ):
         self.__system_name = ts_class.name
         self.__ts_properties: TradingSystemProperties = ts_class.get_properties(instruments_db)
-        self.__systems_db: ITetSystemsDocumentDatabase = systems_db
-        self.__client_db: ITetSignalsDocumentDatabase = client_db
+        self.__systems_db: TradingSystemsPersisterBase = systems_db
+        self.__client_db: SignalsPersisterBase = client_db
         self.__trading_system = TradingSystem(
             self.system_name,
-            self.__ts_properties.entry_logic_function, 
-            self.__ts_properties.exit_logic_function,
+            ts_class.entry_signal_logic, 
+            ts_class.exit_signal_logic,
             self.__systems_db, self.__client_db
         )
-        self.__start_dt: dt.datetime = start_dt
-        self.__end_dt: dt.datetime = end_dt
         # TODO: Any way to resolve make_predictions with a type hint?
-        infer = ts_class.make_predictions if issubclass(ts_class, MLTradingSystemBase) else None
-        self._preprocess_data(self.__start_dt, self.__end_dt, infer)
+        self.__data, pred_features_data = ts_class.preprocess_data(
+            self.__ts_properties.instruments_list,
+            *self.__ts_properties.preprocess_data_args, start_dt, end_dt,
+            ts_processor=self
+        )
+
+        if issubclass(ts_class, MLTradingSystemBase) == True:
+            self.__data = ts_class.make_predictions(
+                self.__systems_db, self.__data, pred_features_data
+            )
 
     @property
     def system_name(self):
@@ -80,16 +84,6 @@ class TradingSystemProcessor:
     @current_dt.setter
     def current_dt(self, value):
         self.__current_dt = value
-
-    def _preprocess_data(self, start_dt: dt.datetime, end_dt: dt.datetime, infer: Callable | None):
-        self.__data, pred_features_data = self.__ts_properties.preprocess_data_function(
-            self.__ts_properties.instruments_list,
-            *self.__ts_properties.preprocess_data_args, start_dt, end_dt,
-            ts_processor=self
-        )
-
-        if infer != None:
-            self.__data = infer(self.__systems_db, self.__data, pred_features_data)
 
     def reprocess_data(self, end_dt: dt.datetime):
         # TODO: Implement this method.
@@ -153,7 +147,7 @@ class TradingSystemProcessor:
 
     def _handle_trading_system(
         self, full_run: bool, retain_history: bool,
-        time_series_db: ITimeSeriesDocumentDatabase=None, insert_into_db=False, 
+        time_series_db: TimeSeriesPersisterBase=None, insert_into_db=False, 
         **kwargs
     ):
         for i in range(self.__ts_properties.required_runs):
@@ -277,8 +271,8 @@ class TradingSystemHandler:
 
     def __init__(
         self, trading_system_classes: list[TradingSystemBase],
-        systems_db: ITetSystemsDocumentDatabase, 
-        client_db: ITetSignalsDocumentDatabase,
+        systems_db: TradingSystemsPersisterBase, 
+        client_db: SignalsPersisterBase,
         instruments_db: InstrumentsMongoDb,
         start_dt: dt.datetime, end_dt: dt.datetime, 
     ):
@@ -329,6 +323,14 @@ if __name__ == '__main__':
     if full_run == True:
         SYSTEMS_DB.drop_collections()
         CLIENT_DB.drop_collections()
+
+    from trading_systems.trading_system_examples.trading_system_example import TradingSystemExample
+    from trading_systems.trading_system_examples.ml_trading_system_example import MLTradingSystemExample
+
+    TRADING_SYSTEM_CLASSES = [
+        TradingSystemExample,
+        MLTradingSystemExample
+    ]
 
     # start_dt = dt.datetime(1999, 1, 1)
     # end_dt = dt.datetime(2011, 1, 1)
