@@ -52,6 +52,16 @@ class MLTradingSystemBase(TradingSystemBase):
 
     @classmethod
     @abstractmethod
+    def operate_models(
+        cls, 
+        systems_db: TradingSystemsPersisterBase,
+        data_dict: dict[str, pd.DataFrame],
+        target_period: int
+    ) -> dict[str, pd.DataFrame]:
+        ...
+
+    @classmethod
+    @abstractmethod
     def make_predictions(
         cls, 
         systems_db: TradingSystemsPersisterBase,

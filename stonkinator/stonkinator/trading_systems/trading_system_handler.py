@@ -41,7 +41,8 @@ class TradingSystemProcessor:
         systems_db: TradingSystemsPersisterBase, 
         client_db: SignalsPersisterBase,
         instruments_db: InstrumentsMongoDb,
-        start_dt: dt.datetime, end_dt: dt.datetime
+        start_dt: dt.datetime, end_dt: dt.datetime,
+        full_run=False
     ):
         self.__system_name = ts_class.name
         self.__ts_properties: TradingSystemProperties = ts_class.get_properties(instruments_db)
@@ -61,9 +62,14 @@ class TradingSystemProcessor:
         )
 
         if issubclass(ts_class, MLTradingSystemBase) == True:
-            self.__data = ts_class.make_predictions(
-                self.__systems_db, self.__data, pred_features_data
-            )
+            if full_run == True:
+                self.__data = ts_class.operate_models(
+                    self.__systems_db, self.__data
+                )
+            else:
+                self.__data = ts_class.make_predictions(
+                    self.__systems_db, self.__data, pred_features_data
+                )
 
     @property
     def system_name(self):
@@ -275,12 +281,14 @@ class TradingSystemHandler:
         client_db: SignalsPersisterBase,
         instruments_db: InstrumentsMongoDb,
         start_dt: dt.datetime, end_dt: dt.datetime, 
+        full_run=False
     ):
         self.__trading_systems: list[TradingSystemProcessor] = []
         for ts_class in trading_system_classes:
             self.__trading_systems.append(
                 TradingSystemProcessor(
-                    ts_class, systems_db, client_db, instruments_db, start_dt, end_dt
+                    ts_class, systems_db, client_db, instruments_db, start_dt, end_dt,
+                    full_run=full_run
                 )
             )
 

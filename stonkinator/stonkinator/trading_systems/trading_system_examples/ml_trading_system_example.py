@@ -207,11 +207,34 @@ class MLTradingSystemExample(MLTradingSystemBase):
         return models_dict
 
     @classmethod
+    def operate_models(
+        cls, systems_db: TradingSystemsPersisterBase, 
+        data_dict: dict[str, pd.DataFrame],
+        target_period=1
+    ) -> dict [str, pd.DataFrame]:
+        models_data_dict = cls.create_backtest_models(
+            data_dict, target_period=target_period
+        )
+
+        inference_models_dict = cls.create_inference_models(
+            data_dict, target_period=target_period
+        )
+
+        serialized_models = serialize_models(inference_models_dict)
+        for symbol, model in serialized_models.items():
+            insert_successful = systems_db.insert_ml_model(
+                cls.name, symbol, model
+            )
+            if insert_successful == False:
+                raise Exception('failed to insert data')
+        return models_data_dict
+
+    @classmethod
     def make_predictions(
         cls, systems_db: TradingSystemsPersisterBase, 
         data_dict: dict[str, pd.DataFrame],
         pred_features_data_dict: dict[str, np.ndarray]
-    ):
+    ) -> dict[str, pd.DataFrame]:
         for symbol, data in data_dict.items():
             model_pipeline: Pipeline = systems_db.get_ml_model(cls.name, symbol)
             if not model_pipeline:
@@ -358,8 +381,8 @@ if __name__ == '__main__':
         )
 
     if insert_into_db == True:
-        binary_models = serialize_models(inference_models_dict)
-        for symbol, model in binary_models.items():
+        serialized_models = serialize_models(inference_models_dict)
+        for symbol, model in serialized_models.items():
             insert_successful = SYSTEMS_DB.insert_ml_model(
                 MLTradingSystemExample.name, symbol, model
             )
