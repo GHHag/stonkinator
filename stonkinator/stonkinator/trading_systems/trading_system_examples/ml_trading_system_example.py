@@ -1,5 +1,6 @@
 import datetime as dt
 import json
+from typing import Callable
 
 import pandas as pd
 import numpy as np
@@ -244,7 +245,6 @@ class MLTradingSystemExample(MLTradingSystemBase):
             latest_data_point = data.iloc[-1].copy()
             latest_data_point['pred'] = model_pipeline.predict(pred_data[-1].reshape(1, -1))[0]
             latest_data_point_df = pd.DataFrame(latest_data_point).transpose()
-            latest_data_point_df['pred'] = latest_data_point_df['pred'].astype('boolean')
             data_dict[symbol] = pd.concat(
                 [data.iloc[:-1], latest_data_point_df]
             )
@@ -252,8 +252,9 @@ class MLTradingSystemExample(MLTradingSystemBase):
 
     @staticmethod
     def preprocess_data(
-        symbols_list, benchmark_symbol, get_data_function,
-        entry_args, exit_args, start_dt, end_dt,
+        symbols_list, benchmark_symbol, 
+        get_data_function: Callable[[str, dt.datetime, dt.datetime], dict[str, pd.DataFrame]],
+        entry_args: dict, exit_args: dict, start_dt, end_dt,
         ts_processor: TradingSystemProcessor=None, target_period=1
     ):
         data_dict: dict[str, pd.DataFrame] = {}

@@ -1,5 +1,6 @@
 import datetime as dt
 import json
+from typing import Callable
 
 import pandas as pd
 
@@ -94,8 +95,9 @@ class TradingSystemExample(TradingSystemBase):
 
     @staticmethod
     def preprocess_data(
-        symbols_list, benchmark_symbol, get_data_function,
-        entry_args, exit_args, start_dt, end_dt,
+        symbols_list, benchmark_symbol,
+        get_data_function: Callable[[str, dt.datetime, dt.datetime], dict[str, pd.DataFrame]],
+        entry_args: dict, exit_args: dict, start_dt, end_dt,
         ts_processor: TradingSystemProcessor=None
     ):
         data_dict: dict[str, pd.DataFrame] = {}
@@ -129,7 +131,7 @@ class TradingSystemExample(TradingSystemBase):
                 ts_processor.current_dt = pd.to_datetime(df_benchmark[Price.DT].iloc[-1])
 
         for symbol, data in data_dict.items():
-            if data.empty or len(data) < entry_args[TradingSystemAttributes.REQ_PERIOD_ITERS]:
+            if data.empty or len(data) < entry_args.get(TradingSystemAttributes.REQ_PERIOD_ITERS):
                 print(symbol, 'DataFrame empty')
                 del data_dict[symbol]
             else:
@@ -209,7 +211,7 @@ if __name__ == '__main__':
 
     system_props: TradingSystemProperties = TradingSystemExample.get_properties(INSTRUMENTS_DB)
 
-    df_dict, _ = TradingSystemExample.preprocess_data(
+    data_dict, _ = TradingSystemExample.preprocess_data(
         system_props.instruments_list,
         *system_props.preprocess_data_args, start_dt, end_dt
     )
@@ -222,7 +224,7 @@ if __name__ == '__main__':
     )
 
     trading_system.run_trading_system_backtest(
-        df_dict, 
+        data_dict, 
         entry_args=system_props.entry_function_args,
         exit_args=system_props.exit_function_args,
         market_state_null_default=True,

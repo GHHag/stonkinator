@@ -530,3 +530,4 @@ class TradingSystemsMongoDb(TradingSystemsPersisterBase):
         self.__client.drop_collection(self.__client.orders)
         self.__client.drop_collection(self.__client.positions)
         self.__client.drop_collection(self.__client.single_symbol_positions)
+        self.__client.drop_collection(self.__client.ml_models)

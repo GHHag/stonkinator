@@ -12,7 +12,7 @@ def build_dataframe(
     benchmark_data_retrieve_func, *args, 
     write_to_csv_path=None, **kwargs
 ):
-    df_dict = {
+    data_dict = {
         symbol: pd.json_normalize(
             data_retrieve_func(symbol, *args, **kwargs)['data']
         ) 
@@ -30,9 +30,9 @@ def build_dataframe(
     else:
         complete_df = pd.DataFrame()
 
-    for symbol, symbol_df in dict(df_dict).items():
+    for symbol, symbol_df in dict(data_dict).items():
         if symbol_df is None or symbol_df.empty:
-            del df_dict[symbol]
+            del data_dict[symbol]
             symbols_list.pop(symbols_list.index(symbol))
             continue
         else:
@@ -62,15 +62,15 @@ def build_dataframe(
 def get_split_dataframes(
     df, instrument_list, regex=r'^[\w\d\%\_]*', unfiltered_columns=None
 ):
-    split_df_dict = {}
+    split_data_dict = {}
 
     for ticker in instrument_list:
-        split_df_dict[ticker] = df.filter(regex=regex + ticker, axis=1)
+        split_data_dict[ticker] = df.filter(regex=regex + ticker, axis=1)
         if unfiltered_columns and isinstance(unfiltered_columns, list):
             for col in unfiltered_columns:
-                split_df_dict[ticker][col] = df[col]
+                split_data_dict[ticker][col] = df[col]
 
-    return split_df_dict
+    return split_data_dict
 
 
 def get_crypto_data(symbol, start_dt, end_dt, interval='1h', limit=1000):

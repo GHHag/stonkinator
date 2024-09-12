@@ -3,9 +3,12 @@ from abc import ABCMeta, abstractmethod
 import pandas as pd
 import numpy as np
 
+from trading.data.metadata.trading_system_attributes import classproperty
+
+from persistance.stonkinator_mongo_db.instruments_mongo_db import InstrumentsMongoDb
 from persistance.persistance_meta_classes.trading_systems_persister import TradingSystemsPersisterBase
 
-from trading.data.metadata.trading_system_attributes import classproperty
+from trading_systems.trading_system_properties import TradingSystemProperties
 
 
 class TradingSystemBase(metaclass=ABCMeta):
@@ -34,7 +37,12 @@ class TradingSystemBase(metaclass=ABCMeta):
 
     @classmethod
     @abstractmethod
-    def get_properties(cls):
+    def get_properties(
+        cls, instruments_db: InstrumentsMongoDb, 
+        target_period: int, 
+        import_instruments: bool, 
+        path: str | None
+    ) -> TradingSystemProperties:
         ...
 
 
