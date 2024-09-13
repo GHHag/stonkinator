@@ -19,16 +19,16 @@ services:
       - MONGO_INITDB_ROOT_USERNAME=${MDB_USER}
       - MONGO_INITDB_ROOT_PASSWORD=${MDB_PASSWORD}
     volumes:
-      - tet_data:/data/db
+      - stonkinator_data:/data/db
     ports:
       - ${MDB_PORT_EXP}:${MDB_PORT}
 
-  tet_api:
+  stonkinator_api:
     depends_on:
       - ${MDB_SERVICE}
     build: ./stonkinator_api
     ports:
-      - ${TET_API_PORT_EXP}:${TET_API_PORT}
+      - ${STONKINATOR_API_PORT_EXP}:${STONKINATOR_API_PORT}
     develop:
       watch:
         - action: rebuild
@@ -37,18 +37,17 @@ services:
             - ./go.mod
             - ./go.sum
 
-  tet_py_packages:
+  stonkinator:
     depends_on:
       - ${MDB_SERVICE}
-      - ${TET_API_SERVICE}
-    build: ./tet_py_packages
+      - ${STONKINATOR_API_SERVICE}
+    build: ./stonkinator
     volumes:
-      - ./${LIVE_SYSTEMS_DIR}:/${LIVE_SYSTEMS_DIR_TARGET}
-      - ./tet_py_packages:/app
+      - ./stonkinator:/app
 
   frontend:
     depends_on:
-      - ${TET_API_SERVICE}
+      - ${STONKINATOR_API_SERVICE}
     build: ./stonkinator_frontend
     ports:
       - ${FRONTEND_PORT}:${FRONTEND_PORT}
@@ -57,4 +56,4 @@ services:
 
 volumes:
   securities_data:
-  tet_data:
+  stonkinator_data:

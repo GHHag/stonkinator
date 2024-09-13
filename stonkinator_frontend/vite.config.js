@@ -7,7 +7,7 @@ export default defineConfig({
     port: 3000,
     proxy: {
       '/api': {
-        target: 'http://tet_api:4001',
+        target: 'http://stonkinator_api:4001',
         changeOrigin: true,
         secure: false
       }

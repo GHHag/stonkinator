@@ -25,7 +25,7 @@ async function scrapePrice(url, props) {
     }
 
     await fetch(
-        `http://${process.env.TET_API_SERVICE}:${process.env.TET_API_PORT}${process.env.API_URL}/price`,
+        `http://${process.env.STONKINATOR_API_SERVICE}:${process.env.STONINATOR_API_PORT}${process.env.API_URL}/price`,
         {
             method: 'POST',
             headers: {

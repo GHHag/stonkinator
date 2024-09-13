@@ -51,8 +51,6 @@ coverage.xml
 .pytest_cache/
 cover/
 
-env.py
-
 # Translations
 *.mo
 *.pot
@@ -286,8 +284,6 @@ dist
 .yarn/install-state.gz
 .pnp.*
 
-trading_systems
-
 dist-ssr
 *.local
 
@@ -301,3 +297,8 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+stonkinator_trading_systems
+live_systems
+db_dumps
+env.py
