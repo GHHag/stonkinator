@@ -131,7 +131,7 @@ class TradingSession:
                 position.print_position_status()
             self.__signal_handler.handle_active_position(
                 self.__symbol, {
-                    TradingSystemAttributes.SIGNAL_INDEX: dataframe.index[-1], 
+                    TradingSystemAttributes.SIGNAL_INDEX: len(dataframe), 
                     TradingSystemAttributes.SIGNAL_DT: dataframe.index[-1],
                     TradingSystemAttributes.SYMBOL: self.__symbol, 
                     TradingSystemAttributes.ORDER: order.as_dict if order else None,
@@ -145,7 +145,7 @@ class TradingSession:
             if order and order.active == True:
                 self.__signal_handler.handle_exit_signal(
                     self.__symbol, {
-                        TradingSystemAttributes.SIGNAL_INDEX: dataframe.index[-1], 
+                        TradingSystemAttributes.SIGNAL_INDEX: len(dataframe), 
                         TradingSystemAttributes.SIGNAL_DT: dataframe.index[-1],
                         TradingSystemAttributes.SYMBOL: self.__symbol, 
                         TradingSystemAttributes.ORDER: order.as_dict,
@@ -161,7 +161,7 @@ class TradingSession:
             if order and order.active == True:
                 self.__signal_handler.handle_entry_signal(
                     self.__symbol, {
-                        TradingSystemAttributes.SIGNAL_INDEX: dataframe.index[-1], 
+                        TradingSystemAttributes.SIGNAL_INDEX: len(dataframe), 
                         TradingSystemAttributes.SIGNAL_DT: dataframe.index[-1],
                         TradingSystemAttributes.SYMBOL: self.__symbol,
                         TradingSystemAttributes.ORDER: order.as_dict,

@@ -14,8 +14,6 @@ class Metrics:
     Iterates over a collection of Position objects, calculates and
     assigns field for different metrics.
 
-    TODO: Refactor and reimplement functionality using Pandas and Numpy.
-
     Parameters
     ----------
     symbol : 'str'

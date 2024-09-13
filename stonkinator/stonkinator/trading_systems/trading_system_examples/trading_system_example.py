@@ -230,5 +230,5 @@ if __name__ == '__main__':
         market_state_null_default=True,
         plot_performance_summary=False,
         print_data=True,
-        insert_data_to_db_bool=False
+        insert_data_to_db_bool=insert_into_db
     )

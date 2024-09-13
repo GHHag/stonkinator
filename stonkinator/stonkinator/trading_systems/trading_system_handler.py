@@ -54,7 +54,6 @@ class TradingSystemProcessor:
             ts_class.exit_signal_logic,
             self.__systems_db, self.__client_db
         )
-        # TODO: Any way to resolve make_predictions with a type hint?
         self.__data, pred_features_data = ts_class.preprocess_data(
             self.__ts_properties.instruments_list,
             *self.__ts_properties.preprocess_data_args, start_dt, end_dt,
