@@ -142,16 +142,24 @@ class LimitOrder(Order):
         self, capital, price_data_point, data_point_dt,
         fixed_position_size=True, commission_pct_cost=0.0
     ) -> Position | None:
-        # TODO: This condition will not work for short positions
-        if self.__price > price_data_point[Price.LOW]:
+        if (
+            self.direction == TradingSystemAttributes.LONG and
+            self.__price > price_data_point[Price.LOW] or
+            self.direction == TradingSystemAttributes.SHORT and
+            self.__price < price_data_point[Price.HIGH]
+        ):
             position = Position(
                 capital, self.direction,
                 fixed_position_size=fixed_position_size, 
                 commission_pct_cost=commission_pct_cost
             )
             
-            # TODO: This condition will not work for short positions
-            if self.__price > price_data_point[Price.OPEN]:
+            if (
+                self.direction == TradingSystemAttributes.LONG and
+                self.__price > price_data_point[Price.OPEN] or
+                self.direction == TradingSystemAttributes.SHORT and
+                self.__price < price_data_point[Price.OPEN]
+            ):
                 self.__price = price_data_point[Price.OPEN]
 
             position.enter_market(self.__price, data_point_dt)
@@ -167,11 +175,19 @@ class LimitOrder(Order):
         self, position: Position, price_data_point, data_point_dt
     ) -> Decimal | None:
         position.exit_signal_given = True
-        # TODO: This condition will not work for short positions
-        if price_data_point[Price.HIGH] > self.__price:
+        if (
+            position.direction == TradingSystemAttributes.LONG and
+            price_data_point[Price.HIGH] > self.__price or
+            position.direction == TradingSystemAttributes.SHORT and 
+            price_data_point[Price.LOW] < self.__price
+        ):
             
-            # TODO: This condition will not work for short positions
-            if price_data_point[Price.OPEN] > self.__price:
+            if (
+                position.direction == TradingSystemAttributes.LONG and
+                price_data_point[Price.OPEN] > self.__price or
+                position.direction == TradingSystemAttributes.SHORT and
+                price_data_point[Price.OPEN] < self.__price
+            ):
                 self.__price = price_data_point[Price.OPEN] 
 
             capital = position.exit_market(self.__price, data_point_dt)

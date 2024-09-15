@@ -86,6 +86,10 @@ class Position:
         self.__current_dt = value
 
     @property
+    def direction(self):
+        return self.__direction
+
+    @property
     def returns_list(self):
         return self.__returns_list
 
@@ -364,7 +368,7 @@ class Position:
             unrealised_return = Decimal(
                 ((self.__entry_price - current_price) / self.__entry_price) * 100
             ).quantize(Decimal('0.02'))
-            self.market_to_market_returns_list = np.append(
+            self.__market_to_market_returns_list = np.append(
                 self.__market_to_market_returns_list,
                 Decimal(
                     (self.__last_price - current_price) / self.__last_price * 100
