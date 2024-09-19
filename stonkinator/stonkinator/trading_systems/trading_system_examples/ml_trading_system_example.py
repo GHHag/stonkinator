@@ -44,7 +44,10 @@ class MLTradingSystemExample(MLTradingSystemBase):
         order = None
         entry_condition = df['pred'].iloc[-1] == 1
         if entry_condition == True:
-            order = LimitOrder(MarketState.ENTRY.value, df.index[-1], df[Price.CLOSE].iloc[-1], 5)
+            order = LimitOrder(
+                MarketState.ENTRY.value, df.index[-1], df[Price.CLOSE].iloc[-1], 5,
+                direction=TradingSystemAttributes.LONG
+            )
         return order
 
     @staticmethod

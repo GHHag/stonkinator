@@ -57,7 +57,10 @@ class TradingSystemExample(TradingSystemBase):
             df[Price.CLOSE].iloc[-1] >= max(df[Price.CLOSE].iloc[-entry_args[entry_period_param]:])
         )
         if entry_condition == True:
-            order = LimitOrder(MarketState.ENTRY.value, df.index[-1], df[Price.CLOSE].iloc[-1], 5)
+            order = LimitOrder(
+                MarketState.ENTRY.value, df.index[-1], df[Price.CLOSE].iloc[-1], 5,
+                direction=TradingSystemAttributes.LONG
+            )
         return order
 
     @staticmethod

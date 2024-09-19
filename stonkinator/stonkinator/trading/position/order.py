@@ -4,6 +4,7 @@ from decimal import Decimal
 
 from trading.position.position import Position
 from trading.data.metadata.price import Price
+from trading.data.metadata.market_state_enum import MarketState
 from trading.data.metadata.trading_system_attributes import TradingSystemAttributes
 
 
@@ -48,6 +49,11 @@ class OrderBase(metaclass=ABCMeta):
 class Order(OrderBase):
 
     def __init__(self, action, dt, direction):
+        if action == MarketState.ENTRY.value and direction is None:
+            raise ValueError(
+                'value of direction can not be None '
+                'if the given action is entry'
+            )
         self.__action: str = action
         self.__created_dt: datetime = dt
         self.__active: bool = True
@@ -108,7 +114,7 @@ class Order(OrderBase):
 
 class MarketOrder(Order):
 
-    def __init__(self, action, dt, direction=TradingSystemAttributes.LONG):
+    def __init__(self, action, dt, direction=None):
         super().__init__(action, dt, direction)
 
 
@@ -116,7 +122,7 @@ class LimitOrder(Order):
 
     def __init__(
         self, action, dt, price, max_duration,
-        direction=TradingSystemAttributes.LONG
+        direction=None
     ):
         super().__init__(action, dt, direction)
         self.__price: float = price
@@ -181,7 +187,6 @@ class LimitOrder(Order):
             position.direction == TradingSystemAttributes.SHORT and 
             price_data_point[Price.LOW] < self.__price
         ):
-            
             if (
                 position.direction == TradingSystemAttributes.LONG and
                 price_data_point[Price.OPEN] > self.__price or

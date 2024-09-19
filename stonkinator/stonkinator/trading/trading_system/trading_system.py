@@ -221,7 +221,7 @@ class TradingSystem:
                     print('ValueError')
 
             # add system evaluation data to the SignalHandler
-            if signal_handler.entry_signal_given is True or market_state_null_default:
+            if signal_handler.entry_signal_given == True or market_state_null_default:
                 signal_handler.add_system_evaluation_data(
                     pos_manager.metrics.summary_data_dict, system_evaluation_fields
                 )
