@@ -100,7 +100,9 @@ class PositionManager:
             self.__metrics = Metrics(
                 self.__symbol, self.__start_capital, self.__num_testing_periods
             )
-            self.__metrics.calculate_metrics(self.__generated_positions)
+            self.__metrics.calculate_metrics(
+                self.__generated_positions, self.__asset_price_series
+            )
 
     def summarize_performance(self, print_data=False, plot_fig=False, save_fig_to_path=None):
         """

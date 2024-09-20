@@ -13,6 +13,8 @@ class TradingSystemProperties:
     entry_function_args: dict
     exit_function_args: dict
 
+    ts_run_kwargs: dict
+
     position_sizer: IPositionSizer
     position_sizer_call_args: tuple
     position_sizer_call_kwargs: dict

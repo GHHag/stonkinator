@@ -195,6 +195,9 @@ class TradingSystemExample(TradingSystemBase):
                 entry_args, exit_args
             ),
             entry_args, exit_args,
+            {
+                'plot_fig': False
+            },
             SafeFPositionSizer(20, 0.8), (),
             {
                 'plot_fig': False,

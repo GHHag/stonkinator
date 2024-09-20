@@ -165,6 +165,7 @@ class TradingSystemProcessor:
                 full_run, retain_history,
                 insert_into_db=insert_data,
                 **self.__ts_properties.position_sizer.position_sizer_data_dict,
+                **self.__ts_properties.ts_run_kwargs,
                 **kwargs
             )
 
@@ -236,7 +237,7 @@ class TradingSystemProcessor:
             )
 
         last_processed_dt = self.__systems_db.get_current_datetime(self.system_name)
-        if last_processed_dt == None:
+        if last_processed_dt is None:
             return
 
         last_processed_dt = pd.to_datetime(last_processed_dt).tz_localize('UTC')
@@ -347,7 +348,8 @@ if __name__ == '__main__':
 
     ts_handler = TradingSystemHandler(
         TRADING_SYSTEM_CLASSES,
-        SYSTEMS_DB, CLIENT_DB,
-        start_dt, end_dt
+        SYSTEMS_DB, CLIENT_DB, INSTRUMENTS_DB,
+        start_dt, end_dt,
+        full_run=full_run
     )
     ts_handler.run_trading_systems(end_dt, full_run, retain_history, print_data=print_data)

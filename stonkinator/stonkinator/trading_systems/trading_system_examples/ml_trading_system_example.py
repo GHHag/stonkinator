@@ -345,6 +345,9 @@ class MLTradingSystemExample(MLTradingSystemBase):
                 entry_args, exit_args
             ),
             entry_args, exit_args,
+            {
+                'plot_fig': False
+            },
             SafeFPositionSizer(20, 0.8), (),
             {
                 'forecast_data_fraction': 0.7,

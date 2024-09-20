@@ -7,6 +7,8 @@ import pandas as pd
 from trading.data.metadata.trading_system_metrics import TradingSystemMetrics
 from trading.position.position import Position
 from trading.metrics.metrics_summary_plot import system_metrics_summary_plot
+from trading.utils.metric_functions import calculate_max_drawdown, calculate_sharpe_ratio, \
+    calculate_cagr 
 
 
 class Metrics:
@@ -129,7 +131,10 @@ class Metrics:
                 TradingSystemMetrics.MAX_MFE: round(np.max(self.__mfe_list), 3),
                 TradingSystemMetrics.MAX_DRAWDOWN: float(self.__max_drawdown),
                 TradingSystemMetrics.ROMAD: round(self.__return_to_max_drawdown, 3),
-                TradingSystemMetrics.CAGR: round(self.__cagr, 3)
+                TradingSystemMetrics.CAGR: round(self.__cagr, 3),
+                f'underlying_{TradingSystemMetrics.SHARPE_RATIO}': self.underlying_sharpe,
+                f'underlying_{TradingSystemMetrics.MAX_DRAWDOWN}': self.underlying_max_dd,
+                f'underlying_{TradingSystemMetrics.CAGR}': self.underlying_cagr
             }
         except AttributeError:
             # TODO: Log error
@@ -367,7 +372,7 @@ class Metrics:
             plot_fig=plot_fig, save_fig_to_path=save_fig_to_path
         )
 
-    def calculate_metrics(self, positions: list[Position]):
+    def calculate_metrics(self, positions: list[Position], asset_price_series):
         """
         Iterates over the given collection of Position objects and calculates metrics
         derived from them.
@@ -501,3 +506,22 @@ class Metrics:
             self.__return_to_max_drawdown = 0
 
         self._mae_mfe_dataframe_apply()
+
+        if asset_price_series:
+            underlying_returns = np.array(
+                [
+                    (asset_price_series[n] - asset_price_series[n-1]) \
+                    / asset_price_series[n-1] 
+                    for n in range(1, len(asset_price_series))
+                ]
+            )
+            self.underlying_sharpe = calculate_sharpe_ratio(underlying_returns)
+            self.underlying_max_dd = calculate_max_drawdown(asset_price_series)
+            self.underlying_cagr = calculate_cagr(
+                asset_price_series[0], asset_price_series[-1], 
+                len(asset_price_series)
+            )
+        else:
+            self.underlying_sharpe = np.nan
+            self.underlying_max_dd = np.nan
+            self.underlying_cagr = np.nan
