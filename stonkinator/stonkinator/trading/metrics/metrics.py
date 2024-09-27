@@ -30,7 +30,7 @@ class Metrics:
     def __init__(self, symbol, start_capital, num_testing_periods):
         self.__symbol = symbol
         self.__start_capital = start_capital
-        self.__positions = []
+        self.__positions: list[Position] = []
         self.__num_testing_periods = num_testing_periods
         self.__equity_list = np.array([self.__start_capital])
         self.__profit_loss_list = np.array([])
@@ -39,12 +39,14 @@ class Metrics:
         self.__pos_net_results_list = np.array([])
         self.__pos_gross_results_list = np.array([])
         self.__pos_period_lengths_list = np.array([])
+        self.__winning_pos_period_lengths_list = np.array([])
+        self.__losing_pos_period_lengths_list = np.array([])
 
         self.__profitable_pos_list = np.array([])
         self.__profitable_pos_returns_list = np.array([])
         self.__net_wins_list = np.array([])
         self.__gross_wins_list = np.array([])
-        self.__loosing_pos_list = np.array([])
+        self.__losing_pos_list = np.array([])
         self.__net_losses_list = np.array([])
         self.__gross_losses_list = np.array([])
 
@@ -132,6 +134,15 @@ class Metrics:
                 TradingSystemMetrics.MAX_DRAWDOWN: float(self.__max_drawdown),
                 TradingSystemMetrics.ROMAD: round(self.__return_to_max_drawdown, 3),
                 TradingSystemMetrics.CAGR: round(self.__cagr, 3),
+                TradingSystemMetrics.AVG_PERIODS_IN_POSITIONS: round(np.mean(self.__pos_period_lengths_list), 3),
+                TradingSystemMetrics.AVG_PERIODS_IN_WINNING_POSITIONS:
+                    round(np.mean((self.__winning_pos_period_lengths_list)))
+                    if len(self.__winning_pos_period_lengths_list) > 0
+                    else np.nan,
+                TradingSystemMetrics.AVG_PERIODS_IN_LOSING_POSITIONS:
+                    round(np.mean((self.__losing_pos_period_lengths_list)))
+                    if len(self.__losing_pos_period_lengths_list) > 0
+                    else np.nan,
                 f'underlying_{TradingSystemMetrics.SHARPE_RATIO}': self.underlying_sharpe,
                 f'underlying_{TradingSystemMetrics.MAX_DRAWDOWN}': self.underlying_max_dd,
                 f'underlying_{TradingSystemMetrics.CAGR}': self.underlying_cagr
@@ -300,7 +311,7 @@ class Metrics:
             f'\nPerformance summary: '
             f'\nNumber of positions: {len(self.__returns_list)}'
             f'\nNumber of profitable positions: {len(self.__profitable_pos_list)}'
-            f'\nNumber of loosing positions: {len(self.__loosing_pos_list)}'
+            f'\nNumber of losing positions: {len(self.__losing_pos_list)}'
             f'\n% wins: {format(self.__pct_wins, ".2f")}'
             f'\n% losses: {format(self.__pct_losses, ".2f")}'
             f'\nTesting periods: {self.__num_testing_periods}'
@@ -336,7 +347,7 @@ class Metrics:
             f'\nMedian profit (per contract): {format(self.__median_positive_pos, ".3f")}'
 
             f'\n\nLosses (per contract):'
-            f'\n{self.__loosing_pos_list}'
+            f'\n{self.__losing_pos_list}'
             f'\nMean loss (per contract): {format(self.__mean_negative_pos, ".3f")}'
             f'\nMedian loss (per contract): {format(self.__median_negative_pos, ".3f")}'
         
@@ -430,15 +441,21 @@ class Metrics:
                 self.__w_mae_list = np.append(
                     self.__w_mae_list, float(pos.mae)
                 )
+                self.__winning_pos_period_lengths_list = np.append(
+                    self.__winning_pos_period_lengths_list, len(pos.returns_list)
+                )
             if pos.profit_loss <= 0:
-                self.__loosing_pos_list = np.append(
-                    self.__loosing_pos_list, float(pos.profit_loss)
+                self.__losing_pos_list = np.append(
+                    self.__losing_pos_list, float(pos.profit_loss)
                 )
                 self.__net_losses_list = np.append(
                     self.__net_losses_list, pos.net_result
                 )
                 self.__gross_losses_list = np.append(
                     self.__gross_losses_list, pos.gross_result
+                )
+                self.__losing_pos_period_lengths_list = np.append(
+                    self.__losing_pos_period_lengths_list, len(pos.returns_list)
                 )
 
             self.__mae_list = np.append(self.__mae_list, float(pos.mae))
@@ -452,10 +469,10 @@ class Metrics:
             self.__pct_wins = 0
         else:
             self.__pct_wins = len(self.__profitable_pos_list) / len(self.__positions) * 100
-        if len(self.__loosing_pos_list) == 0:
+        if len(self.__losing_pos_list) == 0:
             self.__pct_losses = 0
         else:
-            self.__pct_losses = len(self.__loosing_pos_list) / len(self.__positions) * 100
+            self.__pct_losses = len(self.__losing_pos_list) / len(self.__positions) * 100
         self.__mean_profit_loss = np.mean(self.__profit_loss_list)
         self.__median_profit_loss = np.median(self.__profit_loss_list)
         self.__std_profit_loss = np.std(self.__profit_loss_list)
@@ -470,9 +487,9 @@ class Metrics:
             self.__mean_positive_pos = np.nan
             self.__median_positive_pos = np.nan
         
-        if len(self.__loosing_pos_list) > 0:
-            self.__mean_negative_pos = np.mean(self.__loosing_pos_list)
-            self.__median_negative_pos = np.median(self.__loosing_pos_list)
+        if len(self.__losing_pos_list) > 0:
+            self.__mean_negative_pos = np.mean(self.__losing_pos_list)
+            self.__median_negative_pos = np.median(self.__losing_pos_list)
         else: 
             self.__mean_negative_pos = np.nan
             self.__median_negative_pos = np.nan

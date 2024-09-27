@@ -42,6 +42,8 @@ services:
       - ${MDB_SERVICE}
       - ${STONKINATOR_API_SERVICE}
     build: ./stonkinator
+    ports:
+      - 8888:8888
     volumes:
       - ./stonkinator:/app
 

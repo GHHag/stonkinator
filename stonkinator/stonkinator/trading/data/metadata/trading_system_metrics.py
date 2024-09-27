@@ -27,6 +27,9 @@ class TradingSystemMetrics:
     __MAX_DRAWDOWN = 'max_drawdown_(%)'
     __ROMAD = 'romad'
     __CAGR = 'cagr_(%)'
+    __AVG_PERIODS_IN_POSITIONS = 'avg_periods_in_positions'
+    __AVG_PERIODS_IN_WINNING_POSITIONS = 'avg_periods_in_winning_positions'
+    __AVG_PERIODS_IN_LOSING_POSITIONS = 'avg_periods_in_losing_positions'
 
     @classproperty
     def SYMBOL(cls):
@@ -123,6 +126,18 @@ class TradingSystemMetrics:
     @classproperty
     def CAGR(cls):
         return cls.__CAGR
+
+    @classproperty
+    def AVG_PERIODS_IN_POSITIONS(cls):
+        return cls.__AVG_PERIODS_IN_POSITIONS
+
+    @classproperty
+    def AVG_PERIODS_IN_WINNING_POSITIONS(cls):
+        return cls.__AVG_PERIODS_IN_WINNING_POSITIONS
+
+    @classproperty
+    def AVG_PERIODS_IN_LOSING_POSITIONS(cls):
+        return cls.__AVG_PERIODS_IN_LOSING_POSITIONS
 
     @classproperty
     def cls_attrs(cls):

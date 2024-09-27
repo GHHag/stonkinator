@@ -14,7 +14,8 @@ from trading.trading_system.trading_session import TradingSession, BacktestTradi
 from trading.signal_events.signal_handler import SignalHandler
 from trading.utils.monte_carlo_functions import monte_carlo_simulate_returns, \
     monte_carlo_simulation_summary_data
-from trading.metrics.metrics_summary_plot import returns_distribution_plot
+from trading.metrics.metrics_summary_plot import returns_distribution_plot, \
+    composite_system_metrics_summary_plot
 
 from persistance.persistance_meta_classes.trading_systems_persister import TradingSystemsPersisterBase
 
@@ -297,8 +298,11 @@ class TradingSystem:
                         (full_mfe_list, pos_manager.metrics.mfe_list), axis=0                    
                     )
 
-        if print_data:
+        if print_data == True:
             print('\nSystem performance summary: \n', metrics_df.to_string())
+
+        if plot_performance_summary == True:
+            composite_system_metrics_summary_plot(metrics_df)
 
         if run_monte_carlo_sims:
             print(
@@ -311,7 +315,8 @@ class TradingSystem:
         if system_analysis_to_csv_path and system_analysis_to_csv_path.endswith('.csv'):
             metrics_df.to_csv(system_analysis_to_csv_path)
 
-        if print_data: print(signal_handler)
+        if print_data == True: 
+            print(signal_handler)
 
         if write_signals_to_file_path:
             signal_handler.write_to_csv(write_signals_to_file_path, self.__system_name)
@@ -471,7 +476,8 @@ class TradingSystem:
                     json_format=True
                 )
 
-        if print_data: print(signal_handler)
+        if print_data == True: 
+            print(signal_handler)
 
         if write_signals_to_file_path:
             signal_handler.write_to_csv(write_signals_to_file_path, self.__system_name)

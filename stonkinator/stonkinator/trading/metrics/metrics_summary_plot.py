@@ -204,6 +204,29 @@ def system_metrics_summary_plot(
         plt.close('all')
 
 
+def composite_system_metrics_summary_plot(df: pd.DataFrame):
+    df = df.replace([np.inf, -np.inf], np.nan)
+    columns_to_plot = [
+        TradingSystemMetrics.FINAL_CAPITAL, TradingSystemMetrics.PCT_WINS, 
+        TradingSystemMetrics.PROFIT_FACTOR, TradingSystemMetrics.EXPECTANCY,
+        TradingSystemMetrics.SHARPE_RATIO, TradingSystemMetrics.MAX_DRAWDOWN,
+        TradingSystemMetrics.AVG_PERIODS_IN_POSITIONS,
+        TradingSystemMetrics.AVG_PERIODS_IN_WINNING_POSITIONS, 
+        TradingSystemMetrics.AVG_PERIODS_IN_LOSING_POSITIONS
+    ]
+    df[columns_to_plot] = df[columns_to_plot].apply(lambda x: x.clip(upper=x.quantile(0.95)))
+    num_cols = 2
+    num_rows = int(len(columns_to_plot) / num_cols + 0.5)
+    plt.figure(figsize=(12, num_rows * 3))
+    for i, col in enumerate(columns_to_plot, 1):
+        plt.subplot(num_rows, num_cols, i)
+        plt.hist(df[col].dropna(), bins=int(np.sqrt(len(df[col]))), edgecolor='black')
+        plt.xlabel(col)
+        plt.ylabel('Frequency')
+    plt.tight_layout()
+    plt.show()
+
+
 def returns_distribution_plot(
     market_to_market_returns, mae, mfe, 
     plot_fig=False, save_fig_to_path=None
