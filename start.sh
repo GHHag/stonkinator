@@ -6,3 +6,6 @@ cp .env ./stonkinator/.env
 cp .env ./stonkinator_api/.env
 
 docker compose -f ./docker-compose.yml up -d
+
+# TOOD: Make watch a passable parameter to this script
+# docker compose -f ./docker-compose.yml watch

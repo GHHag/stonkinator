@@ -20,15 +20,15 @@ const POSITIONS_COLLECTION string = "positions"
 const SINGLE_SYMBOL_POS_COLLECTION string = "single_symbol_positions"
 
 func initMdb() *mongo.Database {
-	// connectionString := fmt.Sprintf(
-	// 	"%s://%s:%s@%s:%s",
-	// 	os.Getenv("MDB_SERVICE"),
-	// 	os.Getenv("MDB_USER"),
-	// 	os.Getenv("MDB_PASSWORD"),
-	// 	os.Getenv("MDB_SERVICE"),
-	// 	os.Getenv("MDB_PORT"),
-	// )
-	connectionString := fmt.Sprintf("%s", os.Getenv("ATLAS_MONGO_DB_URL"))
+	connectionString := fmt.Sprintf(
+		"%s://%s:%s@%s:%s",
+		os.Getenv("MDB_SERVICE"),
+		os.Getenv("MDB_USER"),
+		os.Getenv("MDB_PASSWORD"),
+		os.Getenv("MDB_SERVICE"),
+		os.Getenv("MDB_PORT"),
+	)
+	// connectionString := os.Getenv("ATLAS_MONGO_DB_URL")
 
 	clientOptions := options.Client().ApplyURI(connectionString)
 	client, err := mongo.Connect(context.Background(), clientOptions)
@@ -36,10 +36,5 @@ func initMdb() *mongo.Database {
 		panic(err)
 	}
 
-	// defer client.Disconnect(context.Background())
-
-	// Get DB name from a defined env var
-	// return client.Database("client_db")
-	mdb := client.Database("client_db")
-	return mdb
+	return client.Database(os.Getenv("CLIENT_DB"))
 }

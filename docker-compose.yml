@@ -33,7 +33,7 @@ services:
       watch:
         - action: rebuild
           files:
-            - ./app/*.go
+            - ./stonkinator_api/*.go
             - ./go.mod
             - ./go.sum
 
