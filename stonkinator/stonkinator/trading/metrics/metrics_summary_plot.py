@@ -204,7 +204,10 @@ def system_metrics_summary_plot(
         plt.close('all')
 
 
-def composite_system_metrics_summary_plot(df: pd.DataFrame):
+def composite_system_metrics_summary_plot(
+    df: pd.DataFrame, 
+    plot_fig=False, save_fig_to_path=None
+):
     df = df.replace([np.inf, -np.inf], np.nan)
     columns_to_plot = [
         TradingSystemMetrics.FINAL_CAPITAL, TradingSystemMetrics.PCT_WINS, 
@@ -223,8 +226,15 @@ def composite_system_metrics_summary_plot(df: pd.DataFrame):
         plt.hist(df[col].dropna(), bins=int(np.sqrt(len(df[col]))), edgecolor='black')
         plt.xlabel(col)
         plt.ylabel('Frequency')
+
     plt.tight_layout()
-    plt.show()
+
+    if save_fig_to_path:
+        plt.savefig(f'{save_fig_to_path}_composite_summary.jpg')
+    if plot_fig == True:
+        plt.show()
+    else:
+        plt.close('all')
 
 
 def returns_distribution_plot(
@@ -287,7 +297,7 @@ def returns_distribution_plot(
 
     if save_fig_to_path:
         plt.savefig(save_fig_to_path + '_returns_distribution' + '.jpg')
-    if plot_fig:
+    if plot_fig == True:
         plt.show()
     else:
         plt.close('all')

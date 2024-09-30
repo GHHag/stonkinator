@@ -1,5 +1,4 @@
 from abc import ABCMeta, abstractmethod
-from datetime import datetime
 from decimal import Decimal
 
 from trading.position.position import Position
@@ -48,16 +47,16 @@ class OrderBase(metaclass=ABCMeta):
 
 class Order(OrderBase):
 
-    def __init__(self, action, dt, direction):
-        if action == MarketState.ENTRY.value and direction is None:
+    def __init__(self, action: MarketState, dt, direction):
+        if action == MarketState.ENTRY and direction is None:
             raise ValueError(
                 'value of direction can not be None '
                 'if the given action is entry'
             )
-        self.__action: str = action
-        self.__created_dt: datetime = dt
-        self.__active: bool = True
-        self.__direction: str = direction
+        self.__action = action
+        self.__created_dt = dt
+        self.__active = True
+        self.__direction = direction
 
     @property
     def action(self):
@@ -83,7 +82,7 @@ class Order(OrderBase):
     def as_dict(self):
         order_dict = {
             'type': type(self).__name__,
-            'action': self.__action,
+            'action': self.__action.value,
             'created_dt': self.__created_dt,
             'active': self.__active
         }
@@ -114,26 +113,26 @@ class Order(OrderBase):
 
 class MarketOrder(Order):
 
-    def __init__(self, action, dt, direction=None):
+    def __init__(self, action: MarketState, dt, direction=None):
         super().__init__(action, dt, direction)
 
 
 class LimitOrder(Order):
 
     def __init__(
-        self, action, dt, price, max_duration,
+        self, action: MarketState, dt, price, max_duration,
         direction=None
     ):
         super().__init__(action, dt, direction)
-        self.__price: float = price
-        self.__max_duration: int = max_duration
-        self.__duration: int = 0
+        self.__price = price
+        self.__max_duration = max_duration
+        self.__duration = 0
 
     @property
     def as_dict(self):
         order_dict = {
             'type': type(self).__name__,
-            'action': self.action,
+            'action': self.action.value,
             'created_dt': self.created_dt,
             'active': self.active,
             'price': self.__price,

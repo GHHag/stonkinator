@@ -63,6 +63,7 @@ class TradingSystem:
         market_state_null_default=False,
         plot_performance_summary=False, save_summary_plot_to_path: str=None, 
         system_analysis_to_csv_path: str=None,
+        composite_summary_plot_to_path: str=None,
         plot_returns_distribution=False, save_returns_distribution_plot_to_path: str=None,
         run_monte_carlo_sims=False, num_of_monte_carlo_sims=2500, monte_carlo_data_amount=0.4,
         plot_monte_carlo=False, print_monte_carlo_df=False, 
@@ -109,6 +110,9 @@ class TradingSystem:
         :param system_analysis_to_csv_path:
             Keyword arg 'None/str' : Provide a file path as a str to save the
             system analysis Pandas DataFrame as a .csv file. Default value=None
+        :param composite_summary_plot_to_path:
+            Keyword arg 'None/str' : Provide a file path as a str to save the
+            composite trading system summary plot as a file. Default value=None
         :param plot_returns_distribution:
             Keyword arg 'bool' : True/False decides whether to plot charts with
             returns, MAE and MFE distributions for the system. Default value=False
@@ -301,8 +305,11 @@ class TradingSystem:
         if print_data == True:
             print('\nSystem performance summary: \n', metrics_df.to_string())
 
-        if plot_performance_summary == True:
-            composite_system_metrics_summary_plot(metrics_df)
+        composite_system_metrics_summary_plot(
+            metrics_df,
+            plot_fig=plot_performance_summary,
+            save_fig_to_path=composite_summary_plot_to_path
+        )
 
         if run_monte_carlo_sims:
             print(
@@ -425,7 +432,7 @@ class TradingSystem:
 
             if (
                 order and order.active == True and
-                order.action == MarketState.ENTRY.value and
+                order.action == MarketState.ENTRY and
                 order.created_dt == data.index[-1]
             ):
                 latest_position: Position = self.__systems_db.get_single_symbol_latest_position(

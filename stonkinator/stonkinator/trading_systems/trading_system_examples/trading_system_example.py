@@ -58,7 +58,7 @@ class TradingSystemExample(TradingSystemBase):
         )
         if entry_condition == True:
             order = LimitOrder(
-                MarketState.ENTRY.value, df.index[-1], df[Price.CLOSE].iloc[-1], 5,
+                MarketState.ENTRY, df.index[-1], df[Price.CLOSE].iloc[-1], 5,
                 direction=TradingSystemAttributes.LONG
             )
         return order
@@ -93,7 +93,7 @@ class TradingSystemExample(TradingSystemBase):
             df[Price.CLOSE].iloc[-1] <= min(df[Price.CLOSE].iloc[-exit_args[exit_period_param]:])
         )
         if exit_condition == True:
-            order = MarketOrder(MarketState.EXIT.value, df.index[-1])
+            order = MarketOrder(MarketState.EXIT, df.index[-1])
         return order
 
     @staticmethod
