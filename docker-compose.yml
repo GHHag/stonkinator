@@ -1,5 +1,3 @@
-version: "3"
-
 services:
   postgres:
     image: postgres:latest
@@ -8,7 +6,7 @@ services:
       - POSTGRES_PASSWORD=${PG_DB_PASSWORD}
       - POSTGRES_DB=${PG_DB_NAME}
     volumes:
-      - ./stonkinator_api/db_dumps/securities_db.sql:/docker-entrypoint-initdb.d/datadump.sql
+      - ./stonkinator_api/db_dumps/stonkinator_db.sql:/docker-entrypoint-initdb.d/datadump.sql
       - securities_data:/var/lib/postgresql/data
     ports:
       - ${PG_DB_PORT_EXP}:${PG_DB_PORT}
