@@ -31,7 +31,6 @@ type PriceInsertResponse struct {
 
 type PriceList []Price
 
-// Is this used at all? Can't find anywhere that's using it, is it implicitly used?
 func (pl *PriceList) UnmarshalJSON(data []byte) error {
 	var auxSlice []struct {
 		InstrumentId string  `json:"instrument_id,omitempty"`
@@ -51,7 +50,7 @@ func (pl *PriceList) UnmarshalJSON(data []byte) error {
 
 	for _, aux := range auxSlice {
 		strippedDate := aux.DateTime[:10]
-		date, err := time.Parse("2006-01-02", strippedDate)
+		date, err := time.Parse(time.RFC3339, strippedDate)
 		if err != nil {
 			return err
 		}
