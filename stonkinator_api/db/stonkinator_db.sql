@@ -1,50 +1,42 @@
-CREATE TABLE IF NOT EXISTS public.exchanges
+CREATE TABLE IF NOT EXISTS exchanges
 (
     id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
     exchange_name VARCHAR(50) UNIQUE NOT NULL,
     currency VARCHAR(50)
 );
 
-ALTER TABLE IF EXISTS public.exchanges
-    OWNER to postgres;
-
 
 ---------------------------------------------------------------------------
 
 
-CREATE TABLE IF NOT EXISTS public.instruments
+CREATE TABLE IF NOT EXISTS instruments
 (
     id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
     exchange_id uuid,
     instrument_name VARCHAR(100) NOT NULL,
-    symbol VARCHAR(20) UNIQUE NOT NULL, --create index on symbol col? partition instruments + price_data table based on first letter of symbol?
+    symbol VARCHAR(20) UNIQUE NOT NULL,
     industry VARCHAR(100),
     CONSTRAINT exchange_id_fk FOREIGN KEY(exchange_id) REFERENCES exchanges(id)
 );
 
-ALTER TABLE IF EXISTS public.instruments
-    OWNER to postgres;
-
+CREATE INDEX idx_symbol ON instruments (UPPER(symbol));
 
 ---------------------------------------------------------------------------
 
 
-CREATE TABLE IF NOT EXISTS public.market_lists
+CREATE TABLE IF NOT EXISTS market_lists
 (
     id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
     exchange_id uuid,
     market_list VARCHAR(100) UNIQUE NOT NULL,
-    CONSTRAINT exchange_id_fk FOREIGN KEY(exchange_id) REFERENCES exchanges(id) -- will this conflict due to conflicting fk name?
+    CONSTRAINT exchange_id_fk FOREIGN KEY(exchange_id) REFERENCES exchanges(id)
 );
-
-ALTER TABLE IF EXISTS public.market_lists
-    OWNER to postgres;
 
 
 ---------------------------------------------------------------------------
 
 
-CREATE TABLE IF NOT EXISTS public.market_list_instruments
+CREATE TABLE IF NOT EXISTS market_list_instruments
 (
     id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
     instrument_id uuid,
@@ -53,14 +45,11 @@ CREATE TABLE IF NOT EXISTS public.market_list_instruments
     CONSTRAINT market_list_id_fk FOREIGN KEY(market_list_id) REFERENCES market_lists(id)
 );
 
-ALTER TABLE IF EXISTS public.market_lists_instruments
-    OWNER to postgres;
-
 
 ---------------------------------------------------------------------------
 
 
-CREATE TABLE IF NOT EXISTS public.price_data
+CREATE TABLE IF NOT EXISTS price_data
 (
     id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
     instrument_id uuid,
@@ -73,21 +62,16 @@ CREATE TABLE IF NOT EXISTS public.price_data
     CONSTRAINT instrument_id_fk FOREIGN KEY(instrument_id) REFERENCES instruments(id)
 );
 
-ALTER TABLE IF EXISTS public.price_data
-    OWNER to postgres;
-
+CREATE INDEX idx_price_data ON price_data (instrument_id, date_time);
 
 ---------------------------------------------------------------------------
 
 
-CREATE TABLE IF NOT EXISTS public.user_roles
+CREATE TABLE IF NOT EXISTS user_roles
 (
     id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
     role_name VARCHAR(100) UNIQUE NOT NULL
 );
-
-ALTER TABLE IF EXISTS public.user_roles
-    OWNER to postgres;
 
 INSERT INTO public.user_roles(role_name)
 VALUES('admin'), ('user');
@@ -96,7 +80,7 @@ VALUES('admin'), ('user');
 ---------------------------------------------------------------------------
 
 
-CREATE TABLE IF NOT EXISTS public.users
+CREATE TABLE IF NOT EXISTS users
 (
     id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
     user_role_id uuid,
@@ -105,14 +89,11 @@ CREATE TABLE IF NOT EXISTS public.users
     CONSTRAINT user_role_id_fk FOREIGN KEY(user_role_id) REFERENCES user_roles(id)
 );
 
-ALTER TABLE IF EXISTS public.users
-    OWNER to postgres;
-
 
 ---------------------------------------------------------------------------
 
 
-CREATE TABLE IF NOT EXISTS public.watch_lists
+CREATE TABLE IF NOT EXISTS watch_lists
 (
     id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
     user_id uuid,
@@ -120,14 +101,11 @@ CREATE TABLE IF NOT EXISTS public.watch_lists
     CONSTRAINT user_id_fk FOREIGN KEY(user_id) REFERENCES users(id)
 );
 
-ALTER TABLE IF EXISTS public.watch_lists
-    OWNER to postgres;
-
 
 ---------------------------------------------------------------------------
 
 
-CREATE TABLE IF NOT EXISTS public.watch_list_instruments
+CREATE TABLE IF NOT EXISTS watch_list_instruments
 (
     id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
     instrument_id uuid,
@@ -136,27 +114,21 @@ CREATE TABLE IF NOT EXISTS public.watch_list_instruments
     CONSTRAINT watch_list_id_fk FOREIGN KEY(watch_list_id) REFERENCES watch_lists(id)
 );
 
-ALTER TABLE IF EXISTS public.watch_lists_instruments
-    OWNER to postgres;
-
 
 ---------------------------------------------------------------------------
 
 
-CREATE TABLE IF NOT EXISTS public.trading_systems
+CREATE TABLE IF NOT EXISTS trading_systems
 (
     id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
     trading_system_name VARCHAR(100) UNIQUE NOT NULL
 );
 
-ALTER TABLE IF EXISTS public.trading_systems
-    OWNER to postgres;
-
 
 ---------------------------------------------------------------------------
 
 
-CREATE TABLE IF NOT EXISTS public.trading_system_subscriptions
+CREATE TABLE IF NOT EXISTS trading_system_subscriptions
 (
     id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
     user_id uuid,
@@ -165,33 +137,27 @@ CREATE TABLE IF NOT EXISTS public.trading_system_subscriptions
     CONSTRAINT trading_system_id_fk FOREIGN KEY(trading_system_id) REFERENCES trading_systems(id)
 );
 
-ALTER TABLE IF EXISTS public.trading_system_subscriptions
-    OWNER to postgres;
-
 
 ---------------------------------------------------------------------------
 
 
-CREATE TABLE IF NOT EXISTS public.trading_system_positions
+CREATE TABLE IF NOT EXISTS trading_system_positions
 (
     id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
     instrument_id uuid,
     trading_system_id uuid,
-    date_time datetime NOT NULL,
+    date_time TIMESTAMP NOT NULL,
     --position_data_json json, what datatype to use for json format?
     --position_data_binary binary, what datatype to use for serialized format?
     CONSTRAINT instrument_id_fk FOREIGN KEY(instrument_id) REFERENCES instruments(id),
     CONSTRAINT trading_system_id_fk FOREIGN KEY(trading_system_id) REFERENCES trading_systems(id)
 );
 
-ALTER TABLE IF EXISTS public.trading_system_positions
-    OWNER to postgres;
-
 
 ---------------------------------------------------------------------------
 
 
-CREATE TABLE IF NOT EXISTS public.trading_system_market_states
+CREATE TABLE IF NOT EXISTS trading_system_market_states
 (
     id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
     instrument_id uuid,
@@ -200,13 +166,3 @@ CREATE TABLE IF NOT EXISTS public.trading_system_market_states
     CONSTRAINT instrument_id_fk FOREIGN KEY(instrument_id) REFERENCES instruments(id),
     CONSTRAINT trading_system_id_fk FOREIGN KEY(trading_system_id) REFERENCES trading_systems(id)
 );
-
-ALTER TABLE IF EXISTS public.trading_system_market_states
-    OWNER to postgres;
-
-
----------------------------------------------------------------------------
-
-
-CREATE INDEX date_time_index ON public.price_data (date_time);
-CREATE INDEX position_date_time_index ON public.trading_system_positions (date_time);
