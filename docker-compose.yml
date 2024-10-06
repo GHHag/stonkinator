@@ -6,7 +6,7 @@ services:
       - POSTGRES_PASSWORD=${PG_DB_PASSWORD}
       - POSTGRES_DB=${PG_DB_NAME}
     volumes:
-      - ./stonkinator_api/db_dumps/stonkinator_db.sql:/docker-entrypoint-initdb.d/datadump.sql
+      - ./stonkinator_api/db_dumps/stonkinator.sql:/docker-entrypoint-initdb.d/datadump.sql
       - securities_data:/var/lib/postgresql/data
     ports:
       - ${PG_DB_PORT_EXP}:${PG_DB_PORT}
@@ -53,6 +53,14 @@ services:
       - ${FRONTEND_PORT}:${FRONTEND_PORT}
     volumes:
       - ./stonkinator_frontend/src:/app/src
+
+  alphascrape:
+    depends_on:
+      - ${MDB_SERVICE}
+      - ${STONKINATOR_API_SERVICE}
+    build: ./alphascrape
+    volumes:
+      - ./alphascrape:/app
 
 volumes:
   securities_data:
