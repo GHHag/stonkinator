@@ -135,7 +135,7 @@ class TradingSession:
                     TradingSystemAttributes.SIGNAL_DT: dataframe.index[-1],
                     TradingSystemAttributes.SYMBOL: self.__symbol, 
                     TradingSystemAttributes.ORDER: order.as_dict if order else None,
-                    TradingSystemAttributes.PERIODS_IN_POSITION: len(position.returns_list), 
+                    TradingSystemAttributes.PERIODS_IN_POSITION: position.periods_in_position, 
                     TradingSystemAttributes.UNREALISED_RETURN: position.unrealised_return,
                     TradingSystemAttributes.MARKET_STATE: MarketState.ACTIVE.value
                 }
@@ -149,7 +149,7 @@ class TradingSession:
                         TradingSystemAttributes.SIGNAL_DT: dataframe.index[-1],
                         TradingSystemAttributes.SYMBOL: self.__symbol, 
                         TradingSystemAttributes.ORDER: order.as_dict,
-                        TradingSystemAttributes.PERIODS_IN_POSITION: len(position.returns_list),
+                        TradingSystemAttributes.PERIODS_IN_POSITION: position.periods_in_position,
                         TradingSystemAttributes.UNREALISED_RETURN: position.unrealised_return,
                         TradingSystemAttributes.MARKET_STATE: MarketState.EXIT.value
                     }
@@ -306,12 +306,12 @@ class BacktestTradingSession:
                     if plot_positions:
                         if save_position_figs_path is not None:
                             position_figs_path = save_position_figs_path + (
-                                fr'\{self.__dataframe.iloc[(idx - len(position.returns_list))].Date.strftime("%Y-%m-%d")}.jpg'
+                                fr'\{self.__dataframe.iloc[(idx - position.periods_in_position)].Date.strftime("%Y-%m-%d")}.jpg'
                             )
                         else:
                             position_figs_path = save_position_figs_path
                         candlestick_plot(
-                            self.__dataframe.iloc[(idx-len(position.returns_list)-20):(idx+15)],
+                            self.__dataframe.iloc[(idx-position.periods_in_position-20):(idx+15)],
                             position.entry_dt, position.entry_price, 
                             self.__dataframe.index[idx], 
                             position.exit_price,
@@ -367,7 +367,7 @@ class BacktestTradingSession:
                         TradingSystemAttributes.SIGNAL_DT: self.__dataframe.index[-1], 
                         TradingSystemAttributes.SYMBOL: self.__symbol, 
                         TradingSystemAttributes.ORDER: order.as_dict if order else None,
-                        TradingSystemAttributes.PERIODS_IN_POSITION: len(position.returns_list), 
+                        TradingSystemAttributes.PERIODS_IN_POSITION: position.periods_in_position, 
                         TradingSystemAttributes.UNREALISED_RETURN: position.unrealised_return,
                         TradingSystemAttributes.MARKET_STATE: MarketState.ACTIVE.value
                     }
@@ -381,7 +381,7 @@ class BacktestTradingSession:
                             TradingSystemAttributes.SIGNAL_DT: self.__dataframe.index[-1], 
                             TradingSystemAttributes.SYMBOL: self.__symbol, 
                             TradingSystemAttributes.ORDER: order.as_dict,
-                            TradingSystemAttributes.PERIODS_IN_POSITION: len(position.returns_list),
+                            TradingSystemAttributes.PERIODS_IN_POSITION: position.periods_in_position,
                             TradingSystemAttributes.UNREALISED_RETURN: position.unrealised_return,
                             TradingSystemAttributes.MARKET_STATE: MarketState.EXIT.value
                         }

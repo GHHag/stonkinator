@@ -94,6 +94,10 @@ class Position:
         return self.__returns_list
 
     @property
+    def periods_in_position(self):
+        return len(self.__returns_list)
+
+    @property
     def unrealised_return(self):
         return self.__unrealised_return
 

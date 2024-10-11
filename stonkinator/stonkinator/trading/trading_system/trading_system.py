@@ -467,11 +467,11 @@ class TradingSystem:
                 insert_data_to_db_bool == True
             ):
                 self.__systems_db.insert_single_symbol_position(
-                    self.__system_name, instrument, position, len(position.returns_list),
+                    self.__system_name, instrument, position, position.periods_in_position,
                     serialized_format=True
                 )
                 self.__client_db.insert_single_symbol_position(
-                    self.__system_name, instrument, position, len(position.returns_list),
+                    self.__system_name, instrument, position, position.periods_in_position,
                     json_format=True
                 )
                 self.__systems_db.insert_position(

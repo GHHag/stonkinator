@@ -223,8 +223,7 @@ class Metrics:
             'float'
         """
 
-        initial_value = self.__equity_list[0]
-        final_value = self.__equity_list[-1]
+        initial_value, *_, final_value = self.__equity_list
         num_of_periods = self.__num_testing_periods
         years = num_of_periods / yearly_periods
 
