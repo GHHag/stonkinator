@@ -139,16 +139,16 @@ class TradingSystemExample(TradingSystemBase):
                 del data_dict[symbol]
             else:
                 df_benchmark[Price.DT] = pd.to_datetime(df_benchmark[Price.DT])
-                data_dict[symbol][Price.DT] = pd.to_datetime(data_dict[symbol][Price.DT])
+                data[Price.DT] = pd.to_datetime(data[Price.DT])
                 
-                data_dict[symbol] = pd.merge_ordered(data, df_benchmark, on=Price.DT, how='inner')
-                data_dict[symbol] = data_dict[symbol].ffill()
-                data_dict[symbol] = data_dict[symbol].set_index(Price.DT)
+                data = pd.merge_ordered(data, df_benchmark, on=Price.DT, how='inner')
+                data = data.ffill()
+                data = data.set_index(Price.DT)
 
                 # apply indicators/features to dataframe
-                data_dict[symbol]['SMA'] = data_dict[symbol][Price.CLOSE].rolling(20).mean()
+                data['SMA'] = data[Price.CLOSE].rolling(20).mean()
 
-                data_dict[symbol] = data_dict[symbol].dropna()
+                data_dict[symbol] = data.dropna()
         return data_dict, None
 
     @classmethod

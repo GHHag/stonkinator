@@ -297,23 +297,23 @@ class MLTradingSystemExample(MLTradingSystemBase):
                 del data_dict[symbol]
             else:
                 df_benchmark[Price.DT] = pd.to_datetime(df_benchmark[Price.DT])
-                data_dict[symbol][Price.DT] = pd.to_datetime(data_dict[symbol][Price.DT])
+                data[Price.DT] = pd.to_datetime(data[Price.DT])
 
-                data_dict[symbol] = pd.merge_ordered(data, df_benchmark, on=Price.DT, how='inner')
-                data_dict[symbol] = data_dict[symbol].ffill()
-                data_dict[symbol] = data_dict[symbol].set_index(Price.DT)
+                data = pd.merge_ordered(data, df_benchmark, on=Price.DT, how='inner')
+                data = data.ffill()
+                data = data.set_index(Price.DT)
 
-                data_dict[symbol][Price.VOLUME] = data_dict[symbol][Price.VOLUME].astype(int)
+                data[Price.VOLUME] = data[Price.VOLUME].astype(int)
 
                 # apply indicators/features to dataframe
-                data_dict[symbol]['Pct_chg'] = data_dict[symbol][Price.CLOSE].pct_change().mul(100)
-                data_dict[symbol]['Lag1'] = data_dict[symbol]['Pct_chg'].shift(1)
-                data_dict[symbol]['Lag2'] = data_dict[symbol]['Pct_chg'].shift(2)
-                data_dict[symbol]['Lag5'] = data_dict[symbol]['Pct_chg'].shift(5)
+                data['Pct_chg'] = data[Price.CLOSE].pct_change().mul(100)
+                data['Lag1'] = data['Pct_chg'].shift(1)
+                data['Lag2'] = data['Pct_chg'].shift(2)
+                data['Lag5'] = data['Pct_chg'].shift(5)
 
-                data_dict[symbol] = data_dict[symbol].dropna()
+                data_dict[symbol] = data.dropna()
 
-                pred_features_data_dict[symbol] = data_dict[symbol][['Lag1', 'Lag2', 'Lag5', Price.VOLUME]].to_numpy()
+                pred_features_data_dict[symbol] = data[['Lag1', 'Lag2', 'Lag5', Price.VOLUME]].to_numpy()
         return data_dict, pred_features_data_dict 
 
     @classmethod
