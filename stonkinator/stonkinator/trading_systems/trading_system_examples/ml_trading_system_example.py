@@ -4,13 +4,11 @@ from typing import Callable
 
 import pandas as pd
 import numpy as np
-from sklearn.linear_model import LinearRegression
-from sklearn.tree import DecisionTreeClassifier, DecisionTreeRegressor
+from sklearn.tree import DecisionTreeClassifier
 from sklearn.model_selection import TimeSeriesSplit
 from sklearn.preprocessing import StandardScaler
 from sklearn.pipeline import Pipeline, make_pipeline
-from sklearn.metrics import mean_squared_error, r2_score, classification_report, \
-    confusion_matrix, precision_score
+from sklearn.metrics import classification_report, confusion_matrix, precision_score
 
 from trading.data.metadata.trading_system_attributes import TradingSystemAttributes, classproperty
 from trading.data.metadata.market_state_enum import MarketState
@@ -71,7 +69,12 @@ class MLTradingSystemExample(MLTradingSystemBase):
             print(symbol)
 
             # shifted dataframe column
-            df['Return_shifted'] = df[target_col].pct_change(periods=target_period).shift(-target_period).mul(100)
+            df['Return_shifted'] = (
+                df[target_col]
+                .pct_change(periods=target_period)
+                .shift(-target_period)
+                .mul(100)
+            )
             df['Target'] = df['Return_shifted'] > 0
             df = df.drop(['Return_shifted'], axis=1)
             df = df.dropna()
@@ -99,10 +102,10 @@ class MLTradingSystemExample(MLTradingSystemBase):
             # split data into train and test data sets
             X = X_df.to_numpy()
             y = y_df.to_numpy()
-            """X_train = X[:int(X.shape[0]*0.7)]
-            X_test = X[int(X.shape[0]*0.7):]
-            y_train = y[:int(X.shape[0]*0.7)]
-            y_test = y[int(X.shape[0]*0.7):]"""
+            # X_train = X[:int(X.shape[0]*0.7)]
+            # y_train = y[:int(X.shape[0]*0.7)]
+            # X_test = X[int(X.shape[0]*0.7):]
+            # y_test = y[int(X.shape[0]*0.7):]
             ts_split = TimeSeriesSplit(n_splits=3)
 
             optimizable_params1 = np.array([0])
@@ -153,21 +156,28 @@ class MLTradingSystemExample(MLTradingSystemBase):
                         models_data_dict[symbol] = top_model
                     else:
                         models_data_dict[symbol] = pd.concat([models_data_dict[symbol], top_model])
-            except ValueError:
+            except ValueError as e:
                 print('ValueError')
+                print(symbol)
                 print(len(df))
+                print(e)
                 input('Enter to proceed')
         return models_data_dict
 
     @staticmethod
     def create_inference_models(
-        data_dict: dict[str, pd.DataFrame],
+        data_dict: dict[str, pd.DataFrame], *args,
         target_col=Price.CLOSE, target_period=1
     ):
         models_dict = {}
         for symbol, df in data_dict.items():
             # classification model target
-            df['Target_col_shifted'] = df[target_col].pct_change(periods=target_period).shift(-target_period).mul(100)
+            df['Target_col_shifted'] = (
+                df[target_col]
+                .pct_change(periods=target_period)
+                .shift(-target_period)
+                .mul(100)
+            )
             df['Target'] = df['Target_col_shifted'] > 0
             df = df.drop(['Target_col_shifted'], axis=1)
             df = df.dropna()
@@ -203,10 +213,11 @@ class MLTradingSystemExample(MLTradingSystemBase):
                 model.fit(X, y)
                 models_dict[symbol] = model
             # TODO: Handle this error in a better way, log error message and remove input call
-            except ValueError:
+            except ValueError as e:
                 print('ValueError')
                 print(symbol)
                 print(len(df))
+                print(e)
                 input('Enter to proceed')
         return models_dict
 
