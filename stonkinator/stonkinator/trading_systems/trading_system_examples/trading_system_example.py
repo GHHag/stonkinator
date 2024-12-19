@@ -99,7 +99,7 @@ class TradingSystemExample(TradingSystemBase):
     @staticmethod
     def preprocess_data(
         symbols_list, benchmark_symbol,
-        get_data_function: Callable[[str, dt.datetime, dt.datetime], dict[str, pd.DataFrame]],
+        get_data_function: Callable[[str, dt.datetime, dt.datetime], tuple[bytes, int]],
         entry_args: dict, exit_args: dict, start_dt, end_dt,
         ts_processor: TradingSystemProcessor=None
     ):

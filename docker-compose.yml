@@ -1,10 +1,11 @@
 services:
+
   postgres:
     image: postgres:latest
     environment:
-      - POSTGRES_USER=${PG_DB_USER}
-      - POSTGRES_PASSWORD=${PG_DB_PASSWORD}
-      - POSTGRES_DB=${PG_DB_NAME}
+      POSTGRES_USER: ${PG_DB_USER}
+      POSTGRES_PASSWORD: ${PG_DB_PASSWORD}
+      POSTGRES_DB: ${PG_DB_NAME}
     volumes:
       - ./stonkinator_api/db_dumps/stonkinator.sql:/docker-entrypoint-initdb.d/datadump.sql
       - securities_data:/var/lib/postgresql/data
@@ -14,8 +15,8 @@ services:
   mongodb:
     image: mongo
     environment:
-      - MONGO_INITDB_ROOT_USERNAME=${MDB_USER}
-      - MONGO_INITDB_ROOT_PASSWORD=${MDB_PASSWORD}
+      MONGO_INITDB_ROOT_USERNAME: ${MDB_USER}
+      MONGO_INITDB_ROOT_PASSWORD: ${MDB_PASSWORD}
     volumes:
       - stonkinator_data:/data/db
     ports:

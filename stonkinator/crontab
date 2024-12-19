@@ -1,1 +1,3 @@
 0 0 * * * root cd /app && ./run.sh
+#0 0 * * * root cd /app && ./run.sh --run-dal
+#0 * * * * root cd /app && ./run.sh --full-run --retain-history --print-data

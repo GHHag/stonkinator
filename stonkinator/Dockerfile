@@ -8,8 +8,6 @@ COPY . /app
 
 RUN cd /app/stonkinator && pip install -e .
 
-RUN pip install jupyter
-
 COPY crontab /etc/cron.d/crontab
 
 RUN crontab /etc/cron.d/crontab

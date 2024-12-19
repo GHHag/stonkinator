@@ -28,8 +28,8 @@ def apply_percent_rank(df, period_param, col_name='close', suffix=''):
             df_col_list.sort()
             try:
                 period_rank = df_col_list.index(df[col_name].iloc[i])
-            except ValueError:
-                print('ValueError')
+            except ValueError as e:
+                print(f'ValueError {e}')
                 period_rank = 0
             pct_rank.append(period_rank / period_param)
 

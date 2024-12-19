@@ -14,14 +14,14 @@ setup(
     packages=find_packages(),
     include_package_data=True,
     install_requires=[
-        'pandas==2.2.0', 
-        'numpy==1.26.4', 
-        'matplotlib==3.8.2', 
+        'pandas==2.2.0',
+        'numpy==1.26.4',
+        'matplotlib==3.8.2',
         'mplfinance==0.12.10b0',
         'scikit-learn==1.4.0',
         'sterunets @ git+https://github.com/GHHag/sterunets.git',
         'pymongo==4.6.1',
-        'yahooquery==2.3.7', 
+        'yahooquery==2.3.7',
         'requests==2.31.0'
     ]
 )

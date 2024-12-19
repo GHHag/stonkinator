@@ -17,9 +17,9 @@ MDB_PASSWORD = 'rootpassword'
 MDB_PORT = 27017
 MDB_PORT_EXP = 27018
 ATLAS_MONGO_DB_URL = 'mongodb+srv://. . .:. . .@. . ..rfnsm.mongodb.net/?retryWrites=true&w=majority'
-#LOCALHOST_MONGO_DB_URL='mongodb://localhost:27017/'
 #LOCALHOST_MONGO_DB_URL = 'mongodb://root:rootpassword@mongodb:27017/'
 LOCALHOST_MONGO_DB_URL = f'{MDB_SERVICE}://{MDB_USER}:{MDB_PASSWORD}@{MDB_SERVICE}:{MDB_PORT}/'
+LOCALHOST_MONGO_DB_URL_EXP = f'{MDB_SERVICE}://{MDB_USER}:{MDB_PASSWORD}@{"0.0.0.0"}:{MDB_PORT_EXP}/'
 SYSTEMS_DB = 'systems_db'
 INSTRUMENTS_DB = 'instruments_db'
 TIME_SERIES_DB = 'time_series_db'
@@ -28,7 +28,7 @@ CLIENT_DB = 'client_db'
 # api
 API_URL = '/api'
 STONKINATOR_API_PORT = 4001
-STONKINATOR_API_PORT_EXP = 4000
+STONKINATOR_API_PORT_EXP = 5800
 
 # securities db py dal
 API_HOST = STONKINATOR_API_SERVICE
