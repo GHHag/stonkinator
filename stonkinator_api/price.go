@@ -49,8 +49,7 @@ func (pl *PriceList) UnmarshalJSON(data []byte) error {
 	}
 
 	for _, aux := range auxSlice {
-		strippedDate := aux.DateTime[:10]
-		date, err := time.Parse(time.RFC3339, strippedDate)
+		date, err := time.Parse("2006-01-02", aux.DateTime[:10])
 		if err != nil {
 			return err
 		}
@@ -148,7 +147,7 @@ func insertPriceData(w http.ResponseWriter, r *http.Request, pgPool *pgxpool.Poo
 
 	var priceData PriceList
 	if err := json.NewDecoder(r.Body).Decode(&priceData); err != nil {
-		http.Error(w, "Invalid request", http.StatusBadRequest)
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 

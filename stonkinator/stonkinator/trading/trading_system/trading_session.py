@@ -350,7 +350,7 @@ class BacktestTradingSession:
                 self.__signal_handler.handle_entry_signal(
                     self.__symbol, {
                         TradingSystemAttributes.SIGNAL_DT: self.__dataframe.index[-1],
-                        self.__market_state_column: MarketState.NULL.value
+                        TradingSystemAttributes.MARKET_STATE: MarketState.NULL.value
                     }
                 )
                 return
