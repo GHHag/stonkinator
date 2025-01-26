@@ -10,10 +10,10 @@ from trading.position.position_manager import PositionManager
 from trading.utils.metric_functions import calculate_cagr
 from trading.utils.monte_carlo_functions import monte_carlo_simulations_plot
 
-from trading_systems.position_sizer.position_sizer import IPositionSizer
+from trading_systems.position_sizer.position_sizer import PositionSizer
 
 
-class SafeFPositionSizer(IPositionSizer):
+class SafeFPositionSizer(PositionSizer):
 
     __POSITION_SIZE_METRIC_STR = 'safe-f'
     __CAPITAL_FRACTION = 'capital_fraction'

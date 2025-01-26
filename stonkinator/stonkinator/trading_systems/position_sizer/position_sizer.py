@@ -3,7 +3,7 @@ from abc import ABC, abstractmethod
 from trading.position.position import Position
 
 
-class IPositionSizer(ABC):
+class PositionSizer(ABC):
 
     @property
     @abstractmethod

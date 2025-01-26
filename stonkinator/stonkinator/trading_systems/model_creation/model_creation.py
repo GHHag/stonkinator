@@ -7,8 +7,6 @@ from sklearn.model_selection import TimeSeriesSplit
 from sklearn.pipeline import Pipeline
 from sklearn.metrics import classification_report, confusion_matrix, precision_score, roc_auc_score
 
-from trading.data.metadata.price import Price
-
 
 class SKModel(Protocol):
     def fit(self, X, y, **kwargs): ...
@@ -35,25 +33,20 @@ def print_classification_model_metrics(estimator: SKModel, X_train, X_test, y_tr
     print('--------------------------------------------------------')
 
 
-def create_classification_backtest_models(
-    df: pd.DataFrame, selected_features: list[str], 
-    estimator_class: SKModel, param_grid: dict[str, np.array], *args,
-    target_col=Price.CLOSE, pipeline_args: tuple[tuple] | None=None, 
+def create_backtest_models(
+    df: pd.DataFrame, features: list[str], target_col: str,
+    model_class: SKModel, param_grid: dict[str, np.array], *args,
+    pipeline_args: tuple[tuple] | None=None, 
     optimization_metric_func: Callable=precision_score, verbose=False
-):
+) -> tuple[pd.DataFrame, list[dict]]:
     df_copy = df.copy()
-    df_copy = df_copy.sort_index()
 
-    X_df = df_copy[selected_features]
+    X_df = df_copy[features]
     y_df = df_copy[target_col]
 
-    # split data into train and test data sets
     X = X_df.to_numpy()
     y = y_df.to_numpy()
-    """X_train = X[:int(X.shape[0]*0.7)]
-    X_test = X[int(X.shape[0]*0.7):]
-    y_train = y[:int(X.shape[0]*0.7)]
-    y_test = y[int(X.shape[0]*0.7):]"""
+
     ts_split = TimeSeriesSplit(n_splits=3)
 
     model_params, model_param_values =  zip(*param_grid.items())
@@ -68,7 +61,7 @@ def create_classification_backtest_models(
             model_pred_df = None
             optimization_metric_val = -1
             for params in param_combinations:
-                estimator = estimator_class(**params)
+                estimator = model_class(**params)
                 if pipeline_args is not None:
                     estimator = Pipeline([*pipeline_args, ('estimator', estimator)])
                 estimator.fit(X_train, y_train)
@@ -94,14 +87,27 @@ def create_classification_backtest_models(
                 )
     except ValueError as e:
         print(e)
-    return model_df
+    return model_df, selected_params
 
 
-def create_classification_inference_models(
-    data: pd.DataFrame, selected_features: list[str], 
-    estimator_class: SKModel, param_grid: dict[str, np.array], *args,
-    target_col=Price.CLOSE, target_period: int=1,
-    pipeline_args: tuple[tuple] | None=None, optimization_func: Callable=precision_score,
-    evaluation_df: pd.DataFrame=None
-):
-    ...
+def create_inference_model(
+    df: pd.DataFrame, features: list[str], target_col: str,
+    model_class: SKModel, params: dict, *args,
+    pipeline_args: tuple[tuple] | None=None
+) -> SKModel:
+    df_copy = df.copy()
+
+    X_df = df_copy[features]
+    y_df = df_copy[target_col]
+
+    X = X_df.to_numpy()
+    y = y_df.to_numpy()
+
+    try:
+        estimator = model_class(**params)
+        if pipeline_args is not None:
+            estimator = Pipeline([*pipeline_args, ('estimator', estimator)])
+        estimator.fit(X, y)
+        return estimator
+    except ValueError as e:
+        print(e)

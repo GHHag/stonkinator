@@ -3,11 +3,9 @@ from typing import Callable
 import numpy as np
 import pandas as pd
 from statsmodels.tsa.stattools import adfuller
-# from sklearn.model_selection import GridSearchCV, TimeSeriesSplit
-# from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
 from sklearn.feature_selection import SelectKBest, mutual_info_classif, RFE, RFECV
 
-from model_creation import SKModel
+from trading_systems.model_creation.model_creation import SKModel
 
 
 def adf_stationarity_test(df: pd.DataFrame, significance_level=0.05):
