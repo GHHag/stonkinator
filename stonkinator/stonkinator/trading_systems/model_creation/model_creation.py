@@ -11,6 +11,7 @@ from sklearn.metrics import classification_report, confusion_matrix, precision_s
 class SKModel(Protocol):
     def fit(self, X, y, **kwargs): ...
     def score(self, X, y, **kwargs): ...
+    def predict(self, X): ...
 
 
 def print_classification_model_metrics(estimator: SKModel, X_train, X_test, y_train, y_test, y_pred):
@@ -103,11 +104,8 @@ def create_inference_model(
     X = X_df.to_numpy()
     y = y_df.to_numpy()
 
-    try:
-        estimator = model_class(**params)
-        if pipeline_args is not None:
-            estimator = Pipeline([*pipeline_args, ('estimator', estimator)])
-        estimator.fit(X, y)
-        return estimator
-    except ValueError as e:
-        print(e)
+    estimator = model_class(**params)
+    if pipeline_args is not None:
+        estimator = Pipeline([*pipeline_args, ('estimator', estimator)])
+    estimator.fit(X, y)
+    return estimator

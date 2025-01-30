@@ -10,7 +10,7 @@ from trading.data.metadata.market_state_enum import MarketState
 from trading.trading_system.trading_system import TradingSystem
 
 from trading_systems.trading_system_base import TradingSystemBase, MLTradingSystemBase
-from trading_systems.trading_system_properties import TradingSystemProperties
+from trading_systems.trading_system_properties import TradingSystemProperties, MLTradingSystemProperties
 from trading_systems.position_sizer.ext_position_sizer import ExtPositionSizer
 
 from persistance.persistance_meta_classes.signals_persister import SignalsPersisterBase
@@ -22,13 +22,14 @@ from persistance.stonkinator_mongo_db.instruments_mongo_db import InstrumentsMon
 import trading_systems.env as env
 
 
-#INSTRUMENTS_DB = InstrumentsMongoDb(env.LOCALHOST_MONGO_DB_URL, env.INSTRUMENTS_DB)
+# INSTRUMENTS_DB = InstrumentsMongoDb(env.LOCALHOST_MONGO_DB_URL, env.INSTRUMENTS_DB)
+INSTRUMENTS_DB = InstrumentsMongoDb(env.LOCALHOST_MONGO_DB_URL, env.CLIENT_DB)
 TIME_SERIES_DB = TimeSeriesMongoDb(env.LOCALHOST_MONGO_DB_URL, env.TIME_SERIES_DB)
 SYSTEMS_DB = TradingSystemsMongoDb(env.LOCALHOST_MONGO_DB_URL, env.SYSTEMS_DB)
 CLIENT_DB = TradingSystemsMongoDb(env.LOCALHOST_MONGO_DB_URL, env.CLIENT_DB)
 # CLIENT_DB = TradingSystemsMongoDb(env.ATLAS_MONGO_DB_URL, env.CLIENT_DB)
 
-INSTRUMENTS_DB = InstrumentsMongoDb(env.ATLAS_MONGO_DB_URL, env.CLIENT_DB)
+# INSTRUMENTS_DB = InstrumentsMongoDb(env.ATLAS_MONGO_DB_URL, env.CLIENT_DB)
 #TIME_SERIES_DB = TimeSeriesMongoDb(env.ATLAS_MONGO_DB_URL, env.CLIENT_DB)
 #SYSTEMS_DB = TradingSystemsMongoDb(env.ATLAS_MONGO_DB_URL, env.CLIENT_DB)
 #CLIENT_DB = TradingSystemsMongoDb(env.ATLAS_MONGO_DB_URL, env.CLIENT_DB)
@@ -54,20 +55,22 @@ class TradingSystemProcessor:
             ts_class.exit_signal_logic,
             self.__systems_db, self.__client_db
         )
-        self.__data, pred_features_data = ts_class.preprocess_data(
+        self.__data, features = ts_class.preprocess_data(
             self.__ts_properties.instruments_list,
             *self.__ts_properties.preprocess_data_args, start_dt, end_dt,
             ts_processor=self
         )
 
         if issubclass(ts_class, MLTradingSystemBase) == True:
+            assert isinstance(self.__ts_properties, MLTradingSystemProperties) == True
             if full_run == True:
                 self.__data = ts_class.operate_models(
-                    self.__systems_db, self.__data
+                    self.__systems_db, self.__data, features,
+                    self.__ts_properties.model_class, self.__ts_properties.params
                 )
             else:
                 self.__data = ts_class.make_predictions(
-                    self.__systems_db, self.__data, pred_features_data
+                    self.__systems_db, self.__data, features
                 )
 
     @property

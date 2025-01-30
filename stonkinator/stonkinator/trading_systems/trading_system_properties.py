@@ -24,4 +24,4 @@ class TradingSystemProperties:
 @dataclass(frozen=True)
 class MLTradingSystemProperties(TradingSystemProperties):
     model_class: SKModel
-    param_grid: dict
+    params: dict
