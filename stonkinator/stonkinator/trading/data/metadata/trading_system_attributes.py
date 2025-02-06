@@ -28,6 +28,7 @@ class TradingSystemAttributes:
     __ENTRY_PERIOD_LOOKBACK = 'entry_period_lookback'
     __EXIT_PERIOD_LOOKBACK = 'exit_period_lookback'
     __REQ_PERIOD_ITERS = 'req_period_iters'
+    __PRED_COL = 'pred'
 
     @classproperty
     def LONG(cls):
@@ -120,3 +121,7 @@ class TradingSystemAttributes:
     @classproperty
     def REQ_PERIOD_ITERS(cls):
         return cls.__REQ_PERIOD_ITERS
+
+    @classproperty
+    def PRED_COL(cls):
+        return cls.__PRED_COL

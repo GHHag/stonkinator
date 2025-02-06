@@ -8,5 +8,9 @@ def serialize_models(models):
     return binary_models
 
 
+def serialize_model(model):
+    return pickle.dumps(model)
+
+
 if __name__ == '__main__':
     pass

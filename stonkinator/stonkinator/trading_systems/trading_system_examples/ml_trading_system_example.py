@@ -27,7 +27,9 @@ from trading_systems.model_creation.model_creation import (
 )
 from trading_systems.ml_utils.ml_system_utils import serialize_models
 
+
 TARGET = 'target'
+
 
 class MLTradingSystemExample(MLTradingSystemBase):
 
@@ -40,7 +42,7 @@ class MLTradingSystemExample(MLTradingSystemBase):
         df: pd.DataFrame, *args, entry_args=None
     ) -> Order | None:
         order = None
-        entry_condition = df['pred'].iloc[-1] == 1
+        entry_condition = df[TradingSystemAttributes.PRED_COL].iloc[-1] == 1
         if entry_condition == True:
             order = LimitOrder(
                 MarketState.ENTRY, df.index[-1], df[Price.CLOSE].iloc[-1], 5,
@@ -53,21 +55,21 @@ class MLTradingSystemExample(MLTradingSystemBase):
         df: pd.DataFrame, position: Position, *args, exit_args=None
     ) -> Order | None:
         order = None
-        exit_condition = df['pred'].iloc[-1] == 0
+        exit_condition = df[TradingSystemAttributes.PRED_COL].iloc[-1] == 0
         if exit_condition == True:
             order = MarketOrder(MarketState.EXIT, df.index[-1])
         return order
 
     @staticmethod
     def create_backtest_models(
-        data_dict: dict[str, pd.DataFrame], features, model_class, param_grid,
+        data_dict: dict[str, pd.DataFrame], features: list[str],
+        model_class: SKModel, param_grid: dict,
         verbose=False
     ) -> dict[str, pd.DataFrame]:
         models_data_dict = {}
         for symbol, data in data_dict.items():
             models_data_dict[symbol], selected_params = create_backtest_models(
-                data, features, TARGET,
-                model_class, param_grid,
+                data, features, TARGET, model_class, param_grid,
                 verbose=verbose
             )
             if verbose == True:
@@ -77,14 +79,12 @@ class MLTradingSystemExample(MLTradingSystemBase):
 
     @staticmethod
     def create_inference_models(
-        data_dict: dict[str, pd.DataFrame], features, model_class, params
+        data_dict: dict[str, pd.DataFrame], features: list[str],
+        model_class: SKModel, params: dict
     ) -> dict[str, SKModel]:
         models_dict = {}
         for symbol, data in data_dict.items():
-            model = create_inference_model(
-                data, features, TARGET,
-                model_class, params
-            )
+            model = create_inference_model(data, features, TARGET, model_class, params)
             if model:
                 models_dict[symbol] = model
         return models_dict
@@ -100,27 +100,26 @@ class MLTradingSystemExample(MLTradingSystemBase):
 
         serialized_models = serialize_models(inference_models_dict)
         for symbol, model in serialized_models.items():
-            insert_successful = systems_db.insert_ml_model(
-                cls.name, symbol, model
-            )
+            insert_successful = systems_db.insert_ml_model(cls.name, symbol, model)
             if insert_successful == False:
-                raise Exception('failed to insert data')
+                raise Exception('Failed to insert data.')
         return models_data_dict
 
     @classmethod
     def make_predictions(
         cls, systems_db: TradingSystemsPersisterBase, 
-        data_dict: dict[str, pd.DataFrame],
-        features: list[str]
+        data_dict: dict[str, pd.DataFrame], features: list[str]
     ) -> dict[str, pd.DataFrame]:
         for symbol, data in data_dict.items():
             model_pipeline: SKModel = systems_db.get_ml_model(cls.name, symbol)
             if not model_pipeline:
-                raise ValueError("failed to get model pipeline")
+                raise ValueError('Failed to get model pipeline.')
 
             pred_data = data[features].to_numpy()
             latest_data_point = data.iloc[-1].copy()
-            latest_data_point['pred'] = model_pipeline.predict(pred_data[-1].reshape(1, -1))[0]
+            latest_data_point[TradingSystemAttributes.PRED_COL] = (
+                model_pipeline.predict(pred_data[-1].reshape(1, -1))[0]
+            )
             latest_data_point_df = pd.DataFrame(latest_data_point).transpose()
             data_dict[symbol] = pd.concat(
                 [data.iloc[:-1], latest_data_point_df]
@@ -131,9 +130,11 @@ class MLTradingSystemExample(MLTradingSystemBase):
     def preprocess_data(
         symbols_list, benchmark_symbol, 
         get_data_function: Callable[[str, dt.datetime, dt.datetime], tuple[bytes, int]],
-        entry_args: dict, exit_args: dict, start_dt, end_dt,
-        ts_processor: TradingSystemProcessor=None, target_period=1
+        entry_args: dict, exit_args: dict, start_dt: dt.datetime, end_dt: dt.datetime,
+        ts_processor: TradingSystemProcessor=None
     ):
+        target_period = entry_args.get('target_period')
+
         data_dict: dict[str, pd.DataFrame] = {}
         for symbol in symbols_list:
             try:
@@ -202,13 +203,15 @@ class MLTradingSystemExample(MLTradingSystemBase):
     @classmethod
     def get_properties(
         cls, instruments_db: InstrumentsMongoDb,
-        target_period=1, import_instruments=False, path=None
+        import_instruments=False, path=None
     ):
         required_runs = 1
+        target_period = 1
         benchmark_symbol = '^OMX'
         entry_args = {
             TradingSystemAttributes.REQ_PERIOD_ITERS: target_period, 
-            TradingSystemAttributes.ENTRY_PERIOD_LOOKBACK: target_period
+            TradingSystemAttributes.ENTRY_PERIOD_LOOKBACK: target_period,
+            'target_period': target_period
         }
         exit_args = {
             TradingSystemAttributes.EXIT_PERIOD_LOOKBACK: target_period
@@ -255,18 +258,14 @@ if __name__ == '__main__':
 
     start_dt = dt.datetime(1999, 1, 1)
     end_dt = dt.datetime(2011, 1, 1)
-    target_period = 1
     create_inference_models = True
     insert_into_db = True
 
-    system_props: MLTradingSystemProperties = MLTradingSystemExample.get_properties(
-        INSTRUMENTS_DB, target_period=target_period
-    )
+    system_props: MLTradingSystemProperties = MLTradingSystemExample.get_properties(INSTRUMENTS_DB)
 
     data_dict, features = MLTradingSystemExample.preprocess_data(
         system_props.instruments_list,
-        *system_props.preprocess_data_args, start_dt, end_dt,
-        target_period=target_period
+        *system_props.preprocess_data_args, start_dt, end_dt
     )
 
     models_data_dict = MLTradingSystemExample.create_backtest_models(
@@ -304,7 +303,7 @@ if __name__ == '__main__':
         exit_args=system_props.exit_function_args,
         market_state_null_default=True,
         plot_performance_summary=False,
-        save_summary_plot_to_path=None, # '/app/plots/',
+        save_summary_plot_to_path=None,
         print_data=True,
         insert_data_to_db_bool=insert_into_db,
     )

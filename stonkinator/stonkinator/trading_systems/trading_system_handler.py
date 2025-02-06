@@ -69,6 +69,11 @@ class TradingSystemProcessor:
                     self.__ts_properties.model_class, self.__ts_properties.params
                 )
             else:
+                if isinstance(features, pd.DataFrame):
+                    end_dt = pd.Timestamp(end_dt, tz="UTC")
+                    features = features[features.index == end_dt] 
+
+                # TODO: Skip making predictions if there is an active position for the instrument.
                 self.__data = ts_class.make_predictions(
                     self.__systems_db, self.__data, features
                 )
@@ -234,7 +239,7 @@ class TradingSystemProcessor:
         end_dt = pd.to_datetime(end_dt).tz_localize('UTC')
         if self.__current_dt != end_dt:
             raise ValueError(
-                'datetime mismatch between position and input data:\n'
+                'Datetime mismatch between position and input data:\n'
                 f'current datetime found: {self.__current_dt}\n'
                 f'input datetime: {end_dt}'
             )
@@ -246,7 +251,7 @@ class TradingSystemProcessor:
         last_processed_dt = pd.to_datetime(last_processed_dt).tz_localize('UTC')
         if last_processed_dt != self.__penult_dt:
             raise ValueError(
-                'datetime mismatch between position and input data:\n'
+                'Datetime mismatch between position and input data:\n'
                 f'penultimate datetime found: {self.__penult_dt}\n'
                 f'last processed datetime: {last_processed_dt}'
             )
@@ -325,11 +330,16 @@ if __name__ == '__main__':
         '--print-data', action='store_true', dest='print_data',
         help='Print position and trading system data while running the program',
     )
+    arg_parser.add_argument(
+        '--step-through', action='store_true', dest='step_through',
+        help='Step through while incrementing the datetime period variable.',
+    )
 
     cli_args = arg_parser.parse_args()
     full_run = cli_args.full_run
     retain_history = cli_args.retain_history
     print_data = cli_args.print_data
+    step_through = cli_args.step_through
 
     if full_run == True:
         SYSTEMS_DB.drop_collections()
@@ -337,10 +347,14 @@ if __name__ == '__main__':
 
     from trading_systems.trading_system_examples.trading_system_example import TradingSystemExample
     from trading_systems.trading_system_examples.ml_trading_system_example import MLTradingSystemExample
+    from trading_systems.trading_system_examples.meta_labeling_example import MetaLabelingExample
+    from trading_systems.live_systems.stonkinator_flagship import StonkinatorFlagship
 
     TRADING_SYSTEM_CLASSES = [
         TradingSystemExample,
-        MLTradingSystemExample
+        MLTradingSystemExample,
+        MetaLabelingExample,
+        StonkinatorFlagship,
     ]
 
     # start_dt = dt.datetime(1999, 1, 1)
@@ -349,10 +363,22 @@ if __name__ == '__main__':
     # end_dt = dt.datetime.now()
     end_dt = dt.datetime(2023, 3, 8)
 
-    ts_handler = TradingSystemHandler(
-        TRADING_SYSTEM_CLASSES,
-        SYSTEMS_DB, CLIENT_DB, INSTRUMENTS_DB,
-        start_dt, end_dt,
-        full_run=full_run
-    )
-    ts_handler.run_trading_systems(end_dt, full_run, retain_history, print_data=print_data)
+    if step_through:
+        periods = (dt.datetime.now() - end_dt).days
+        for _ in range(periods):
+            ts_handler = TradingSystemHandler(
+                TRADING_SYSTEM_CLASSES,
+                SYSTEMS_DB, CLIENT_DB, INSTRUMENTS_DB,
+                start_dt, end_dt,
+                full_run=full_run
+            )
+            ts_handler.run_trading_systems(end_dt, full_run, retain_history, print_data=print_data)
+            end_dt += dt.timedelta(days=1)
+    else:
+        ts_handler = TradingSystemHandler(
+            TRADING_SYSTEM_CLASSES,
+            SYSTEMS_DB, CLIENT_DB, INSTRUMENTS_DB,
+            start_dt, end_dt,
+            full_run=full_run
+        )
+        ts_handler.run_trading_systems(end_dt, full_run, retain_history, print_data=print_data)
