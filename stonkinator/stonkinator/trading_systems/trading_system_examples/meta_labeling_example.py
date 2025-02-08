@@ -39,14 +39,36 @@ from trading_systems.data_utils.indicator_feature_workshop.technical_features.mi
 )
 
 
-TARGET = 'exit_label'
-
-
 class MetaLabelingExample(MLTradingSystemBase):
 
     @classproperty
-    def name(cls):
+    def name(cls) -> str:
         return 'meta_labeling_example'
+
+    @classproperty
+    def target(cls) -> str:
+        return 'exit_label'
+
+    @classproperty
+    def target_period(cls) -> int:
+        return 40
+
+    @classproperty
+    def entry_args(cls) -> dict:
+        target_period = cls.target_period
+        return {
+            TradingSystemAttributes.REQ_PERIOD_ITERS: target_period,
+            TradingSystemAttributes.ENTRY_PERIOD_LOOKBACK: target_period,
+            'target_period': target_period,
+            'ma_value_1': 7,
+            'ma_value_2': 21,
+        }
+        
+    @classproperty
+    def exit_args(cls) -> dict:
+        return {
+            TradingSystemAttributes.EXIT_PERIOD_LOOKBACK: cls.target_period
+        }
 
     @staticmethod
     def entry_signal_logic(
@@ -80,12 +102,12 @@ class MetaLabelingExample(MLTradingSystemBase):
 
     @staticmethod
     def create_backtest_models(
-        data: pd.DataFrame, features: list[str],
+        data: pd.DataFrame, features: list[str], target: str,
         model_class: SKModel, param_grid: dict,
         optimization_metric_func: Callable=f1_score, verbose=False
     ) -> pd.DataFrame:
         model_data, selected_params = create_backtest_models(
-            data, features, TARGET, model_class, param_grid,
+            data, features, target, model_class, param_grid,
             optimization_metric_func=optimization_metric_func,
             verbose=verbose
         )
@@ -96,19 +118,20 @@ class MetaLabelingExample(MLTradingSystemBase):
 
     @staticmethod
     def create_inference_models(
-        data: pd.DataFrame, features: list[str],
-        model_class: SKModel, params: dict
+        data: pd.DataFrame, features: list[str], target: str, model_class: SKModel,
+        params: dict
     ) -> SKModel:
-        return create_inference_model(data, features, TARGET, model_class, params)
+        return create_inference_model(data, features, target, model_class, params)
 
     @classmethod
     def operate_models(
         cls, systems_db: TradingSystemsPersisterBase,
         _, data: pd.DataFrame, model_class: SKModel, params: dict
     ) -> pd.DataFrame:
-        features = MetaLabelingExample.get_features(data)
-        model_data = cls.create_backtest_models(data, features, model_class, params)
-        inference_model = cls.create_inference_models(data, features, model_class, params)
+        features = cls.get_features(data)
+        target = cls.target
+        model_data = cls.create_backtest_models(data, features, target, model_class, params)
+        inference_model = cls.create_inference_models(data, features, target, model_class, params)
 
         serialized_model = serialize_model(inference_model)
         insert_successful = systems_db.insert_ml_model(cls.name, '', serialized_model)
@@ -120,12 +143,12 @@ class MetaLabelingExample(MLTradingSystemBase):
     def make_predictions(
         cls, systems_db: TradingSystemsPersisterBase,
         data_dict: dict[str, pd.DataFrame], data: pd.DataFrame
-    ) -> dict[str, pd.DataFrame]:
+        ) -> dict[str, pd.DataFrame]:
         model_pipeline: SKModel = systems_db.get_ml_model(cls.name, '')
         if not model_pipeline:
             raise ValueError('Failed to get model pipeline.')
 
-        features = MetaLabelingExample.get_features(data)
+        features = cls.get_features(data)
         entry_label_true_symbols = data[TradingSystemAttributes.SYMBOL].unique()
         for symbol in data_dict.keys():
             if symbol in entry_label_true_symbols:
@@ -143,9 +166,9 @@ class MetaLabelingExample(MLTradingSystemBase):
                 data_dict[symbol][TradingSystemAttributes.PRED_COL] = False
         return data_dict
 
-    @classmethod
+    @staticmethod
     def add_entry_signal_label(
-        cls, data_dict: dict[str, pd.DataFrame], model_data: pd.DataFrame
+        data_dict: dict[str, pd.DataFrame], model_data: pd.DataFrame
     ):
         for symbol, data in data_dict.items():
             dates_to_match = model_data[model_data[TradingSystemAttributes.SYMBOL] == symbol].index
@@ -159,12 +182,9 @@ class MetaLabelingExample(MLTradingSystemBase):
         entry_args: dict, exit_args: dict, start_dt: dt.datetime, end_dt: dt.datetime,
         ts_processor: TradingSystemProcessor=None, drop_nan_rows=False
     ) -> tuple[dict[str, pd.DataFrame], pd.DataFrame]:
-        # TODO: Define feature input variables in the same scope, currently defined both here
-        # and in get_features method.
-        ma_value_1 = 7
-        ma_value_2 = 21
-
         target_period = entry_args.get('target_period')
+        ma_value_1 = entry_args.get('ma_value_1')
+        ma_value_2 = entry_args.get('ma_value_2')
 
         data_dict: dict[str, pd.DataFrame] = {}
         for symbol in symbols_list:
@@ -326,10 +346,12 @@ class MetaLabelingExample(MLTradingSystemBase):
                 composite_df = composite_df.sort_index()
         return data_dict, composite_df
 
-    @staticmethod
-    def get_features(composite_df: pd.DataFrame):
-        ma_value_1 = 7
-        ma_value_2 = 21
+    @classmethod
+    def get_features(cls, composite_df: pd.DataFrame):
+        entry_args: dict = cls.entry_args
+        ma_value_1 = entry_args.get('ma_value_1')
+        ma_value_2 = entry_args.get('ma_value_2')
+
         columns_to_drop = [
             Price.OPEN, Price.HIGH, Price.LOW, Price.CLOSE, 'pct_chg', 'ATR',
             f'{Price.OPEN}_benchmark', f'{Price.HIGH}_benchmark',
@@ -346,23 +368,13 @@ class MetaLabelingExample(MLTradingSystemBase):
         ]
         return list(set(composite_df.columns.to_list()) ^ set(columns_to_drop))
 
-
     @classmethod
     def get_properties(
         cls, instruments_db: InstrumentsMongoDb,
         import_instruments=False, path=None
     ):
         required_runs = 1
-        target_period = 40
         benchmark_symbol = '^OMX'
-        entry_args = {
-            TradingSystemAttributes.REQ_PERIOD_ITERS: target_period,
-            TradingSystemAttributes.ENTRY_PERIOD_LOOKBACK: target_period,
-            'target_period': target_period
-        }
-        exit_args = {
-            TradingSystemAttributes.EXIT_PERIOD_LOOKBACK: target_period
-        }
 
         market_list_ids = [
             instruments_db.get_market_list_id('omxs30')
@@ -391,9 +403,9 @@ class MetaLabelingExample(MLTradingSystemBase):
             required_runs, symbols_list,
             (
                 benchmark_symbol, price_data_get_req,
-                entry_args, exit_args
+                cls.entry_args, cls.exit_args
             ),
-            entry_args, exit_args,
+            cls.entry_args, cls.exit_args,
             {
                 'plot_fig': False
             },
@@ -417,6 +429,7 @@ if __name__ == '__main__':
     create_model = True
     run_backtest = True
     insert_into_db = True
+    target = MetaLabelingExample.target
 
     system_props: MLTradingSystemProperties = MetaLabelingExample.get_properties(INSTRUMENTS_DB)
 
@@ -428,7 +441,7 @@ if __name__ == '__main__':
 
     features = MetaLabelingExample.get_features(composite_data)
     model_data = MetaLabelingExample.create_backtest_models(
-        composite_data, features, system_props.model_class, system_props.params,
+        composite_data, features, target, system_props.model_class, system_props.params,
         optimization_metric_func=f1_score, verbose=True
     )
 
@@ -442,7 +455,7 @@ if __name__ == '__main__':
 
     if create_model == True:
         inference_model = MetaLabelingExample.create_inference_models(
-            composite_data, features, system_props.model_class, inference_params
+            composite_data, features, target, system_props.model_class, inference_params
         )
 
     model_data = model_data[model_data[TradingSystemAttributes.PRED_COL] == True]

@@ -48,6 +48,16 @@ class TradingSystemBase(metaclass=ABCMeta):
 
 class MLTradingSystemBase(TradingSystemBase):
 
+    @classproperty
+    @abstractmethod
+    def target(cls):
+        ...
+
+    @classproperty
+    @abstractmethod
+    def target_period(cls):
+        ...
+
     @staticmethod
     @abstractmethod
     def create_backtest_models():
