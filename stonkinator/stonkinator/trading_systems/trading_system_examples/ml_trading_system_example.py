@@ -28,14 +28,35 @@ from trading_systems.model_creation.model_creation import (
 from trading_systems.ml_utils.ml_system_utils import serialize_models
 
 
-TARGET = 'target'
-
-
 class MLTradingSystemExample(MLTradingSystemBase):
 
     @classproperty
     def name(cls):
         return 'ml_trading_system_example'
+
+    @classproperty
+    def target(cls):
+        return 'target'
+
+    @classproperty
+    def target_period(cls):
+        return 1
+
+    @classproperty
+    def entry_args(cls):
+        target_period = cls.target_period
+        return {
+            TradingSystemAttributes.REQ_PERIOD_ITERS: target_period, 
+            TradingSystemAttributes.ENTRY_PERIOD_LOOKBACK: target_period,
+            'target': cls.target,
+            'target_period': target_period
+        }
+
+    @classproperty
+    def exit_args(cls):
+        return {
+            TradingSystemAttributes.EXIT_PERIOD_LOOKBACK: cls.target_period
+        }
 
     @staticmethod
     def entry_signal_logic(
@@ -62,14 +83,14 @@ class MLTradingSystemExample(MLTradingSystemBase):
 
     @staticmethod
     def create_backtest_models(
-        data_dict: dict[str, pd.DataFrame], features: list[str],
+        data_dict: dict[str, pd.DataFrame], features: list[str], target: str,
         model_class: SKModel, param_grid: dict,
         verbose=False
     ) -> dict[str, pd.DataFrame]:
         models_data_dict = {}
         for symbol, data in data_dict.items():
             models_data_dict[symbol], selected_params = create_backtest_models(
-                data, features, TARGET, model_class, param_grid,
+                data, features, target, model_class, param_grid,
                 verbose=verbose
             )
             if verbose == True:
@@ -79,12 +100,12 @@ class MLTradingSystemExample(MLTradingSystemBase):
 
     @staticmethod
     def create_inference_models(
-        data_dict: dict[str, pd.DataFrame], features: list[str],
+        data_dict: dict[str, pd.DataFrame], features: list[str], target: str,
         model_class: SKModel, params: dict
     ) -> dict[str, SKModel]:
         models_dict = {}
         for symbol, data in data_dict.items():
-            model = create_inference_model(data, features, TARGET, model_class, params)
+            model = create_inference_model(data, features, target, model_class, params)
             if model:
                 models_dict[symbol] = model
         return models_dict
@@ -92,11 +113,11 @@ class MLTradingSystemExample(MLTradingSystemBase):
     @classmethod
     def operate_models(
         cls, systems_db: TradingSystemsPersisterBase, 
-        data_dict: dict[str, pd.DataFrame], 
-        features: list[str], model_class: SKModel, params: dict
+        data_dict: dict[str, pd.DataFrame], features: list[str], model_class: SKModel, params: dict
     ) -> dict [str, pd.DataFrame]:
-        models_data_dict = cls.create_backtest_models(data_dict, features, model_class, params)
-        inference_models_dict = cls.create_inference_models(data_dict, features, model_class, params)
+        target = cls.target
+        models_data_dict = cls.create_backtest_models(data_dict, features, target, model_class, params)
+        inference_models_dict = cls.create_inference_models(data_dict, features, target, model_class, params)
 
         serialized_models = serialize_models(inference_models_dict)
         for symbol, model in serialized_models.items():
@@ -133,6 +154,7 @@ class MLTradingSystemExample(MLTradingSystemBase):
         entry_args: dict, exit_args: dict, start_dt: dt.datetime, end_dt: dt.datetime,
         ts_processor: TradingSystemProcessor=None
     ):
+        target = entry_args.get('target')
         target_period = entry_args.get('target_period')
 
         data_dict: dict[str, pd.DataFrame] = {}
@@ -191,7 +213,7 @@ class MLTradingSystemExample(MLTradingSystemBase):
                     .shift(-target_period)
                     .mul(100)
                 )
-                data[TARGET] = data['return_shifted'] > 0
+                data[target] = data['return_shifted'] > 0
                 data = data.drop(['return_shifted'], axis=1)
                 data = data.dropna()
 
@@ -206,16 +228,7 @@ class MLTradingSystemExample(MLTradingSystemBase):
         import_instruments=False, path=None
     ):
         required_runs = 1
-        target_period = 1
         benchmark_symbol = '^OMX'
-        entry_args = {
-            TradingSystemAttributes.REQ_PERIOD_ITERS: target_period, 
-            TradingSystemAttributes.ENTRY_PERIOD_LOOKBACK: target_period,
-            'target_period': target_period
-        }
-        exit_args = {
-            TradingSystemAttributes.EXIT_PERIOD_LOOKBACK: target_period
-        }
 
         symbols_list = ['SKF_B', 'VOLV_B', 'NDA_SE', 'SCA_B']
         """ symbols_list = json.loads(
@@ -235,9 +248,9 @@ class MLTradingSystemExample(MLTradingSystemBase):
             required_runs, symbols_list,
             (
                 benchmark_symbol, price_data_get_req,
-                entry_args, exit_args
+                cls.entry_args, cls.exit_args
             ),
-            entry_args, exit_args,
+            cls.entry_args, cls.exit_args,
             {
                 'plot_fig': False
             },
@@ -260,6 +273,7 @@ if __name__ == '__main__':
     end_dt = dt.datetime(2011, 1, 1)
     create_inference_models = True
     insert_into_db = True
+    target = MLTradingSystemExample.target
 
     system_props: MLTradingSystemProperties = MLTradingSystemExample.get_properties(INSTRUMENTS_DB)
 
@@ -269,7 +283,7 @@ if __name__ == '__main__':
     )
 
     models_data_dict = MLTradingSystemExample.create_backtest_models(
-        data_dict, features, system_props.model_class, system_props.params,
+        data_dict, features, target, system_props.model_class, system_props.params,
         verbose=True
     )
 
@@ -278,7 +292,7 @@ if __name__ == '__main__':
 
     if create_inference_models == True:
         inference_models_dict = MLTradingSystemExample.create_inference_models(
-            data_dict, features, system_props.model_class, inference_params
+            data_dict, features, target, system_props.model_class, inference_params
         )
 
     if insert_into_db == True:

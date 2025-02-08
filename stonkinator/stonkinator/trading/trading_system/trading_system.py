@@ -484,6 +484,7 @@ class TradingSystem:
                 )
 
         if print_data == True: 
+            print(f'\nTrading System Signals\n{self.__system_name}')
             print(signal_handler)
 
         if write_signals_to_file_path:

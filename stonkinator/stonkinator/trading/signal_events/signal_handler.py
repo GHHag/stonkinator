@@ -189,10 +189,11 @@ class SignalHandler:
         return self.__entry_signals.get_pos_sizer_dict(position_sizing_metric_str)
 
     def __str__(self):
-        return f'\n\
-            Active positions\n{self.__active_positions}\n\n\
-            Entry signals\n{self.__entry_signals}\n\n\
-            Exit signals\n{self.__exit_signals}'
+        return (
+            f'Active positions\n{self.__active_positions}\n\n'
+            f'Entry signals\n{self.__entry_signals}\n\n'
+            f'Exit signals\n{self.__exit_signals}'
+        )
 
     def __call__(self):
         """
