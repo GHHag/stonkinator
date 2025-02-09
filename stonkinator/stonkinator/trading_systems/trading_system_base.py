@@ -20,6 +20,16 @@ class TradingSystemBase(metaclass=ABCMeta):
     def name(cls):
         ...
 
+    @classproperty
+    @abstractmethod
+    def entry_args(cls):
+        ...
+
+    @classproperty
+    @abstractmethod
+    def exit_args(cls):
+        ...
+
     @staticmethod
     @abstractmethod
     def entry_signal_logic():

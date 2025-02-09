@@ -31,19 +31,19 @@ from trading_systems.ml_utils.ml_system_utils import serialize_models
 class MLTradingSystemExample(MLTradingSystemBase):
 
     @classproperty
-    def name(cls):
+    def name(cls) -> str:
         return 'ml_trading_system_example'
 
     @classproperty
-    def target(cls):
+    def target(cls) -> str:
         return 'target'
 
     @classproperty
-    def target_period(cls):
+    def target_period(cls) -> 1:
         return 1
 
     @classproperty
-    def entry_args(cls):
+    def entry_args(cls) -> dict:
         target_period = cls.target_period
         return {
             TradingSystemAttributes.REQ_PERIOD_ITERS: target_period, 
@@ -53,7 +53,7 @@ class MLTradingSystemExample(MLTradingSystemBase):
         }
 
     @classproperty
-    def exit_args(cls):
+    def exit_args(cls) -> dict:
         return {
             TradingSystemAttributes.EXIT_PERIOD_LOOKBACK: cls.target_period
         }
@@ -244,13 +244,15 @@ class MLTradingSystemExample(MLTradingSystemBase):
             }
         )
 
+        entry_args = cls.entry_args
+        exit_args = cls.exit_args
         return MLTradingSystemProperties( 
             required_runs, symbols_list,
             (
                 benchmark_symbol, price_data_get_req,
-                cls.entry_args, cls.exit_args
+                entry_args, exit_args
             ),
-            cls.entry_args, cls.exit_args,
+            entry_args, exit_args,
             {
                 'plot_fig': False
             },

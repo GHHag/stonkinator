@@ -167,9 +167,7 @@ class MetaLabelingExample(MLTradingSystemBase):
         return data_dict
 
     @staticmethod
-    def add_entry_signal_label(
-        data_dict: dict[str, pd.DataFrame], model_data: pd.DataFrame
-    ):
+    def add_entry_signal_label(data_dict: dict[str, pd.DataFrame], model_data: pd.DataFrame):
         for symbol, data in data_dict.items():
             dates_to_match = model_data[model_data[TradingSystemAttributes.SYMBOL] == symbol].index
             data_dict[symbol][TradingSystemAttributes.PRED_COL] = data.index.isin(dates_to_match)
@@ -399,13 +397,15 @@ class MetaLabelingExample(MLTradingSystemBase):
             }
         )
 
+        entry_args = cls.entry_args
+        exit_args = cls.exit_args
         return MLTradingSystemProperties(
             required_runs, symbols_list,
             (
                 benchmark_symbol, price_data_get_req,
-                cls.entry_args, cls.exit_args
+                entry_args, exit_args
             ),
-            cls.entry_args, cls.exit_args,
+            entry_args, exit_args,
             {
                 'plot_fig': False
             },

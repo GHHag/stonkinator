@@ -26,8 +26,21 @@ from trading_systems.instrument_selection.pd_instrument_selector import PdInstru
 class TradingSystemExample(TradingSystemBase):
     
     @classproperty
-    def name(cls):
+    def name(cls) -> str:
         return 'trading_system_example'
+
+    @classproperty
+    def entry_args(cls) -> dict:
+        return {
+            TradingSystemAttributes.REQ_PERIOD_ITERS: 5, 
+            TradingSystemAttributes.ENTRY_PERIOD_LOOKBACK: 5
+        }
+        
+    @classproperty
+    def exit_args(cls) -> dict:
+        return {
+            TradingSystemAttributes.EXIT_PERIOD_LOOKBACK: 5
+        }
 
     @staticmethod
     def entry_signal_logic(
@@ -100,9 +113,9 @@ class TradingSystemExample(TradingSystemBase):
     def preprocess_data(
         symbols_list, benchmark_symbol,
         get_data_function: Callable[[str, dt.datetime, dt.datetime], tuple[bytes, int]],
-        entry_args: dict, exit_args: dict, start_dt, end_dt,
+        entry_args: dict, exit_args: dict, start_dt: dt.datetime, end_dt: dt.datetime,
         ts_processor: TradingSystemProcessor=None
-    ):
+    ) -> tuple[dict[str, pd.DataFrame], None]:
         data_dict: dict[str, pd.DataFrame] = {}
         for symbol in symbols_list:
             try:
@@ -158,13 +171,6 @@ class TradingSystemExample(TradingSystemBase):
     ):
         required_runs = 2
         benchmark_symbol = '^OMX'
-        entry_args = {
-            TradingSystemAttributes.REQ_PERIOD_ITERS: 5, 
-            TradingSystemAttributes.ENTRY_PERIOD_LOOKBACK: 5
-        }
-        exit_args = {
-            TradingSystemAttributes.EXIT_PERIOD_LOOKBACK: 5
-        }
 
         if import_instruments:
             backtest_df = (
@@ -188,6 +194,8 @@ class TradingSystemExample(TradingSystemBase):
                     )
                 )
 
+        entry_args = cls.entry_args
+        exit_args = cls.exit_args
         return TradingSystemProperties(
             required_runs, symbols_list,
             (
@@ -209,6 +217,7 @@ class TradingSystemExample(TradingSystemBase):
 if __name__ == '__main__':
     import trading_systems.env as env
     SYSTEMS_DB = TradingSystemsMongoDb(env.LOCALHOST_MONGO_DB_URL, env.SYSTEMS_DB)
+    CLIENT_DB = TradingSystemsMongoDb(env.LOCALHOST_MONGO_DB_URL, env.CLIENT_DB)
     INSTRUMENTS_DB = InstrumentsMongoDb(env.ATLAS_MONGO_DB_URL, env.CLIENT_DB)
 
     start_dt = dt.datetime(1999, 1, 1)
@@ -226,7 +235,7 @@ if __name__ == '__main__':
         TradingSystemExample.name,
         TradingSystemExample.entry_signal_logic,
         TradingSystemExample.exit_signal_logic,
-        SYSTEMS_DB, SYSTEMS_DB
+        SYSTEMS_DB, CLIENT_DB
     )
 
     trading_system.run_trading_system_backtest(
