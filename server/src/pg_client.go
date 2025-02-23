@@ -9,24 +9,26 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-func initPgPool() *pgxpool.Pool {
+func initPgPool() (*pgxpool.Pool, error) {
 	connectionString := fmt.Sprintf(
 		"postgresql://%s:%s@%s:%s/%s",
 		os.Getenv("PG_DB_USER"),
 		os.Getenv("PG_DB_PASSWORD"),
 		os.Getenv("PG_DB_SERVICE"),
+		// "0.0.0.0", // when running locally
 		os.Getenv("PG_DB_PORT"),
+		// os.Getenv("PG_DB_PORT_EXP"), // when running locally
 		os.Getenv("PG_DB_NAME"),
 	)
 
 	pgPool, err := pgxpool.New(context.Background(), connectionString)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 
 	if pgPool == nil {
-		panic(errors.New("pgPool is nil"))
+		return nil, errors.New("pgPool is nil")
 	}
 
-	return pgPool
+	return pgPool, nil
 }

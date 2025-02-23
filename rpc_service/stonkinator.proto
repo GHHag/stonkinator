@@ -1,0 +1,136 @@
+syntax = "proto3";
+
+package stonkinator;
+
+option go_package = "./stonkinator_rpc_service";
+
+// questionably needed methods for the service:
+// GetTradingSystemId (_get_system_id)
+// GetTradingSystemMetrics (get_system_metrics)
+// IncrementNumOfPeriods (increment_num_of_periods)
+
+service StonkinatorService {
+    rpc InsertTradingSystem (InsertTradingSystemRequest) returns (InsertTradingSystemResponse);
+    rpc InsertTradingSystemMetrics (InsertTradingSystemMetricsRequest) returns (InsertTradingSystemMetricsResponse);
+    rpc UpdateTradingSystemMetrics (UpdateTradingSystemMetricsRequest) returns (UpdateTradingSystemMetricsResponse);
+    rpc UpdateCurrentDatetime (UpdateCurrentDatetimeRequest) returns (UpdateCurrentDatetimeResponse);
+    rpc GetCurrentDatetime (GetCurrentDatetimeRequest) returns (GetCurrentDatetimeResponse);
+    rpc InsertMarketState (InsertMarketStateRequest) returns (InsertMarketStateResponse);
+    rpc GetMarketState (GetMarketStateRequest) returns (GetMarketStateResponse);
+    rpc GetMarketStateForSymbol (GetMarketStateForSymbolRequest) returns (GetMarketStateForSymbolResponse);
+    rpc UpdateMarketState (UpdateMarketStateRequest) returns (UpdateMarketStateResponse);
+    rpc InsertCurrentOrder (InsertCurrentOrderRequest) returns (InsertCurrentOrderResponse);
+    rpc GetCurrentOrder (GetCurrentOrderRequest) returns (GetCurrentOrderResponse);
+    rpc InsertPositionList (InsertPositionListRequest) returns (InsertPositionListResponse);
+    rpc InsertPosition (InsertPositionRequest) returns (InsertPositionResponse);
+    rpc GetPositionList (GetPositionListRequest) returns (GetPositionListResponse);
+    rpc InsertSingleSymbolPositionList (InsertSingleSymbolPositionListRequest) returns (InsertSingleSymbolPositionListResponse);
+    rpc InsertSingleSymbolPosition (InsertSingleSymbolPositionRequest) returns (InsertSingleSymbolPositionResponse);
+    rpc GetSingleSymbolPositionList (GetSingleSymbolPositionListRequest) returns (GetSingleSymbolPositionListResponse);
+    rpc GetSingleSymbolLatestPosition (GetSingleSymbolLatestPositionRequest) returns (GetSingleSymbolLatestPositionResponse);
+    rpc InsertCurrentPosition (InsertCurrentPositionRequest) returns (InsertCurrentPositionResponse);
+    rpc GetCurrentPosition (GetCurrentPositionRequest) returns (GetCurrentPositionResponse);
+    rpc IncrementNumOfPeriods (IncrementNumOfPeriodsRequest) returns (IncrementNumOfPeriodsResponse);
+    rpc InsertMLModel (InsertMLModelRequest) returns (InsertMLModelResponse);
+    rpc GetMLModel (GetMLModelRequest) returns (GetMLModelResponse);
+}
+
+message InsertTradingSystemRequest {
+    string name = 1;
+}
+
+message InsertTradingSystemResponse {
+    bool successful = 1;
+}
+
+message InsertTradingSystemMetricsRequest {
+
+}
+
+message InsertTradingSystemMetricsResponse {
+    bool successful = 1;
+}
+
+message UpdateTradingSystemMetricsRequest {}
+
+message UpdateTradingSystemMetricsResponse {}
+
+message UpdateCurrentDatetimeRequest {}
+
+message UpdateCurrentDatetimeResponse {}
+
+message GetCurrentDatetimeRequest {}
+
+message GetCurrentDatetimeResponse {}
+
+message InsertMarketStateRequest {}
+
+message InsertMarketStateResponse {}
+
+message GetMarketStateRequest {}
+
+message GetMarketStateResponse {}
+
+message GetMarketStateForSymbolRequest {}
+
+message GetMarketStateForSymbolResponse {}
+
+message UpdateMarketStateRequest {}
+
+message UpdateMarketStateResponse {}
+
+message InsertCurrentOrderRequest {}
+
+message InsertCurrentOrderResponse {}
+
+message GetCurrentOrderRequest {}
+
+message GetCurrentOrderResponse {}
+
+message InsertPositionListRequest {}
+
+message InsertPositionListResponse {}
+
+message InsertPositionRequest {}
+
+message InsertPositionResponse {}
+    
+message GetPositionListRequest {}
+
+message GetPositionListResponse {}
+
+message InsertSingleSymbolPositionListRequest {}
+
+message InsertSingleSymbolPositionListResponse {}
+
+message InsertSingleSymbolPositionRequest {}
+
+message InsertSingleSymbolPositionResponse {}
+
+message GetSingleSymbolPositionListRequest {}
+
+message GetSingleSymbolPositionListResponse {}
+
+message GetSingleSymbolLatestPositionRequest {}
+
+message GetSingleSymbolLatestPositionResponse {}
+
+message InsertCurrentPositionRequest {}
+
+message InsertCurrentPositionResponse {}
+
+message GetCurrentPositionRequest {}
+
+message GetCurrentPositionResponse {}
+
+message IncrementNumOfPeriodsRequest {}
+
+message IncrementNumOfPeriodsResponse {}
+
+message InsertMLModelRequest {}
+
+message InsertMLModelResponse {}
+
+message GetMLModelRequest {}
+
+message GetMLModelResponse {}
