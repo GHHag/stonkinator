@@ -4,6 +4,8 @@ package stonkinator;
 
 option go_package = "./stonkinator_rpc_service";
 
+import "google/protobuf/struct.proto";
+
 // questionably needed methods for the service:
 // GetTradingSystemId (_get_system_id)
 // GetTradingSystemMetrics (get_system_metrics)
@@ -37,6 +39,7 @@ service StonkinatorService {
 
 message InsertTradingSystemRequest {
     string name = 1;
+    optional string current_date_time = 2; // is there a good date/time type to use?
 }
 
 message InsertTradingSystemResponse {
@@ -44,7 +47,8 @@ message InsertTradingSystemResponse {
 }
 
 message InsertTradingSystemMetricsRequest {
-
+    string trading_system_id = 1;
+    google.protobuf.Struct metrics = 2;
 }
 
 message InsertTradingSystemMetricsResponse {

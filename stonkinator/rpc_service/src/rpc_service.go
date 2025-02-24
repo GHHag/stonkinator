@@ -39,23 +39,6 @@ func (service *service) run() error {
 	return nil
 }
 
-// func run() {
-// 	listener, err := net.Listen("tcp", ":5000")
-// 	if err != nil {
-// 		panic(err)
-// 	}
-
-// 	s := grpc.NewServer()
-
-// 	app := &server{}
-
-// 	pb.RegisterStonkinatorServiceServer(s, app)
-
-// 	if err := s.Serve(listener); err != nil {
-// 		panic(err)
-// 	}
-// }
-
 func (s *server) InsertTradingSystem(ctx context.Context, req *pb.InsertTradingSystemRequest) (*pb.InsertTradingSystemResponse, error) {
 	res := &pb.InsertTradingSystemResponse{
 		Successful: true,
