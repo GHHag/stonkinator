@@ -4,137 +4,111 @@ package stonkinator;
 
 option go_package = "./stonkinator_rpc_service";
 
-import "google/protobuf/struct.proto";
-
-// questionably needed methods for the service:
-// GetTradingSystemId (_get_system_id)
-// GetTradingSystemMetrics (get_system_metrics)
-// IncrementNumOfPeriods (increment_num_of_periods)
-
 service StonkinatorService {
-    rpc InsertTradingSystem (InsertTradingSystemRequest) returns (InsertTradingSystemResponse);
-    rpc InsertTradingSystemMetrics (InsertTradingSystemMetricsRequest) returns (InsertTradingSystemMetricsResponse);
-    rpc UpdateTradingSystemMetrics (UpdateTradingSystemMetricsRequest) returns (UpdateTradingSystemMetricsResponse);
-    rpc UpdateCurrentDatetime (UpdateCurrentDatetimeRequest) returns (UpdateCurrentDatetimeResponse);
-    rpc GetCurrentDatetime (GetCurrentDatetimeRequest) returns (GetCurrentDatetimeResponse);
-    rpc InsertMarketState (InsertMarketStateRequest) returns (InsertMarketStateResponse);
-    rpc GetMarketState (GetMarketStateRequest) returns (GetMarketStateResponse);
-    rpc GetMarketStateForSymbol (GetMarketStateForSymbolRequest) returns (GetMarketStateForSymbolResponse);
-    rpc UpdateMarketState (UpdateMarketStateRequest) returns (UpdateMarketStateResponse);
-    rpc InsertCurrentOrder (InsertCurrentOrderRequest) returns (InsertCurrentOrderResponse);
-    rpc GetCurrentOrder (GetCurrentOrderRequest) returns (GetCurrentOrderResponse);
-    rpc InsertPositionList (InsertPositionListRequest) returns (InsertPositionListResponse);
-    rpc InsertPosition (InsertPositionRequest) returns (InsertPositionResponse);
-    rpc GetPositionList (GetPositionListRequest) returns (GetPositionListResponse);
-    rpc InsertSingleSymbolPositionList (InsertSingleSymbolPositionListRequest) returns (InsertSingleSymbolPositionListResponse);
-    rpc InsertSingleSymbolPosition (InsertSingleSymbolPositionRequest) returns (InsertSingleSymbolPositionResponse);
-    rpc GetSingleSymbolPositionList (GetSingleSymbolPositionListRequest) returns (GetSingleSymbolPositionListResponse);
-    rpc GetSingleSymbolLatestPosition (GetSingleSymbolLatestPositionRequest) returns (GetSingleSymbolLatestPositionResponse);
-    rpc InsertCurrentPosition (InsertCurrentPositionRequest) returns (InsertCurrentPositionResponse);
-    rpc GetCurrentPosition (GetCurrentPositionRequest) returns (GetCurrentPositionResponse);
-    rpc IncrementNumOfPeriods (IncrementNumOfPeriodsRequest) returns (IncrementNumOfPeriodsResponse);
-    rpc InsertMLModel (InsertMLModelRequest) returns (InsertMLModelResponse);
-    rpc GetMLModel (GetMLModelRequest) returns (GetMLModelResponse);
+    rpc InsertExchange (InsertExchangeRequest) returns (InsertResponse);
+    rpc GetExchange (GetByNameRequest) returns (GetExchangeResponse);
+    rpc InsertInstrument (Instrument) returns (InsertResponse);
+    rpc GetInstrument (GetBySymbolRequest) returns (Instrument);
+    rpc InsertPriceData (InsertPriceDataRequest) returns (InsertResponse);
+    rpc GetPriceData (GetPriceDataRequest) returns (GetPriceDataResponse);
+    rpc GetDateTime (GetDateTimeRequest) returns (DateTime);
+    rpc GetLastDate (GetLastDateRequest) returns (DateTime);
+
+    rpc GetMarketListInstruments (MarketList) returns (Instruments);
+    rpc GetMarketListInstrumentsPriceData (MarketList) returns (GetPriceDataResponse);
+
+    // rpc InsertTradingSystem(TradingSystem) returns(InsertResponse);
 }
 
-message InsertTradingSystemRequest {
+message Instrument {
+    optional string id = 1;
+    string exchange_id = 2;
+    string instrument_name = 3;
+    string symbol = 4;
+    optional string sector = 5;
+}
+
+message Instruments {
+    repeated Instrument instruments = 1;
+}
+
+message PriceData {
+    string instrument_id = 1;
+    int32 open_price = 2;
+    int32 high_price = 3;
+    int32 low_price = 4;
+    int32 close_price = 5;
+    int64 volume = 6;
+    string date_time = 7;
+}
+
+message MarketList {
+    optional string id = 1;
+    string market_list = 2;
+}
+
+// message TradingSystem {
+//     string trading_system_name = 1;
+//     string current_date_time = 2;
+// }
+
+message DateTime {
+    string date_time = 1;
+}
+
+message InsertResponse {
+    bool successful = 1;
+    optional int32 num_inserted_items = 2;
+}
+
+message UpdateResponse {
+    bool successful = 1;
+}
+
+message GetByIdRequest {
+    string id = 1;
+}
+
+message GetByNameRequest {
     string name = 1;
-    optional string current_date_time = 2; // is there a good date/time type to use?
 }
 
-message InsertTradingSystemResponse {
+message GetBySymbolRequest {
+    string symbol = 1;
+}
+
+message InsertExchangeRequest {
+    string exchange_name = 1;
+    string currency = 2;
+}
+
+message GetExchangeResponse {
     bool successful = 1;
+    string id = 2;
+    string exchange_name = 3;
 }
 
-message InsertTradingSystemMetricsRequest {
-    string trading_system_id = 1;
-    google.protobuf.Struct metrics = 2;
+message InsertPriceDataRequest {
+    repeated PriceData price_data = 1;
 }
 
-message InsertTradingSystemMetricsResponse {
+message GetPriceDataRequest {
+    string instrument_id = 1;
+    string start_date_time = 2;
+    string end_date_time = 3;
+} 
+
+message GetPriceDataResponse {
     bool successful = 1;
+    repeated PriceData price_data = 2;
 }
 
-message UpdateTradingSystemMetricsRequest {}
+message GetDateTimeRequest {
+    string symbol = 1;
+    bool order_asc = 2;
+}
 
-message UpdateTradingSystemMetricsResponse {}
-
-message UpdateCurrentDatetimeRequest {}
-
-message UpdateCurrentDatetimeResponse {}
-
-message GetCurrentDatetimeRequest {}
-
-message GetCurrentDatetimeResponse {}
-
-message InsertMarketStateRequest {}
-
-message InsertMarketStateResponse {}
-
-message GetMarketStateRequest {}
-
-message GetMarketStateResponse {}
-
-message GetMarketStateForSymbolRequest {}
-
-message GetMarketStateForSymbolResponse {}
-
-message UpdateMarketStateRequest {}
-
-message UpdateMarketStateResponse {}
-
-message InsertCurrentOrderRequest {}
-
-message InsertCurrentOrderResponse {}
-
-message GetCurrentOrderRequest {}
-
-message GetCurrentOrderResponse {}
-
-message InsertPositionListRequest {}
-
-message InsertPositionListResponse {}
-
-message InsertPositionRequest {}
-
-message InsertPositionResponse {}
-    
-message GetPositionListRequest {}
-
-message GetPositionListResponse {}
-
-message InsertSingleSymbolPositionListRequest {}
-
-message InsertSingleSymbolPositionListResponse {}
-
-message InsertSingleSymbolPositionRequest {}
-
-message InsertSingleSymbolPositionResponse {}
-
-message GetSingleSymbolPositionListRequest {}
-
-message GetSingleSymbolPositionListResponse {}
-
-message GetSingleSymbolLatestPositionRequest {}
-
-message GetSingleSymbolLatestPositionResponse {}
-
-message InsertCurrentPositionRequest {}
-
-message InsertCurrentPositionResponse {}
-
-message GetCurrentPositionRequest {}
-
-message GetCurrentPositionResponse {}
-
-message IncrementNumOfPeriodsRequest {}
-
-message IncrementNumOfPeriodsResponse {}
-
-message InsertMLModelRequest {}
-
-message InsertMLModelResponse {}
-
-message GetMLModelRequest {}
-
-message GetMLModelResponse {}
+message GetLastDateRequest {
+    string symbol_1 = 1;
+    string symbol_2 = 2;
+}
