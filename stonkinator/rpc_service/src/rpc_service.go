@@ -6,6 +6,7 @@ import (
 	"net"
 	pb "stonkinator_rpc_service/stonkinator_rpc_service"
 	"strings"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"google.golang.org/grpc"
@@ -47,6 +48,7 @@ func (service *service) run() error {
 }
 
 func (s *server) InsertExchange(ctx context.Context, req *pb.InsertExchangeRequest) (*pb.InsertResponse, error) {
+	// TODO: Use context WithTimeout?
 	// ctx, cancel := context.WithTimeout(context.Background(), dbTimeout)
 	// defer cancel()
 
@@ -59,19 +61,13 @@ func (s *server) InsertExchange(ctx context.Context, req *pb.InsertExchangeReque
 		`,
 		req.ExchangeName, req.Currency,
 	)
-
-	successful := true
 	if err != nil {
-		// TODO: Respond with, or log errors, define centralized logging m
-		successful = false
-	}
-	rowsAffected := result.RowsAffected()
-	if rowsAffected == 0 {
-		successful = false
+		// TODO: Log errors, define centralized logging m
+		return nil, err
 	}
 
 	res := &pb.InsertResponse{
-		Successful: successful,
+		NumAffected: int32(result.RowsAffected()),
 	}
 
 	return res, nil
@@ -88,26 +84,12 @@ func (s *server) GetExchange(ctx context.Context, req *pb.GetByNameRequest) (*pb
 		strings.ToUpper(req.Name),
 	)
 
-	var id string
-	var exchangeName string
-	// var res *pb.GetExchangeResponse
-	successful := true
-	err := query.Scan(&id, &exchangeName)
-	// err := query.Scan(&res.Id, &res.ExchangeName)
+	res := &pb.GetExchangeResponse{}
+	err := query.Scan(&res.Id, &res.ExchangeName)
 	if err != nil {
-		successful = false
-		res := &pb.GetExchangeResponse{
-			Successful: successful,
-		}
-		return res, err
+		// TODO: How to handle errors properly?
+		return nil, err
 	}
-
-	res := &pb.GetExchangeResponse{
-		Id:           id,
-		ExchangeName: exchangeName,
-		Successful:   successful,
-	}
-	// res.Successful = successful
 
 	return res, nil
 }
@@ -122,18 +104,12 @@ func (s *server) InsertInstrument(ctx context.Context, req *pb.Instrument) (*pb.
 		`,
 		req.ExchangeId, req.InstrumentName, req.Symbol, req.Sector,
 	)
-
-	successful := true
 	if err != nil {
-		successful = false
-	}
-	rowsAffected := result.RowsAffected()
-	if rowsAffected == 0 {
-		successful = false
+		return nil, err
 	}
 
 	res := &pb.InsertResponse{
-		Successful: successful,
+		NumAffected: int32(result.RowsAffected()),
 	}
 
 	return res, nil
@@ -141,7 +117,7 @@ func (s *server) InsertInstrument(ctx context.Context, req *pb.Instrument) (*pb.
 
 func (s *server) GetInstrument(ctx context.Context, req *pb.GetBySymbolRequest) (*pb.Instrument, error) {
 	query := s.pgPool.QueryRow(
-		context.Background(),
+		ctx,
 		`
 			SELECT id, exchange_id, instrument_name, symbol, sector
 			FROM instruments
@@ -153,47 +129,226 @@ func (s *server) GetInstrument(ctx context.Context, req *pb.GetBySymbolRequest) 
 	res := &pb.Instrument{}
 	err := query.Scan(&res.Id, &res.ExchangeId, &res.InstrumentName, &res.Symbol, &res.Sector)
 	if err != nil {
-		// successful = false
+		return nil, err
 	}
 
 	return res, nil
 }
 
-func (s *server) InsertPriceData(ctx context.Context, req *pb.InsertPriceDataRequest) (*pb.InsertResponse, error) {
-	res := &pb.InsertResponse{}
-
-	return res, nil
-}
-
-func (s *server) GetPriceData(ctx context.Context, req *pb.GetPriceDataRequest) (*pb.GetPriceDataResponse, error) {
-	res := &pb.GetPriceDataResponse{}
-
-	return res, nil
-}
-
 func (s *server) GetDateTime(ctx context.Context, req *pb.GetDateTimeRequest) (*pb.DateTime, error) {
-	res := &pb.DateTime{}
+	var queryStr string
+	if req.Min {
+		queryStr = `
+			SELECT MIN(price_data.date_time)
+			FROM instruments, price_data
+			WHERE instruments.id = price_data.instrument_id
+			AND UPPER(instruments.symbol) = $1
+		`
+	} else {
+		queryStr = `
+			SELECT MAX(price_data.date_time)
+			FROM instruments, price_data
+			WHERE instruments.id = price_data.instrument_id
+			AND UPPER(instruments.symbol) = $1
+		`
+	}
+
+	query := s.pgPool.QueryRow(
+		ctx,
+		queryStr,
+		strings.ToUpper(req.Symbol),
+	)
+
+	var dateTime time.Time
+	err := query.Scan(&dateTime)
+	if err != nil {
+		return nil, err
+	}
+
+	res := &pb.DateTime{
+		DateTime: dateTime.String(),
+	}
 
 	return res, nil
 }
 
 func (s *server) GetLastDate(ctx context.Context, req *pb.GetLastDateRequest) (*pb.DateTime, error) {
-	res := &pb.DateTime{}
+	query := s.pgPool.QueryRow(
+		ctx,
+		`
+			WITH instrument_one_dates AS (
+				SELECT date_time
+				FROM instruments, price_data
+				WHERE instruments.id = price_data.instrument_id
+				AND UPPER(instruments.symbol) = $1
+				ORDER BY price_data.date_time DESC
+				LIMIT 20
+			),
+			instrument_two_dates AS (
+				SELECT date_time
+				FROM instruments, price_data
+				WHERE instruments.id = price_data.instrument_id
+				AND UPPER(instruments.symbol) = $2
+				ORDER BY price_data.date_time DESC
+				LIMIT 20
+			)
+			SELECT *
+			FROM instrument_one_dates
+			UNION
+			SELECT *
+			FROM instrument_two_dates
+			ORDER BY date_time
+			LIMIT 1
+		`,
+		strings.ToUpper(req.Symbol_1), strings.ToUpper(req.Symbol_2),
+	)
+
+	var dateTime time.Time
+	err := query.Scan(&dateTime)
+	if err != nil {
+		return nil, err
+	}
+
+	res := &pb.DateTime{
+		DateTime: dateTime.String(),
+	}
 
 	return res, nil
 }
 
-func (s *server) GetMarketListInstruments(ctx context.Context, req *pb.MarketList) (*pb.Instruments, error) {
-	res := &pb.Instruments{}
+func (s *server) InsertPriceData(ctx context.Context, req *pb.PriceData) (*pb.InsertResponse, error) {
+	// dateTime :=
+	result, err := s.pgPool.Exec(
+		ctx,
+		`
+			INSERT INTO price_data(
+				instrument_id, open_price, high_price,
+				low_price, close_price, volume, date_time
+			)
+			VALUES($1, $2, $3, $4, $5, $6, $7)
+		`,
+		req.InstrumentId, req.OpenPrice, req.HighPrice, req.LowPrice, req.ClosePrice,
+		req.Volume, req.DateTime,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	res := &pb.InsertResponse{
+		NumAffected: int32(result.RowsAffected()),
+	}
 
 	return res, nil
 }
 
-func (s *server) GetMarketListInstrumentsPriceData(ctx context.Context, req *pb.MarketList) (*pb.GetPriceDataResponse, error) {
-	res := &pb.GetPriceDataResponse{}
+func (s *server) GetPriceData(ctx context.Context, req *pb.GetPriceDataRequest) (*pb.GetPriceDataResponse, error) {
+	// TODO: can the date time format be handled/defined in a better way?
+	dateTimeLayout := "2006-01-02 15:04:05 -0700 MST"
+	startDateTime, err := time.Parse(dateTimeLayout, req.StartDateTime)
+	if err != nil {
+		return nil, err
+	}
+	endDateTime, err := time.Parse(dateTimeLayout, req.EndDateTime)
+	if err != nil {
+		return nil, err
+	}
+
+	query, err := s.pgPool.Query(
+		ctx,
+		`
+			SELECT instruments.id,
+				price_data.open_price AS "open", price_data.high_price AS "high",
+				price_data.low_price AS "low", price_data.close_price AS "close",
+				price_data.volume AS "volume",
+				price_data.date_time AT TIME ZONE 'UTC' AS "date"
+			FROM instruments, price_data
+			WHERE instruments.id = price_data.instrument_id
+			AND instruments.id = $1
+			AND price_data.date_time >= $2
+			AND price_data.date_time <= $3
+			ORDER BY price_data.date_time
+		`,
+		req.InstrumentId, startDateTime, endDateTime,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer query.Close()
+
+	priceData := []*pb.PriceData{}
+	for query.Next() {
+		var price pb.PriceData
+		var dateTime time.Time
+		err = query.Scan(
+			&price.InstrumentId,
+			&price.OpenPrice,
+			&price.HighPrice,
+			&price.LowPrice,
+			&price.ClosePrice,
+			&price.Volume,
+			&dateTime,
+		)
+		// TODO: Format this date time value here?
+		price.DateTime = dateTime.String()
+
+		if err == nil {
+			priceData = append(priceData, &price)
+		}
+	}
+
+	res := &pb.GetPriceDataResponse{
+		PriceData: priceData,
+	}
 
 	return res, nil
 }
+
+func (s *server) GetMarketListInstruments(ctx context.Context, req *pb.GetByNameRequest) (*pb.Instruments, error) {
+	query, err := s.pgPool.Query(
+		ctx,
+		`
+			SELECT instruments.id, instruments.exchange_id, instruments.instrument_name,
+				instruments.symbol, instruments.sector
+			FROM instruments, market_lists, market_list_instruments
+			WHERE instruments.id = market_list_instruments.instrument_id
+			AND market_lists.id = market_list_instruments.market_list_id
+			AND UPPER(market_lists.market_list) = $1
+		`,
+		strings.ToUpper(req.Name),
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer query.Close()
+
+	instruments := []*pb.Instrument{}
+	for query.Next() {
+		var instrument pb.Instrument
+		err = query.Scan(
+			&instrument.Id,
+			&instrument.ExchangeId,
+			&instrument.InstrumentName,
+			&instrument.Symbol,
+			&instrument.Sector,
+		)
+
+		if err == nil {
+			instruments = append(instruments, &instrument)
+		}
+	}
+
+	res := &pb.Instruments{
+		Instruments: instruments,
+	}
+
+	return res, nil
+}
+
+// func (s *server) GetMarketListInstrumentsPriceData(ctx context.Context, req *pb.MarketList) (*pb.GetPriceDataResponse, error) {
+// 	res := &pb.GetPriceDataResponse{}
+
+// 	return res, nil
+// }
 
 // func (s *server) InsertTradingSystem(ctx context.Context, req *pb.InsertTradingSystemRequest) (*pb.InsertTradingSystemResponse, error) {
 // 	res := &pb.InsertTradingSystemResponse{

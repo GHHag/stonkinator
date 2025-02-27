@@ -61,7 +61,8 @@ CREATE TABLE IF NOT EXISTS price_data
     close_price REAL NOT NUll,
     volume BIGINT NOT NULL,
     date_time TIMESTAMP NOT NULL,
-    CONSTRAINT instrument_id_fk FOREIGN KEY(instrument_id) REFERENCES instruments(id)
+    CONSTRAINT instrument_id_fk FOREIGN KEY(instrument_id) REFERENCES instruments(id),
+    UNIQUE(instrument_id, date_time)
 );
 
 CREATE INDEX idx_price_data ON price_data (instrument_id, date_time);

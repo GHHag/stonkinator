@@ -9,19 +9,19 @@ service StonkinatorService {
     rpc GetExchange (GetByNameRequest) returns (GetExchangeResponse);
     rpc InsertInstrument (Instrument) returns (InsertResponse);
     rpc GetInstrument (GetBySymbolRequest) returns (Instrument);
-    rpc InsertPriceData (InsertPriceDataRequest) returns (InsertResponse);
-    rpc GetPriceData (GetPriceDataRequest) returns (GetPriceDataResponse);
     rpc GetDateTime (GetDateTimeRequest) returns (DateTime);
     rpc GetLastDate (GetLastDateRequest) returns (DateTime);
+    rpc InsertPriceData (PriceData) returns (InsertResponse);
+    rpc GetPriceData (GetPriceDataRequest) returns (GetPriceDataResponse);
+    rpc GetMarketListInstruments (GetByNameRequest) returns (Instruments);
 
-    rpc GetMarketListInstruments (MarketList) returns (Instruments);
-    rpc GetMarketListInstrumentsPriceData (MarketList) returns (GetPriceDataResponse);
+    // rpc GetMarketListInstrumentsPriceData (MarketList) returns (GetPriceDataResponse);
 
     // rpc InsertTradingSystem(TradingSystem) returns(InsertResponse);
 }
 
 message Instrument {
-    optional string id = 1;
+    optional string id = 1; // if fields are implicitly optional then leave it out of the definition
     string exchange_id = 2;
     string instrument_name = 3;
     string symbol = 4;
@@ -34,18 +34,18 @@ message Instruments {
 
 message PriceData {
     string instrument_id = 1;
-    int32 open_price = 2;
-    int32 high_price = 3;
-    int32 low_price = 4;
-    int32 close_price = 5;
+    double open_price = 2;
+    double high_price = 3;
+    double low_price = 4;
+    double close_price = 5;
     int64 volume = 6;
     string date_time = 7;
 }
 
-message MarketList {
-    optional string id = 1;
-    string market_list = 2;
-}
+// message MarketList {
+//     optional string id = 1;
+//     string market_list = 2;
+// }
 
 // message TradingSystem {
 //     string trading_system_name = 1;
@@ -57,12 +57,11 @@ message DateTime {
 }
 
 message InsertResponse {
-    bool successful = 1;
-    optional int32 num_inserted_items = 2;
+    int32 num_affected = 1;
 }
 
 message UpdateResponse {
-    bool successful = 1;
+    int32 num_affected = 1;
 }
 
 message GetByIdRequest {
@@ -83,14 +82,13 @@ message InsertExchangeRequest {
 }
 
 message GetExchangeResponse {
-    bool successful = 1;
     string id = 2;
     string exchange_name = 3;
 }
 
-message InsertPriceDataRequest {
-    repeated PriceData price_data = 1;
-}
+// message InsertPriceDataRequest {
+//     repeated PriceData price_data = 1;
+// }
 
 message GetPriceDataRequest {
     string instrument_id = 1;
@@ -99,13 +97,12 @@ message GetPriceDataRequest {
 } 
 
 message GetPriceDataResponse {
-    bool successful = 1;
     repeated PriceData price_data = 2;
 }
 
 message GetDateTimeRequest {
     string symbol = 1;
-    bool order_asc = 2;
+    bool min = 2;
 }
 
 message GetLastDateRequest {
