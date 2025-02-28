@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"net"
 	pb "stonkinator_rpc_service/stonkinator_rpc_service"
@@ -34,8 +35,8 @@ func (service *service) create(pgPool *pgxpool.Pool) {
 	pb.RegisterStonkinatorServiceServer(service.grpcServer, service.server)
 }
 
-func (service *service) run() error {
-	listener, err := net.Listen("tcp", ":5000")
+func (service *service) run(port string) error {
+	listener, err := net.Listen("tcp", fmt.Sprintf(":%s", port))
 	if err != nil {
 		return err
 	}

@@ -22,6 +22,7 @@ setup(
         'sterunets @ git+https://github.com/GHHag/sterunets.git',
         'pymongo==4.6.1',
         'yahooquery==2.3.7',
-        'requests==2.31.0'
+        'requests==2.31.0',
+        'grpcio-tools==1.70.0'
     ]
 )

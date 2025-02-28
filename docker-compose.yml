@@ -22,33 +22,66 @@ services:
     ports:
       - ${MDB_PORT_EXP}:${MDB_PORT}
 
-  stonkinator_api:
+  http_api:
     depends_on:
       - ${PG_DB_SERVICE}
+    environment:
+      PG_DB_USER: ${PG_DB_USER}
+      PG_DB_PORT: ${PG_DB_PORT}
+      PG_DB_PASSWORD: ${PG_DB_PASSWORD}
+      PG_DB_NAME: ${PG_DB_NAME}
+      PG_DB_SERVICE: ${PG_DB_SERVICE}
+      API_URL: ${API_URL}
+      STONKINATOR_API_PORT: ${STONKINATOR_API_PORT}
     build: ./server
     ports:
       - ${STONKINATOR_API_PORT_EXP}:${STONKINATOR_API_PORT}
-    # develop:
-    #   watch:
-    #     - action: rebuild
-    #       path:
-    #         ./server/src
+    develop:
+      watch:
+        - action: rebuild
+          path:
+            ./server/src
+
+  rpc_service:
+    depends_on:
+      - ${PG_DB_SERVICE}
+    environment:
+      PG_DB_USER: ${PG_DB_USER}
+      PG_DB_PORT: ${PG_DB_PORT}
+      PG_DB_PASSWORD: ${PG_DB_PASSWORD}
+      PG_DB_NAME: ${PG_DB_NAME}
+      PG_DB_SERVICE: ${PG_DB_SERVICE}
+      RPC_SERVICE_PORT: ${RPC_SERVICE_PORT}
+    build: ./stonkinator/rpc_service
+    develop:
+      watch:
+        - action: rebuild
+          path:
+            ./stonkinator/rpc_service/src
 
   stonkinator:
     depends_on:
       - ${STONKINATOR_API_SERVICE}
-    build: ./stonkinator
+      - ${STONKINATOR_RPC_SERVICE} 
+    environment:
+      API_HOST: ${STONKINATOR_API_SERVICE}
+      RPC_SERVICE_HOST: ${STONKINATOR_RPC_SERVICE}
+      API_PORT: ${STONKINATOR_API_PORT}
+      RPC_SERVICE_PORT: ${RPC_SERVICE_PORT}
+      DAL_LOG_FILE_PATH: ${DAL_LOG_FILE_PATH}
+      DAL_LOG_FILE_PATH_CRITICAL: ${DAL_LOG_FILE_PATH_CRITICAL}
+    build: ./stonkinator/stonkinator
     volumes:
-      - ./stonkinator:/app
+      - ./stonkinator/stonkinator:/app
 
-  frontend:
-    depends_on:
-      - ${STONKINATOR_API_SERVICE}
-    build: ./stonkinator_frontend
-    ports:
-      - ${FRONTEND_PORT}:${FRONTEND_PORT}
-    volumes:
-      - ./stonkinator_frontend/src:/app/src
+  # frontend:
+  #   depends_on:
+  #     - ${STONKINATOR_API_SERVICE}
+  #   build: ./stonkinator_frontend
+  #   ports:
+  #     - ${FRONTEND_PORT}:${FRONTEND_PORT}
+  #   volumes:
+  #     - ./stonkinator_frontend/src:/app/src
 
 volumes:
   securities_data:

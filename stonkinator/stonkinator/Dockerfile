@@ -6,7 +6,7 @@ WORKDIR /app
 
 COPY . /app
 
-RUN cd /app/stonkinator && pip install -e .
+RUN cd /app && pip install -e .
 
 COPY crontab /etc/cron.d/crontab
 

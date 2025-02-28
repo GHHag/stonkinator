@@ -1,7 +1,8 @@
 # docker services
 PG_DB_SERVICE = 'postgres'
 MDB_SERVICE = 'mongodb'
-STONKINATOR_API_SERVICE = 'stonkinator_api'
+STONKINATOR_API_SERVICE = 'http_api'
+STONKINATOR_RPC_SERVICE = 'rpc_service'
 STONKINATOR_SERVICE = 'stonkinator'
 
 # postgres
@@ -30,6 +31,9 @@ API_URL = '/api'
 STONKINATOR_API_PORT = 4001
 STONKINATOR_API_PORT_EXP = 5800
 
+# rpc service
+RPC_SERVICE_PORT = 5001
+
 # securities db py dal
 API_HOST = STONKINATOR_API_SERVICE
 API_PORT = STONKINATOR_API_PORT
@@ -39,4 +43,4 @@ DAL_LOG_FILE_PATH_CRITICAL = '/var/log/stonkinator/'
 # frontend
 FRONTEND_PORT = 3000
 
-TS_HANDLER_DIR_TARGET = '/app/stonkinator/trading_systems'
+TS_HANDLER_DIR_TARGET = '/app/trading_systems'
