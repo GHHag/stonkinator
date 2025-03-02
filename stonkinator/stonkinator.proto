@@ -7,25 +7,31 @@ option go_package = "./stonkinator_rpc_service";
 service StonkinatorService {
     rpc InsertExchange (InsertExchangeRequest) returns (InsertResponse);
     rpc GetExchange (GetByNameRequest) returns (GetExchangeResponse);
+    rpc GetExchanges (GetAllRequest) returns (GetExchangesResponse);
     rpc InsertInstrument (Instrument) returns (InsertResponse);
+    // rpc UpdateInstrument (Instrument) returns (UpdateResponse);
     rpc GetInstrument (GetBySymbolRequest) returns (Instrument);
     rpc GetDateTime (GetDateTimeRequest) returns (DateTime);
     rpc GetLastDate (GetLastDateRequest) returns (DateTime);
     rpc InsertPriceData (PriceData) returns (InsertResponse);
     rpc GetPriceData (GetPriceDataRequest) returns (GetPriceDataResponse);
+    // rpc InsertMarketList (MarketList) returns (InsertResponse);
+    // rpc UpdateMarketList (MarketList) returns (UpdateResponse);
+    rpc GetExchangeInstruments (GetByIdRequest) returns (Instruments);
     rpc GetMarketListInstruments (GetByNameRequest) returns (Instruments);
-
     // rpc GetMarketListInstrumentsPriceData (MarketList) returns (GetPriceDataResponse);
-
+    
+    // Methods previously implemented by SystemsMongoDB
     // rpc InsertTradingSystem(TradingSystem) returns(InsertResponse);
+    // rpc UpdateTradingSystemCurrentDateTime() returns ();
 }
 
 message Instrument {
-    optional string id = 1; // if fields are implicitly optional then leave it out of the definition
+    string id = 1;
     string exchange_id = 2;
     string instrument_name = 3;
     string symbol = 4;
-    optional string sector = 5;
+    string sector = 5;
 }
 
 message Instruments {
@@ -43,7 +49,7 @@ message PriceData {
 }
 
 // message MarketList {
-//     optional string id = 1;
+//     string id = 1;
 //     string market_list = 2;
 // }
 
@@ -72,6 +78,8 @@ message GetByNameRequest {
     string name = 1;
 }
 
+message GetAllRequest {}
+
 message GetBySymbolRequest {
     string symbol = 1;
 }
@@ -82,8 +90,12 @@ message InsertExchangeRequest {
 }
 
 message GetExchangeResponse {
-    string id = 2;
-    string exchange_name = 3;
+    string id = 1;
+    string exchange_name = 2;
+}
+
+message GetExchangesResponse {
+    repeated GetExchangeResponse exchanges = 1;
 }
 
 // message InsertPriceDataRequest {

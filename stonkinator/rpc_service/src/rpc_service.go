@@ -14,6 +14,8 @@ import (
 )
 
 // const dbTimeout = time.Second * 6
+const DATE_FORMAT = "2006-01-02"
+const DATETIME_FORMAT = "2006-01-02 15:04:05"
 
 type server struct {
 	pgPool *pgxpool.Pool
@@ -88,8 +90,40 @@ func (s *server) GetExchange(ctx context.Context, req *pb.GetByNameRequest) (*pb
 	res := &pb.GetExchangeResponse{}
 	err := query.Scan(&res.Id, &res.ExchangeName)
 	if err != nil {
-		// TODO: How to handle errors properly?
 		return nil, err
+	}
+
+	return res, nil
+}
+
+func (s *server) GetExchanges(ctx context.Context, req *pb.GetAllRequest) (*pb.GetExchangesResponse, error) {
+	query, err := s.pgPool.Query(
+		ctx,
+		`
+			SELECT id, exchange_name
+			FROM exchanges
+		`,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer query.Close()
+
+	exchanges := []*pb.GetExchangeResponse{}
+	for query.Next() {
+		var exchange pb.GetExchangeResponse
+		err := query.Scan(
+			&exchange.Id,
+			&exchange.ExchangeName,
+		)
+
+		if err == nil {
+			exchanges = append(exchanges, &exchange)
+		}
+	}
+
+	res := &pb.GetExchangesResponse{
+		Exchanges: exchanges,
 	}
 
 	return res, nil
@@ -167,7 +201,7 @@ func (s *server) GetDateTime(ctx context.Context, req *pb.GetDateTimeRequest) (*
 	}
 
 	res := &pb.DateTime{
-		DateTime: dateTime.String(),
+		DateTime: dateTime.Format(DATETIME_FORMAT),
 	}
 
 	return res, nil
@@ -211,14 +245,18 @@ func (s *server) GetLastDate(ctx context.Context, req *pb.GetLastDateRequest) (*
 	}
 
 	res := &pb.DateTime{
-		DateTime: dateTime.String(),
+		DateTime: dateTime.Format(DATETIME_FORMAT),
 	}
 
 	return res, nil
 }
 
 func (s *server) InsertPriceData(ctx context.Context, req *pb.PriceData) (*pb.InsertResponse, error) {
-	// dateTime :=
+	dateTime, err := time.Parse(DATE_FORMAT, req.DateTime)
+	if err != nil {
+		return nil, err
+	}
+
 	result, err := s.pgPool.Exec(
 		ctx,
 		`
@@ -229,7 +267,7 @@ func (s *server) InsertPriceData(ctx context.Context, req *pb.PriceData) (*pb.In
 			VALUES($1, $2, $3, $4, $5, $6, $7)
 		`,
 		req.InstrumentId, req.OpenPrice, req.HighPrice, req.LowPrice, req.ClosePrice,
-		req.Volume, req.DateTime,
+		req.Volume, dateTime,
 	)
 	if err != nil {
 		return nil, err
@@ -243,13 +281,11 @@ func (s *server) InsertPriceData(ctx context.Context, req *pb.PriceData) (*pb.In
 }
 
 func (s *server) GetPriceData(ctx context.Context, req *pb.GetPriceDataRequest) (*pb.GetPriceDataResponse, error) {
-	// TODO: can the date time format be handled/defined in a better way?
-	dateTimeLayout := "2006-01-02 15:04:05 -0700 MST"
-	startDateTime, err := time.Parse(dateTimeLayout, req.StartDateTime)
+	startDateTime, err := time.Parse(DATETIME_FORMAT, req.StartDateTime)
 	if err != nil {
 		return nil, err
 	}
-	endDateTime, err := time.Parse(dateTimeLayout, req.EndDateTime)
+	endDateTime, err := time.Parse(DATETIME_FORMAT, req.EndDateTime)
 	if err != nil {
 		return nil, err
 	}
@@ -260,8 +296,7 @@ func (s *server) GetPriceData(ctx context.Context, req *pb.GetPriceDataRequest) 
 			SELECT instruments.id,
 				price_data.open_price AS "open", price_data.high_price AS "high",
 				price_data.low_price AS "low", price_data.close_price AS "close",
-				price_data.volume AS "volume",
-				price_data.date_time AT TIME ZONE 'UTC' AS "date"
+				price_data.volume AS "volume", price_data.date_time AS "date"
 			FROM instruments, price_data
 			WHERE instruments.id = price_data.instrument_id
 			AND instruments.id = $1
@@ -289,16 +324,55 @@ func (s *server) GetPriceData(ctx context.Context, req *pb.GetPriceDataRequest) 
 			&price.Volume,
 			&dateTime,
 		)
-		// TODO: Format this date time value here?
-		price.DateTime = dateTime.String()
 
 		if err == nil {
+			price.DateTime = dateTime.Format(DATETIME_FORMAT)
 			priceData = append(priceData, &price)
 		}
 	}
 
 	res := &pb.GetPriceDataResponse{
 		PriceData: priceData,
+	}
+
+	return res, nil
+}
+
+func (s *server) GetExchangeInstruments(ctx context.Context, req *pb.GetByIdRequest) (*pb.Instruments, error) {
+	query, err := s.pgPool.Query(
+		ctx,
+		`
+			SELECT instruments.id, instruments.exchange_id, instruments.instrument_name,
+				instruments.symbol, instruments.sector
+			FROM exchanges, instruments
+			WHERE exchanges.id = instruments.exchange_id
+			AND exchanges.id = $1
+		`,
+		req.Id,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer query.Close()
+
+	instruments := []*pb.Instrument{}
+	for query.Next() {
+		var instrument pb.Instrument
+		err = query.Scan(
+			&instrument.Id,
+			&instrument.ExchangeId,
+			&instrument.InstrumentName,
+			&instrument.Symbol,
+			&instrument.Sector,
+		)
+
+		if err == nil {
+			instruments = append(instruments, &instrument)
+		}
+	}
+
+	res := &pb.Instruments{
+		Instruments: instruments,
 	}
 
 	return res, nil

@@ -13,9 +13,9 @@ CREATE TABLE IF NOT EXISTS instruments
 (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     exchange_id UUID,
-    instrument_name VARCHAR(100),
+    instrument_name VARCHAR(100) DEFAULT '',
     symbol VARCHAR(20) UNIQUE NOT NULL,
-    sector VARCHAR(100),
+    sector VARCHAR(100) DEFAULT '',
     CONSTRAINT exchange_id_fk FOREIGN KEY(exchange_id) REFERENCES exchanges(id)
 );
 

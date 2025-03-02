@@ -70,6 +70,7 @@ services:
       RPC_SERVICE_PORT: ${RPC_SERVICE_PORT}
       DAL_LOG_FILE_PATH: ${DAL_LOG_FILE_PATH}
       DAL_LOG_FILE_PATH_CRITICAL: ${DAL_LOG_FILE_PATH_CRITICAL}
+      TS_HANDLER_DIR_TARGET: ${TS_HANDLER_DIR_TARGET}
     build: ./stonkinator/stonkinator
     volumes:
       - ./stonkinator/stonkinator:/app
