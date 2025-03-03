@@ -8,13 +8,13 @@ from functools import lru_cache
 from yahooquery import Ticker
 import pandas as pd
 
-import stonkinator_pb2
-from grpc_service import SecuritiesGRPCService
-import persistance.securities_db_py_dal.env as env
+import persistance.persistance_services.stonkinator_pb2 as stonkinator_pb2
+from persistance.persistance_services.grpc_service import SecuritiesGRPCService
+import trading_systems.env as env
 from trading.data.metadata.price import Price
 
 
-def set_up_logger(name, log_file, level=logging.INFO):
+def set_up_logger(name: str, log_file: str, level=logging.INFO) -> logging.Logger:
     handler = logging.FileHandler(log_file)
     logger = logging.getLogger(name)
     logger.setLevel(level)
@@ -23,63 +23,80 @@ def set_up_logger(name, log_file, level=logging.INFO):
 
 
 def get_yahooquery_data(
-    symbol: str, start_date, end_date,
+    symbol: str, start_date_time: dt.datetime, end_date_time: dt.datetime,
     omxs_stock=False
-):
+) -> pd.DataFrame | None:
     try:
         if omxs_stock:
             if "^" in symbol:
                 data = Ticker(
                     symbol.upper()
-                ).history(start=start_date, end=end_date)
+                ).history(start=start_date_time, end=end_date_time)
             else:
                 data = Ticker(
                     symbol.upper().replace("_", "-") + ".ST"
-                ).history(start=start_date, end=end_date)
+                ).history(start=start_date_time, end=end_date_time)
         else:
-            data = Ticker(symbol.upper()).history(start=start_date, end=end_date)
+            data = Ticker(
+                symbol.upper()
+            ).history(start=start_date_time, end=end_date_time)
         data = data.reset_index()
         return data
-    except (KeyError, AttributeError, TypeError) as e:
+    except Exception as e:
         critical_logger.error(
             "\n"
             f"\tERROR while trying to fetch data with yhq. Symbol: {symbol}"
             f"\t{e}"
         )
+        return None
 
 
 @lru_cache(maxsize=1500)
 def price_data_get(
     grpc_service: SecuritiesGRPCService, instrument_id: str,
     start_date_time: dt.datetime, end_date_time: dt.datetime
-) -> list[stonkinator_pb2.PriceData] | None:
+) -> pd.DataFrame | None:
     price_data_get_res = grpc_service.get_price_data(
-        instrument_id, start_date_time, end_date_time
+        instrument_id, str(start_date_time), str(end_date_time)
     )
 
     try:
-        price_data_list = list(price_data_get_res.price_data)
-        if len(price_data_list) <= 2:
+        if len(price_data_get_res.price_data) <= 2:
             return None
         else:
-            return price_data_list
+            return pd.DataFrame(
+                [
+                    {
+                        "instrument_id": price.instrument_id,
+                        Price.OPEN: price.open_price, 
+                        Price.HIGH: price.high_price, 
+                        Price.LOW: price.low_price,
+                        Price.CLOSE: price.close_price,
+                        Price.VOLUME: price.volume,
+                        Price.DT: price.date_time
+                    }
+                    for price in price_data_get_res.price_data
+                ]
+            )
     except AttributeError as e:
         print(e)
         return None
 
 
 def insert_daily_data(
-    grpc_service: SecuritiesGRPCService, instruments_list: list[stonkinator_pb2.Instrument], 
-    start_date: dt.datetime, end_date: dt.datetime, omxs_stock=False
+    grpc_service: SecuritiesGRPCService, instruments: list[stonkinator_pb2.Instrument], 
+    start_date_time: dt.datetime, end_date_time: dt.datetime, omxs_stock=False
 ):
-    for instrument in instruments_list:
+    for instrument in instruments:
         instrument_id = instrument.id
         symbol = instrument.symbol
 
         df = get_yahooquery_data(
-            symbol, start_date, end_date,
+            symbol, start_date_time, end_date_time,
             omxs_stock=omxs_stock
         )
+        if df is None:
+            continue
         df = df.drop(columns=["adjclose"], errors="ignore")
 
         for i, _ in enumerate(df.itertuples()):
@@ -124,18 +141,21 @@ def complete_historic_data(
     omxs_stock=False
 ):
     start_dt = dt.datetime(1995, 1, 1)
+    instrument_id = instrument.id
     symbol = instrument.symbol
 
     try:
-        first_date_time_get_res = grpc_service.get_date_time(symbol, min=True)
-        last_date_time_get_res = grpc_service.get_date_time(symbol, min=False)
+        first_date_time_get_res = grpc_service.get_date_time(instrument_id, min=True)
+        last_date_time_get_res = grpc_service.get_date_time(instrument_id, min=False)
         first_dt = (
-            dt.datetime.strptime(first_date_time_get_res.date_time,
-            "%Y-%m-%d %H:%M:%S").date()
+            dt.datetime.strptime(
+                first_date_time_get_res.date_time, "%Y-%m-%d %H:%M:%S"
+            ).date()
         )
         last_dt = (
-            dt.datetime.strptime(last_date_time_get_res.date_time,
-            "%Y-%m-%d %H:%M:%S").date() + dt.timedelta(days=1)
+            dt.datetime.strptime(
+                last_date_time_get_res.date_time, "%Y-%m-%d %H:%M:%S"
+            ).date() + dt.timedelta(days=1)
         )
     except AttributeError as e:
         critical_logger.error(
@@ -223,15 +243,15 @@ if __name__ == "__main__":
     year = last_inserted_date.year
     month = last_inserted_date.month
     day = last_inserted_date.day
-    start_date = dt.datetime(year, month, day, tzinfo=pytz.timezone("Europe/berlin"))
-    end_date = dt.datetime.now(tz=pytz.timezone("Europe/Berlin"))
+    start_date_time = dt.datetime(year, month, day, tzinfo=pytz.timezone("Europe/berlin"))
+    end_date_time = dt.datetime.now(tz=pytz.timezone("Europe/Berlin"))
     dt_now = dt.datetime.now(tz=pytz.timezone("Europe/Berlin"))
 
     log_message =  (
         "Insert data\n"
         f"Current datetime: {dt_now}\n"
-        f"Start date: {start_date.strftime('%d-%m-%Y')}\n"
-        f"End date: {end_date.strftime('%d-%m-%Y')}"
+        f"Start date: {start_date_time.strftime('%d-%m-%Y')}\n"
+        f"End date: {end_date_time.strftime('%d-%m-%Y')}"
     )
     base_logger.info(log_message)
     critical_logger.info(log_message)
@@ -245,31 +265,31 @@ if __name__ == "__main__":
             continue
 
         end_date_today_check = (
-            dt_now.year == end_date.year and
-            dt_now.month == end_date.month and
-            dt_now.day == end_date.day
+            dt_now.year == end_date_time.year and
+            dt_now.month == end_date_time.month and
+            dt_now.day == end_date_time.day
         )
         omxs_stock = False
         if exchange.exchange_name == "OMXS":
             omxs_stock = True
             if end_date_today_check and dt_now.hour < 18:
-                end_date = end_date - dt.timedelta(days=1)
+                end_date_time = end_date_time - dt.timedelta(days=1)
                 base_logger.info(
                     "\n"
                     f"\tDate check: {end_date_today_check}, subtracting one day.\n"
-                    f"\tNew end date: {end_date}."
+                    f"\tNew end date: {end_date_time}."
                 )
         else:
             if end_date_today_check:
-                end_date = end_date - dt.timedelta(days=1)
+                end_date_time = end_date_time - dt.timedelta(days=1)
                 base_logger.info(
                     "\n"
                     f"\tDate check: {end_date_today_check}, subtracting one day.\n"
-                    f"\tNew end date: {end_date}."
+                    f"\tNew end date: {end_date_time}."
                 )
 
         insert_daily_data(
-            grpc_service, instruments, start_date, end_date,
+            grpc_service, instruments, start_date_time, end_date_time,
             omxs_stock=omxs_stock
         )
         if dt_now.weekday() == 0 and dt_now.day <= 7:

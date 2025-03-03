@@ -15,9 +15,7 @@ func initPgPool() (*pgxpool.Pool, error) {
 		os.Getenv("PG_DB_USER"),
 		os.Getenv("PG_DB_PASSWORD"),
 		os.Getenv("PG_DB_SERVICE"),
-		// "0.0.0.0", // when running locally
 		os.Getenv("PG_DB_PORT"),
-		// os.Getenv("PG_DB_PORT_EXP"), // when running locally
 		os.Getenv("PG_DB_NAME"),
 	)
 

@@ -2,8 +2,8 @@ import datetime as dt
 
 import grpc
 
-import stonkinator_pb2
-import stonkinator_pb2_grpc
+import persistance.persistance_services.stonkinator_pb2 as stonkinator_pb2
+import persistance.persistance_services.stonkinator_pb2_grpc as stonkinator_pb2_grpc
 
 
 def grpc_error_handler(default_return=None):
@@ -20,9 +20,10 @@ def grpc_error_handler(default_return=None):
 class SecuritiesGRPCService:
 
     def __init__(self, channel_address):
+        # TODO: Use secure_channel instead
         channel = grpc.insecure_channel(channel_address)
         self.__client = stonkinator_pb2_grpc.StonkinatorServiceStub(channel)
-        
+
     @grpc_error_handler(default_return=None)
     def insert_exchange(self, exchange_name: str, currency: str) -> stonkinator_pb2.InsertResponse:
         req = stonkinator_pb2.InsertExchangeRequest(
@@ -30,6 +31,10 @@ class SecuritiesGRPCService:
         )
         res = self.__client.InsertExchange(req)
         return res
+
+    def update_exchange(self):
+        # TODO: Implement
+        ...
 
     @grpc_error_handler(default_return=None)
     def get_exchange(self, exchange_name: str) -> stonkinator_pb2.GetExchangeResponse:
@@ -65,9 +70,13 @@ class SecuritiesGRPCService:
         res = self.__client.GetInstrument(req)
         return res
 
+    def remove_instrument(self):
+        # TODO: Implement
+        ...
+
     @grpc_error_handler(default_return=None)
-    def get_date_time(self, symbol: str, min=True) -> stonkinator_pb2.DateTime:
-        req = stonkinator_pb2.GetDateTimeRequest(symbol=symbol, min=min)
+    def get_date_time(self, instrument_id: str, min=True) -> stonkinator_pb2.DateTime:
+        req = stonkinator_pb2.GetDateTimeRequest(instrument_id=instrument_id, min=min)
         res = self.__client.GetDateTime(req)
         return res
 
@@ -115,6 +124,14 @@ class SecuritiesGRPCService:
         res = self.__client.GetExchangeInstruments(req)
         return res
 
+    def insert_market_list_instrument(self):
+        # TODO: Implement
+        ...
+
+    def remove_market_list_instrument(self):
+        # TODO: Implement
+        ...
+
     @grpc_error_handler(default_return=None)
     def get_market_list_instruments(self, name: str) -> stonkinator_pb2.Instruments:
         req = stonkinator_pb2.GetByNameRequest(name=name)
@@ -156,14 +173,12 @@ if __name__ == '__main__':
     print(get_instrument_res)
     print(type(get_instrument_res))
 
-    # get_first_date_time_res = grpc_service.get_date_time("ALFA", min=True)
-    # # get_first_date_time_res = grpc_service.get_date_time("AKTIA", min=True)
-    # print(get_first_date_time_res.date_time)
-    # print(type(get_first_date_time_res))
-    # get_last_date_time_res = grpc_service.get_date_time("ALFA", min=False)
-    # # get_last_date_time_res = grpc_service.get_date_time("AKTIA", min=False)
-    # print(get_last_date_time_res.date_time)
-    # print(type(get_last_date_time_res))
+    get_first_date_time_res = grpc_service.get_date_time(get_instrument_res.id, min=True)
+    print(get_first_date_time_res.date_time)
+    print(type(get_first_date_time_res))
+    get_last_date_time_res = grpc_service.get_date_time(get_instrument_res.id, min=False)
+    print(get_last_date_time_res.date_time)
+    print(type(get_last_date_time_res))
 
     # get_last_date_res = grpc_service.get_last_date("ALFA", "ATCO_A")
     # print()
@@ -186,15 +201,15 @@ if __name__ == '__main__':
     # except AttributeError as e:
     #     print(e)
 
-    # get_price_data_res = grpc_service.get_price_data(
-    #     "blabbalb", 
-    #     get_first_date_time_res.date_time,
-    #     get_last_date_time_res.date_time
-    # )
-    # try:
-    #     print(list(get_price_data_res.price_data))
-    # except AttributeError as e:
-    #     print(e)
+    get_price_data_res = grpc_service.get_price_data(
+        get_instrument_res.id,
+        get_first_date_time_res.date_time,
+        get_last_date_time_res.date_time
+    )
+    try:
+        print(list(get_price_data_res.price_data))
+    except AttributeError as e:
+        print(e)
 
     # get_market_list_instruments_res = grpc_service.get_market_list_instruments("omxs30")
     # get_market_list_instruments_res = grpc_service.get_market_list_instruments("omxs_large_caps")
@@ -206,18 +221,14 @@ if __name__ == '__main__':
     #     print(len(list(get_exchange_instruments_res.instruments)))
     #     print(type(get_exchange_instruments_res))
 
-    # try:
-    #     get_first_date_time_res = grpc_service.get_date_time("AKTIA", min=True)
-    #     print(get_first_date_time_res.date_time)
-    #     print(type(get_first_date_time_res))
-    #     get_last_date_time_res = grpc_service.get_date_time("AKTIA", min=False)
-    #     print(get_last_date_time_res.date_time)
-    #     print(type(get_last_date_time_res))
-    # except grpc.RpcError as e:
-    #     print(e)
-    #     print(e.code())
-
-    get_first_date_time_res = grpc_service.get_date_time("AKTIA", min=True)
-    print(get_first_date_time_res)
-    get_last_date_time_res = grpc_service.get_date_time("AKTIA", min=False)
-    print(get_last_date_time_res)
+    # with_call(req) to test
+    # a, b = grpc_service.get_date_time(get_instrument_res.id, min=False)
+    # print(b)
+    # print(b.code())
+    # print(b.details())
+    # print(type(b))
+    # a, b = grpc_service.get_date_time(get_instrument_res.id, min=False)
+    # print(b)
+    # print(b.code())
+    # print(b.details())
+    # print(type(b))

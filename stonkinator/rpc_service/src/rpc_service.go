@@ -177,21 +177,21 @@ func (s *server) GetDateTime(ctx context.Context, req *pb.GetDateTimeRequest) (*
 			SELECT MIN(price_data.date_time)
 			FROM instruments, price_data
 			WHERE instruments.id = price_data.instrument_id
-			AND UPPER(instruments.symbol) = $1
+			AND instruments.id = $1
 		`
 	} else {
 		queryStr = `
 			SELECT MAX(price_data.date_time)
 			FROM instruments, price_data
 			WHERE instruments.id = price_data.instrument_id
-			AND UPPER(instruments.symbol) = $1
+			AND instruments.id = $1
 		`
 	}
 
 	query := s.pgPool.QueryRow(
 		ctx,
 		queryStr,
-		strings.ToUpper(req.Symbol),
+		req.InstrumentId,
 	)
 
 	var dateTime time.Time
@@ -281,15 +281,6 @@ func (s *server) InsertPriceData(ctx context.Context, req *pb.PriceData) (*pb.In
 }
 
 func (s *server) GetPriceData(ctx context.Context, req *pb.GetPriceDataRequest) (*pb.GetPriceDataResponse, error) {
-	startDateTime, err := time.Parse(DATETIME_FORMAT, req.StartDateTime)
-	if err != nil {
-		return nil, err
-	}
-	endDateTime, err := time.Parse(DATETIME_FORMAT, req.EndDateTime)
-	if err != nil {
-		return nil, err
-	}
-
 	query, err := s.pgPool.Query(
 		ctx,
 		`
@@ -304,7 +295,7 @@ func (s *server) GetPriceData(ctx context.Context, req *pb.GetPriceDataRequest) 
 			AND price_data.date_time <= $3
 			ORDER BY price_data.date_time
 		`,
-		req.InstrumentId, startDateTime, endDateTime,
+		req.InstrumentId, req.StartDateTime, req.EndDateTime,
 	)
 	if err != nil {
 		return nil, err

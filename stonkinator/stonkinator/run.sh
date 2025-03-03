@@ -2,30 +2,10 @@
 
 echo "Running $0"
 
-# TODO: Add help option
-
-if [ -f .env ]; then
-    while IFS='=' read -r key value; do
-        [[ $key == \#* ]] && continue
-
-        key=$(echo "$key" | tr -d '[:space:]' | tr -d "'")
-        value=$(echo "$value" | tr -d '[:space:]' | tr -d "'")
-
-        if [ -n "$key" ] && [ -n "$value" ]; then
-            export "$key"="$value"
-        else
-            echo "$0 - Empty key or value, skipping line."
-        fi
-    done < .env
-else
-    echo "$0 - Error: .env file not found"
-    exit 1
-fi
-
-# TODO: default to some directory if DAL_LOG_FILE_PATH and DAL_LOG_FILE_PATH_CRITICAL
-# variables are not found
+# TODO: default to some directory if variables are not found
 [[ -n "$DAL_LOG_FILE_PATH" && ! -d "$DAL_LOG_FILE_PATH" ]] && mkdir "$DAL_LOG_FILE_PATH"
 [[ -n "$DAL_LOG_FILE_PATH_CRITICAL" && ! -d "$DAL_LOG_FILE_PATH_CRITICAL" ]] && mkdir "$DAL_LOG_FILE_PATH_CRITICAL"
+[[ -n "$GRPC_LOG_FILE_PATH" && ! -d "$GRPC_LOG_FILE_PATH" ]] && mkdir "$GRPC_LOG_FILE_PATH"
 
 run_dal=false
 full_run=""

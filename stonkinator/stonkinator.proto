@@ -5,12 +5,15 @@ package stonkinator;
 option go_package = "./stonkinator_rpc_service";
 
 service StonkinatorService {
+    // securities rpc service methods
     rpc InsertExchange (InsertExchangeRequest) returns (InsertResponse);
+    // rpc UpdateExchange () returns ();
     rpc GetExchange (GetByNameRequest) returns (GetExchangeResponse);
     rpc GetExchanges (GetAllRequest) returns (GetExchangesResponse);
     rpc InsertInstrument (Instrument) returns (InsertResponse);
     // rpc UpdateInstrument (Instrument) returns (UpdateResponse);
     rpc GetInstrument (GetBySymbolRequest) returns (Instrument);
+    // rpc RemoveInstrument () returns ();
     rpc GetDateTime (GetDateTimeRequest) returns (DateTime);
     rpc GetLastDate (GetLastDateRequest) returns (DateTime);
     rpc InsertPriceData (PriceData) returns (InsertResponse);
@@ -18,10 +21,13 @@ service StonkinatorService {
     // rpc InsertMarketList (MarketList) returns (InsertResponse);
     // rpc UpdateMarketList (MarketList) returns (UpdateResponse);
     rpc GetExchangeInstruments (GetByIdRequest) returns (Instruments);
+    // rpc InsertMarketListInstrument () returns ();
+    // rpc RemoveMarketListInstrument() returns ();
     rpc GetMarketListInstruments (GetByNameRequest) returns (Instruments);
     // rpc GetMarketListInstrumentsPriceData (MarketList) returns (GetPriceDataResponse);
     
     // Methods previously implemented by SystemsMongoDB
+    // trading system rpc service methods
     // rpc InsertTradingSystem(TradingSystem) returns(InsertResponse);
     // rpc UpdateTradingSystemCurrentDateTime() returns ();
 }
@@ -113,7 +119,7 @@ message GetPriceDataResponse {
 }
 
 message GetDateTimeRequest {
-    string symbol = 1;
+    string instrument_id = 1;
     bool min = 2;
 }
 
