@@ -1,9 +1,38 @@
 import datetime as dt
+import logging
+import pathlib
 
 import grpc
 
-import persistance.persistance_services.stonkinator_pb2 as stonkinator_pb2
-import persistance.persistance_services.stonkinator_pb2_grpc as stonkinator_pb2_grpc
+from persistance.persistance_services.stonkinator_pb2 import (
+    DateTime,
+    GetAllRequest,
+    GetByNameRequest,
+    GetByIdRequest,
+    GetBySymbolRequest,
+    GetDateTimeRequest,
+    GetExchangeResponse,
+    GetExchangesResponse,
+    GetLastDateRequest,
+    GetPriceDataRequest,
+    GetPriceDataResponse,
+    InsertResponse, 
+    InsertExchangeRequest,
+    Instrument,
+    Instruments,
+    PriceData
+)
+from persistance.persistance_services.stonkinator_pb2_grpc import (
+    StonkinatorServiceStub
+)
+import trading_systems.env as env
+
+
+logger_name = pathlib.Path(__file__).stem
+logger = logging.getLogger(logger_name)
+logger.setLevel(logging.INFO)
+handler = logging.FileHandler(f"{env.LOG_DIR_PATH}{logger_name}.log")
+logger.addHandler(handler)
 
 
 def grpc_error_handler(default_return=None):
@@ -11,7 +40,8 @@ def grpc_error_handler(default_return=None):
         def wrapper(*args, **kwargs):
             try:
                 return func(*args, **kwargs)
-            except grpc.RpcError:
+            except grpc.RpcError as e:
+                logger.error(e)
                 return default_return        
         return wrapper
     return decorator
@@ -22,11 +52,11 @@ class SecuritiesGRPCService:
     def __init__(self, channel_address):
         # TODO: Use secure_channel instead
         channel = grpc.insecure_channel(channel_address)
-        self.__client = stonkinator_pb2_grpc.StonkinatorServiceStub(channel)
+        self.__client = StonkinatorServiceStub(channel)
 
     @grpc_error_handler(default_return=None)
-    def insert_exchange(self, exchange_name: str, currency: str) -> stonkinator_pb2.InsertResponse:
-        req = stonkinator_pb2.InsertExchangeRequest(
+    def insert_exchange(self, exchange_name: str, currency: str) -> InsertResponse:
+        req = InsertExchangeRequest(
             exchange_name=exchange_name, currency=currency
         )
         res = self.__client.InsertExchange(req)
@@ -37,22 +67,22 @@ class SecuritiesGRPCService:
         ...
 
     @grpc_error_handler(default_return=None)
-    def get_exchange(self, exchange_name: str) -> stonkinator_pb2.GetExchangeResponse:
-        req = stonkinator_pb2.GetByNameRequest(name=exchange_name)
+    def get_exchange(self, exchange_name: str) -> GetExchangeResponse:
+        req = GetByNameRequest(name=exchange_name)
         res = self.__client.GetExchange(req)
         return res
         
     @grpc_error_handler(default_return=None)
-    def get_exchanges(self) -> stonkinator_pb2.GetExchangesResponse:
-        req = stonkinator_pb2.GetAllRequest()
+    def get_exchanges(self) -> GetExchangesResponse:
+        req = GetAllRequest()
         res = self.__client.GetExchanges(req)
         return res
         
     @grpc_error_handler(default_return=None)
     def insert_instrument(
         self, exchange_id: str, instrument_name: str, symbol: str, sector: str
-    ) -> stonkinator_pb2.InsertResponse:
-        req = stonkinator_pb2.Instrument(
+    ) -> InsertResponse:
+        req = Instrument(
             exchange_id=exchange_id, instrument_name=instrument_name,
             symbol=symbol, sector=sector
         )
@@ -65,8 +95,8 @@ class SecuritiesGRPCService:
 
     # TODO: Is this method needed or not?
     @grpc_error_handler(default_return=None)
-    def get_instrument(self, symbol: str) -> stonkinator_pb2.Instrument:
-        req = stonkinator_pb2.GetBySymbolRequest(symbol=symbol)
+    def get_instrument(self, symbol: str) -> Instrument:
+        req = GetBySymbolRequest(symbol=symbol)
         res = self.__client.GetInstrument(req)
         return res
 
@@ -75,14 +105,14 @@ class SecuritiesGRPCService:
         ...
 
     @grpc_error_handler(default_return=None)
-    def get_date_time(self, instrument_id: str, min=True) -> stonkinator_pb2.DateTime:
-        req = stonkinator_pb2.GetDateTimeRequest(instrument_id=instrument_id, min=min)
+    def get_date_time(self, instrument_id: str, min=True) -> DateTime:
+        req = GetDateTimeRequest(instrument_id=instrument_id, min=min)
         res = self.__client.GetDateTime(req)
         return res
 
     @grpc_error_handler(default_return=None)
-    def get_last_date(self, symbol_1: str, symbol_2: str) -> stonkinator_pb2.DateTime:
-        req = stonkinator_pb2.GetLastDateRequest(symbol_1=symbol_1, symbol_2=symbol_2)
+    def get_last_date(self, symbol_1: str, symbol_2: str) -> DateTime:
+        req = GetLastDateRequest(symbol_1=symbol_1, symbol_2=symbol_2)
         res = self.__client.GetLastDate(req)
         return res
 
@@ -90,8 +120,8 @@ class SecuritiesGRPCService:
     def insert_price_data(
         self, instrument_id: str, open_price: float, high_price: float,
         low_price: float, close_price: float, volume: int, date_time: dt.datetime
-    ) -> stonkinator_pb2.InsertResponse:
-        req = stonkinator_pb2.PriceData(
+    ) -> InsertResponse:
+        req = PriceData(
             instrument_id=instrument_id, open_price=open_price, high_price=high_price,
             low_price=low_price, close_price=close_price, volume=volume, date_time=str(date_time)
         )
@@ -101,8 +131,8 @@ class SecuritiesGRPCService:
     @grpc_error_handler(default_return=None)
     def get_price_data(
         self, instrument_id: str, start_date_time: dt.datetime, end_date_time: dt.datetime
-    ) -> stonkinator_pb2.GetPriceDataResponse:
-        req = stonkinator_pb2.GetPriceDataRequest(
+    ) -> GetPriceDataResponse:
+        req = GetPriceDataRequest(
             instrument_id=instrument_id,
             start_date_time=start_date_time,
             end_date_time=end_date_time
@@ -119,8 +149,8 @@ class SecuritiesGRPCService:
         ...
 
     @grpc_error_handler(default_return=None)
-    def get_exchange_instruments(self, exchange_id: str) -> stonkinator_pb2.Instruments:
-        req = stonkinator_pb2.GetByIdRequest(id=exchange_id)
+    def get_exchange_instruments(self, exchange_id: str) -> Instruments:
+        req = GetByIdRequest(id=exchange_id)
         res = self.__client.GetExchangeInstruments(req)
         return res
 
@@ -133,8 +163,8 @@ class SecuritiesGRPCService:
         ...
 
     @grpc_error_handler(default_return=None)
-    def get_market_list_instruments(self, name: str) -> stonkinator_pb2.Instruments:
-        req = stonkinator_pb2.GetByNameRequest(name=name)
+    def get_market_list_instruments(self, name: str) -> Instruments:
+        req = GetByNameRequest(name=name)
         res = self.__client.GetMarketListInstruments(req)
         return res
 
@@ -144,54 +174,54 @@ class SecuritiesGRPCService:
 
 
 if __name__ == '__main__':
-    grpc_service = SecuritiesGRPCService("rpc_service:5001")
+    securities_grpc_service = SecuritiesGRPCService("rpc_service:5001")
 
-    # insert_exchange_res = grpc_service.insert_exchange("test", "little currency")
+    # insert_exchange_res = securities_grpc_service.insert_exchange("test", "little currency")
     # print(insert_exchange_res)
     # print(type(insert_exchange_res))
 
-    # get_exchange_res = grpc_service.get_exchange("OMXS")
+    # get_exchange_res = securities_grpc_service.get_exchange("OMXS")
     # print(get_exchange_res)
     # print(type(get_exchange_res))
     # print(get_exchange_res.id)
     # print(get_exchange_res.exchange_name)
 
-    # exchanges_get_res = grpc_service.get_exchanges()
+    # exchanges_get_res = securities_grpc_service.get_exchanges()
     # print(exchanges_get_res)
     # if exchanges_get_res.exchanges:
     #     print(list(exchanges_get_res.exchanges))
     # print(type(exchanges_get_res))
 
-    # insert_instrument_res = grpc_service.insert_instrument(
+    # insert_instrument_res = securities_grpc_service.insert_instrument(
     #     get_exchange_res.id, "TEST", "TEST", "TEST"
     # )
     # print(insert_instrument_res)
     # print(type(insert_instrument_res))
 
-    get_instrument_res = grpc_service.get_instrument("ALFA")
-    # get_instrument_res = grpc_service.get_instrument("MAERSK_A")
+    get_instrument_res = securities_grpc_service.get_instrument("ALFA")
+    # get_instrument_res = securities_grpc_service.get_instrument("MAERSK_A")
     print(get_instrument_res)
     print(type(get_instrument_res))
 
-    get_first_date_time_res = grpc_service.get_date_time(get_instrument_res.id, min=True)
+    get_first_date_time_res = securities_grpc_service.get_date_time(get_instrument_res.id, min=True)
     print(get_first_date_time_res.date_time)
     print(type(get_first_date_time_res))
-    get_last_date_time_res = grpc_service.get_date_time(get_instrument_res.id, min=False)
+    get_last_date_time_res = securities_grpc_service.get_date_time(get_instrument_res.id, min=False)
     print(get_last_date_time_res.date_time)
     print(type(get_last_date_time_res))
 
-    # get_last_date_res = grpc_service.get_last_date("ALFA", "ATCO_A")
+    # get_last_date_res = securities_grpc_service.get_last_date("ALFA", "ATCO_A")
     # print()
     # print(get_last_date_res.date_time)
     # print(type(get_last_date_res))
 
-    # insert_price_data_res = grpc_service.insert_price_data(
+    # insert_price_data_res = securities_grpc_service.insert_price_data(
     #     get_instrument_res.id, 5, 15, 2.5, 10, 9999213, dt.datetime.now().date()
     # )
     # print(insert_price_data_res)
     # print(type(insert_price_data_res))
 
-    # get_price_data_res = grpc_service.get_price_data(
+    # get_price_data_res = securities_grpc_service.get_price_data(
     #     get_instrument_res.id, 
     #     get_first_date_time_res.date_time,
     #     get_last_date_time_res.date_time
@@ -201,7 +231,7 @@ if __name__ == '__main__':
     # except AttributeError as e:
     #     print(e)
 
-    get_price_data_res = grpc_service.get_price_data(
+    get_price_data_res = securities_grpc_service.get_price_data(
         get_instrument_res.id,
         get_first_date_time_res.date_time,
         get_last_date_time_res.date_time
@@ -211,23 +241,23 @@ if __name__ == '__main__':
     except AttributeError as e:
         print(e)
 
-    # get_market_list_instruments_res = grpc_service.get_market_list_instruments("omxs30")
-    # get_market_list_instruments_res = grpc_service.get_market_list_instruments("omxs_large_caps")
+    # get_market_list_instruments_res = securities_grpc_service.get_market_list_instruments("omxs30")
+    # get_market_list_instruments_res = securities_grpc_service.get_market_list_instruments("omxs_large_caps")
     # print(get_market_list_instruments_res)
     # print(type(get_market_list_instruments_res))
 
     # for exchange in exchanges_get_res.exchanges:
-    #     get_exchange_instruments_res = grpc_service.get_exchange_instruments(exchange.id)
+    #     get_exchange_instruments_res = securities_grpc_service.get_exchange_instruments(exchange.id)
     #     print(len(list(get_exchange_instruments_res.instruments)))
     #     print(type(get_exchange_instruments_res))
 
     # with_call(req) to test
-    # a, b = grpc_service.get_date_time(get_instrument_res.id, min=False)
+    # a, b = securities_grpc_service.get_date_time(get_instrument_res.id, min=False)
     # print(b)
     # print(b.code())
     # print(b.details())
     # print(type(b))
-    # a, b = grpc_service.get_date_time(get_instrument_res.id, min=False)
+    # a, b = securities_grpc_service.get_date_time(get_instrument_res.id, min=False)
     # print(b)
     # print(b.code())
     # print(b.details())

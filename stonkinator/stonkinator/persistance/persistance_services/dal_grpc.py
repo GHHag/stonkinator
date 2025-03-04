@@ -8,7 +8,14 @@ from functools import lru_cache
 from yahooquery import Ticker
 import pandas as pd
 
-import persistance.persistance_services.stonkinator_pb2 as stonkinator_pb2
+from persistance.persistance_services.stonkinator_pb2 import (
+    DateTime,
+    GetExchangesResponse,
+    GetPriceDataResponse,
+    InsertResponse,
+    Instrument,
+    Instruments
+)
 from persistance.persistance_services.grpc_service import SecuritiesGRPCService
 import trading_systems.env as env
 from trading.data.metadata.price import Price
@@ -53,10 +60,10 @@ def get_yahooquery_data(
 
 @lru_cache(maxsize=1500)
 def price_data_get(
-    grpc_service: SecuritiesGRPCService, instrument_id: str,
+    securities_grpc_service: SecuritiesGRPCService, instrument_id: str,
     start_date_time: dt.datetime, end_date_time: dt.datetime
 ) -> pd.DataFrame | None:
-    price_data_get_res = grpc_service.get_price_data(
+    price_data_get_res: GetPriceDataResponse = securities_grpc_service.get_price_data(
         instrument_id, str(start_date_time), str(end_date_time)
     )
 
@@ -84,7 +91,7 @@ def price_data_get(
 
 
 def insert_daily_data(
-    grpc_service: SecuritiesGRPCService, instruments: list[stonkinator_pb2.Instrument], 
+    securities_grpc_service: SecuritiesGRPCService, instruments: list[Instrument], 
     start_date_time: dt.datetime, end_date_time: dt.datetime, omxs_stock=False
 ):
     for instrument in instruments:
@@ -101,7 +108,7 @@ def insert_daily_data(
 
         for i, _ in enumerate(df.itertuples()):
             try:
-                price_data_insert_res = grpc_service.insert_price_data(
+                price_data_insert_res: InsertResponse = securities_grpc_service.insert_price_data(
                     instrument_id,
                     df[Price.OPEN].iloc[i], df[Price.HIGH].iloc[i],
                     df[Price.LOW].iloc[i], df[Price.CLOSE].iloc[i],
@@ -136,7 +143,7 @@ def insert_daily_data(
 
 
 def complete_historic_data(
-    grpc_service: SecuritiesGRPCService, instrument: stonkinator_pb2.Instrument, 
+    securities_grpc_service: SecuritiesGRPCService, instrument: Instrument, 
     exchange_name: str,
     omxs_stock=False
 ):
@@ -145,8 +152,8 @@ def complete_historic_data(
     symbol = instrument.symbol
 
     try:
-        first_date_time_get_res = grpc_service.get_date_time(instrument_id, min=True)
-        last_date_time_get_res = grpc_service.get_date_time(instrument_id, min=False)
+        first_date_time_get_res: DateTime = securities_grpc_service.get_date_time(instrument_id, min=True)
+        last_date_time_get_res: DateTime = securities_grpc_service.get_date_time(instrument_id, min=False)
         first_dt = (
             dt.datetime.strptime(
                 first_date_time_get_res.date_time, "%Y-%m-%d %H:%M:%S"
@@ -186,13 +193,13 @@ def complete_historic_data(
         last_dt_data = last_dt_data.reset_index()
         if len(first_dt_data):
             insert_daily_data(
-                grpc_service, [instrument], exchange_name, 
+                securities_grpc_service, [instrument], exchange_name, 
                 start_dt, first_dt + dt.timedelta(days=1), 
                 omxs_stock=omxs_stock
             )
         if len(last_dt_data):
             insert_daily_data(
-                grpc_service, [instrument], exchange_name, 
+                securities_grpc_service, [instrument], exchange_name, 
                 last_dt - dt.timedelta(days=1), dt.datetime.now(), 
                 omxs_stock=omxs_stock
             )
@@ -206,16 +213,17 @@ def complete_historic_data(
 
 
 if __name__ == "__main__":
+    logger_name = pathlib.Path(__file__).stem
     base_logger = set_up_logger(
-        "base", f"{env.DAL_LOG_FILE_PATH}{pathlib.Path(__file__).stem}.log"
+        logger_name, f"{env.LOG_DIR_PATH}{pathlib.Path(__file__).stem}.log"
     )
     critical_logger = set_up_logger(
-        "critical", f"{env.DAL_LOG_FILE_PATH_CRITICAL}{pathlib.Path(__file__).stem}_critical.log"
+        f"{logger_name}_critical", f"{env.LOG_DIR_PATH}{pathlib.Path(__file__).stem}_critical.log"
     )
 
-    grpc_service = SecuritiesGRPCService(f"{env.STONKINATOR_RPC_SERVICE}:{env.RPC_SERVICE_PORT}")
+    securities_grpc_service = SecuritiesGRPCService(f"{env.STONKINATOR_RPC_SERVICE}:{env.RPC_SERVICE_PORT}")
 
-    exchanges_get_res = grpc_service.get_exchanges()
+    exchanges_get_res: GetExchangesResponse = securities_grpc_service.get_exchanges()
     if exchanges_get_res:
         exchanges = list(exchanges_get_res.exchanges)
     else:
@@ -227,7 +235,7 @@ if __name__ == "__main__":
 
     exchanges_instruments_dict = {}
     for exchange in exchanges:
-        exchange_instruments_get_res = grpc_service.get_exchange_instruments(exchange.id)
+        exchange_instruments_get_res: Instruments = securities_grpc_service.get_exchange_instruments(exchange.id)
         if exchange_instruments_get_res:
             exchanges_instruments_dict[exchange.id] = (
                 list(exchange_instruments_get_res.instruments)
@@ -235,7 +243,7 @@ if __name__ == "__main__":
                 else None
             )
 
-    last_date_get_res = grpc_service.get_last_date(symbol_1="^OMX", symbol_2="^SPX")
+    last_date_get_res: DateTime = securities_grpc_service.get_last_date(symbol_1="^OMX", symbol_2="^SPX")
     if last_date_get_res:
         last_inserted_date = pd.Timestamp(last_date_get_res.date_time)
     else:
@@ -289,14 +297,14 @@ if __name__ == "__main__":
                 )
 
         insert_daily_data(
-            grpc_service, instruments, start_date_time, end_date_time,
+            securities_grpc_service, instruments, start_date_time, end_date_time,
             omxs_stock=omxs_stock
         )
         if dt_now.weekday() == 0 and dt_now.day <= 7:
             base_logger.info(f"\nCompleting data for {exchange} instruments.")
             for instrument in instruments:
                 complete_historic_data(
-                    grpc_service, instrument, exchange.exchange_name,
+                    securities_grpc_service, instrument, exchange.exchange_name,
                     omxs_stock=omxs_stock
                 )
 

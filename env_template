@@ -37,9 +37,7 @@ RPC_SERVICE_PORT = 5001
 # securities db py dal
 API_HOST = STONKINATOR_API_SERVICE
 API_PORT = STONKINATOR_API_PORT
-DAL_LOG_FILE_PATH = '/var/log/stonkinator/'
-DAL_LOG_FILE_PATH_CRITICAL = '/var/log/stonkinator/'
-GRPC_LOG_FILE_PATH = '/var/log/stonkinator/'
+LOG_DIR_PATH = '/var/log/stonkinator/'
 
 # frontend
 FRONTEND_PORT = 3000
