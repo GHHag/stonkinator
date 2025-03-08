@@ -1,22 +1,27 @@
+import os
 import datetime as dt
-import json
 from typing import Callable
 
 import pandas as pd
 import numpy as np
 from sklearn.tree import DecisionTreeClassifier
 
-from trading.data.metadata.trading_system_attributes import TradingSystemAttributes, classproperty
+from trading.data.metadata.trading_system_attributes import (
+    TradingSystemAttributes, classproperty
+)
 from trading.data.metadata.market_state_enum import MarketState
 from trading.data.metadata.price import Price
 from trading.position.order import Order, LimitOrder, MarketOrder
 from trading.position.position import Position
 from trading.trading_system.trading_system import TradingSystem
 
-from persistance.securities_db_py_dal.dal import price_data_get_req
-from persistance.persistance_meta_classes.trading_systems_persister import TradingSystemsPersisterBase
+from persistance.persistance_services.stonkinator_pb2 import Instrument
+from persistance.persistance_services.dal_grpc import price_data_get
+from persistance.persistance_services.securities_grpc_service import SecuritiesGRPCService
+from persistance.persistance_meta_classes.trading_systems_persister import (
+    TradingSystemsPersisterBase
+)
 from persistance.stonkinator_mongo_db.systems_mongo_db import TradingSystemsMongoDb
-from persistance.stonkinator_mongo_db.instruments_mongo_db import InstrumentsMongoDb
 
 from trading_systems.trading_system_base import MLTradingSystemBase
 from trading_systems.trading_system_properties import MLTradingSystemProperties
@@ -149,29 +154,27 @@ class MLTradingSystemExample(MLTradingSystemBase):
 
     @staticmethod
     def preprocess_data(
-        symbols_list, benchmark_symbol, 
-        get_data_function: Callable[[str, dt.datetime, dt.datetime], tuple[bytes, int]],
-        entry_args: dict, exit_args: dict, start_dt: dt.datetime, end_dt: dt.datetime,
-        ts_processor: TradingSystemProcessor=None
-    ):
+        securities_grpc_service: SecuritiesGRPCService,
+        instruments_list: list[Instrument],
+        benchmark_instrument: Instrument,
+        get_data_function: Callable[[str, dt.datetime, dt.datetime], pd.DataFrame | None],
+        entry_args: dict, exit_args: dict,
+        start_dt: dt.datetime, end_dt: dt.datetime,
+        ts_processor: TradingSystemProcessor | None=None
+    ) -> tuple[dict[str, pd.DataFrame], list[str]]:
         target = entry_args.get('target')
         target_period = entry_args.get('target_period')
 
         data_dict: dict[str, pd.DataFrame] = {}
-        for symbol in symbols_list:
-            try:
-                response_data, response_status = get_data_function(symbol, start_dt, end_dt)
-            except ValueError:
+        for instrument in instruments_list:
+            df = get_data_function(securities_grpc_service, instrument.id, start_dt, end_dt)
+            if df is None:
                 continue
-            if response_status == 200:
-                data_dict[symbol] = pd.json_normalize(json.loads(response_data))
-                if 'instrument_id' in data_dict[symbol].columns:
-                    data_dict[symbol] = data_dict[symbol].drop('instrument_id', axis=1)
+            data_dict[instrument.symbol] = df
         
         benchmark_col_suffix = '_benchmark'
-        response_data, response_status = get_data_function(benchmark_symbol, start_dt, end_dt)
-        if response_status == 200:
-            df_benchmark = pd.json_normalize(json.loads(response_data))
+        df_benchmark = get_data_function(securities_grpc_service, benchmark_instrument.id, start_dt, end_dt)
+        if df_benchmark is not None:
             df_benchmark = df_benchmark.drop('instrument_id', axis=1)
             df_benchmark = df_benchmark.rename(
                 columns={
@@ -223,19 +226,19 @@ class MLTradingSystemExample(MLTradingSystemBase):
         return data_dict, pred_features
 
     @classmethod
-    def get_properties(
-        cls, instruments_db: InstrumentsMongoDb,
-        import_instruments=False, path=None
-    ):
+    def get_properties(cls, securities_grpc_service: SecuritiesGRPCService):
         required_runs = 1
-        benchmark_symbol = '^OMX'
 
-        symbols_list = ['SKF_B', 'VOLV_B', 'NDA_SE', 'SCA_B']
-        """ symbols_list = json.loads(
-            instruments_db.get_market_list_instrument_symbols(
-                instruments_db.get_market_list_id('omxs30')
-            )
-        ) """
+        omxs_large_caps_instruments_list = securities_grpc_service.get_market_list_instruments(
+            "omxs_large_caps"
+        )
+        omxs_large_caps_instruments_list = (
+            list(omxs_large_caps_instruments_list.instruments)
+            if omxs_large_caps_instruments_list
+            else None
+        )
+
+        benchmark_instrument = securities_grpc_service.get_instrument("^OMX")
 
         model_class, params = (
             DecisionTreeClassifier, 
@@ -247,9 +250,9 @@ class MLTradingSystemExample(MLTradingSystemBase):
         entry_args = cls.entry_args
         exit_args = cls.exit_args
         return MLTradingSystemProperties( 
-            required_runs, symbols_list,
+            required_runs, omxs_large_caps_instruments_list,
             (
-                benchmark_symbol, price_data_get_req,
+                benchmark_instrument, price_data_get,
                 entry_args, exit_args
             ),
             entry_args, exit_args,
@@ -269,7 +272,9 @@ if __name__ == '__main__':
     import trading_systems.env as env
     SYSTEMS_DB = TradingSystemsMongoDb(env.LOCALHOST_MONGO_DB_URL, env.SYSTEMS_DB)
     CLIENT_DB = TradingSystemsMongoDb(env.LOCALHOST_MONGO_DB_URL, env.CLIENT_DB)
-    INSTRUMENTS_DB = InstrumentsMongoDb(env.LOCALHOST_MONGO_DB_URL, env.CLIENT_DB)
+    securities_grpc_service = SecuritiesGRPCService(
+        f"{os.environ.get('RPC_SERVICE_HOST')}:{os.environ.get('RPC_SERVICE_PORT')}"
+    )
 
     start_dt = dt.datetime(1999, 1, 1)
     end_dt = dt.datetime(2011, 1, 1)
@@ -277,10 +282,12 @@ if __name__ == '__main__':
     insert_into_db = True
     target = MLTradingSystemExample.target
 
-    system_props: MLTradingSystemProperties = MLTradingSystemExample.get_properties(INSTRUMENTS_DB)
+    system_props: MLTradingSystemProperties = MLTradingSystemExample.get_properties(
+        securities_grpc_service
+    )
 
     data_dict, features = MLTradingSystemExample.preprocess_data(
-        system_props.instruments_list,
+        securities_grpc_service, system_props.instruments_list,
         *system_props.preprocess_data_args, start_dt, end_dt
     )
 
@@ -304,7 +311,7 @@ if __name__ == '__main__':
                 MLTradingSystemExample.name, symbol, model
             )
             if insert_successful == False:
-                raise Exception('failed to insert data')
+                raise Exception('Failed to insert model.')
 
     trading_system = TradingSystem(
         MLTradingSystemExample.name,

@@ -1,3 +1,4 @@
+import os
 import datetime as dt
 import logging
 import pathlib
@@ -25,13 +26,13 @@ from persistance.persistance_services.stonkinator_pb2 import (
 from persistance.persistance_services.stonkinator_pb2_grpc import (
     StonkinatorServiceStub
 )
-import trading_systems.env as env
 
 
+LOG_DIR_PATH = os.environ.get("LOG_DIR_PATH")
 logger_name = pathlib.Path(__file__).stem
 logger = logging.getLogger(logger_name)
 logger.setLevel(logging.INFO)
-handler = logging.FileHandler(f"{env.LOG_DIR_PATH}{logger_name}.log")
+handler = logging.FileHandler(f"{LOG_DIR_PATH}{logger_name}.log")
 logger.addHandler(handler)
 
 

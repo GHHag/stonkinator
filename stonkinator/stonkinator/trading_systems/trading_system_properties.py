@@ -25,3 +25,4 @@ class TradingSystemProperties:
 class MLTradingSystemProperties(TradingSystemProperties):
     model_class: SKModel
     params: dict
+    pipeline_args: tuple = None

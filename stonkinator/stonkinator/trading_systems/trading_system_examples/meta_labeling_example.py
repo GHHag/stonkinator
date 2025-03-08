@@ -1,11 +1,12 @@
+import os
 import datetime as dt
-import json
 from typing import Callable
 
 import pandas as pd
 import numpy as np
 from sklearn.svm import SVC
 from sklearn.metrics import f1_score
+from sklearn.preprocessing import StandardScaler
 
 from trading.data.metadata.trading_system_attributes import (
     TradingSystemAttributes, classproperty
@@ -16,12 +17,13 @@ from trading.position.order import Order, LimitOrder, MarketOrder
 from trading.position.position import Position
 from trading.trading_system.trading_system import TradingSystem
 
-from persistance.securities_db_py_dal.dal import price_data_get_req
+from persistance.persistance_services.stonkinator_pb2 import Instrument
+from persistance.persistance_services.dal_grpc import price_data_get
+from persistance.persistance_services.securities_grpc_service import SecuritiesGRPCService
 from persistance.persistance_meta_classes.trading_systems_persister import (
     TradingSystemsPersisterBase
 )
 from persistance.stonkinator_mongo_db.systems_mongo_db import TradingSystemsMongoDb
-from persistance.stonkinator_mongo_db.instruments_mongo_db import InstrumentsMongoDb
 
 from trading_systems.trading_system_base import MLTradingSystemBase
 from trading_systems.trading_system_properties import MLTradingSystemProperties
@@ -104,10 +106,13 @@ class MetaLabelingExample(MLTradingSystemBase):
     def create_backtest_models(
         data: pd.DataFrame, features: list[str], target: str,
         model_class: SKModel, param_grid: dict,
-        optimization_metric_func: Callable=f1_score, verbose=False
+        pipeline_args: tuple[tuple] | None=None, 
+        optimization_metric_func: Callable=f1_score,
+        verbose=False
     ) -> pd.DataFrame:
         model_data, selected_params = create_backtest_models(
             data, features, target, model_class, param_grid,
+            pipeline_args=pipeline_args,
             optimization_metric_func=optimization_metric_func,
             verbose=verbose
         )
@@ -118,10 +123,14 @@ class MetaLabelingExample(MLTradingSystemBase):
 
     @staticmethod
     def create_inference_models(
-        data: pd.DataFrame, features: list[str], target: str, model_class: SKModel,
-        params: dict
+        data: pd.DataFrame, features: list[str], target: str,
+        model_class: SKModel, params: dict,
+        pipeline_args: tuple[tuple] | None=None
     ) -> SKModel:
-        return create_inference_model(data, features, target, model_class, params)
+        return create_inference_model(
+            data, features, target, model_class, params,
+            pipeline_args=pipeline_args
+        )
 
     @classmethod
     def operate_models(
@@ -175,30 +184,29 @@ class MetaLabelingExample(MLTradingSystemBase):
 
     @staticmethod
     def preprocess_data(
-        symbols_list, benchmark_symbol,
-        get_data_function: Callable[[str, dt.datetime, dt.datetime], tuple[bytes, int]],
-        entry_args: dict, exit_args: dict, start_dt: dt.datetime, end_dt: dt.datetime,
-        ts_processor: TradingSystemProcessor=None, drop_nan_rows=False
+        securities_grpc_service: SecuritiesGRPCService,
+        instruments_list: list[Instrument],
+        benchmark_instrument: Instrument,
+        get_data_function: Callable[[str, dt.datetime, dt.datetime], pd.DataFrame | None],
+        entry_args: dict, exit_args: dict,
+        start_dt: dt.datetime, end_dt: dt.datetime,
+        ts_processor: TradingSystemProcessor | None=None, drop_nan_rows=False
     ) -> tuple[dict[str, pd.DataFrame], pd.DataFrame]:
         target_period = entry_args.get('target_period')
         ma_value_1 = entry_args.get('ma_value_1')
         ma_value_2 = entry_args.get('ma_value_2')
 
         data_dict: dict[str, pd.DataFrame] = {}
-        for symbol in symbols_list:
-            try:
-                response_data, response_status = get_data_function(symbol, start_dt, end_dt)
-            except ValueError:
+        for instrument in instruments_list:
+            df = get_data_function(securities_grpc_service, instrument.id, start_dt, end_dt)
+            if df is None:
                 continue
-            if response_status == 200:
-                data_dict[symbol] = pd.json_normalize(json.loads(response_data))
-                if 'instrument_id' in data_dict[symbol].columns:
-                    data_dict[symbol] = data_dict[symbol].drop('instrument_id', axis=1)
+            df[TradingSystemAttributes.SYMBOL] = instrument.symbol
+            data_dict[instrument.symbol] = df
 
         benchmark_col_suffix = '_benchmark'
-        response_data, response_status = get_data_function(benchmark_symbol, start_dt, end_dt)
-        if response_status == 200:
-            df_benchmark = pd.json_normalize(json.loads(response_data))
+        df_benchmark = get_data_function(securities_grpc_service, benchmark_instrument.id, start_dt, end_dt)
+        if df_benchmark is not None:
             df_benchmark = df_benchmark.drop('instrument_id', axis=1)
             df_benchmark = df_benchmark.rename(
                 columns={
@@ -354,8 +362,8 @@ class MetaLabelingExample(MLTradingSystemBase):
             Price.OPEN, Price.HIGH, Price.LOW, Price.CLOSE, 'pct_chg', 'ATR',
             f'{Price.OPEN}_benchmark', f'{Price.HIGH}_benchmark',
             f'{Price.LOW}_benchmark', f'{Price.CLOSE}_benchmark',
-            f'{Price.VOLUME}_benchmark', 
-            TradingSystemAttributes.SYMBOL, f'{TradingSystemAttributes.SYMBOL}_benchmark',
+            f'{Price.VOLUME}_benchmark',
+            'instrument_id', TradingSystemAttributes.SYMBOL,
             'entry_condition', 'entry_condition_shifted', 'entry_label',
             'price_shifted', 'max_price', 'min_price',
             'max_pct_chg', 'min_pct_chg', 'exit_label',
@@ -367,42 +375,46 @@ class MetaLabelingExample(MLTradingSystemBase):
         return list(set(composite_df.columns.to_list()) ^ set(columns_to_drop))
 
     @classmethod
-    def get_properties(
-        cls, instruments_db: InstrumentsMongoDb,
-        import_instruments=False, path=None
-    ):
+    def get_properties(cls, securities_grpc_service: SecuritiesGRPCService):
         required_runs = 1
-        benchmark_symbol = '^OMX'
 
-        market_list_ids = [
-            instruments_db.get_market_list_id('omxs30')
-            # instruments_db.get_market_list_id('omxs_large_caps'),
-            # instruments_db.get_market_list_id('omxs_mid_caps')
-        ]
-        symbols_list = []
-        for market_list_id in market_list_ids:
-            symbols_list += json.loads(
-                instruments_db.get_market_list_instrument_symbols(
-                    market_list_id
-                )
-            )
+        omxs_large_caps_instruments_list = securities_grpc_service.get_market_list_instruments(
+            "omxs_large_caps"
+        )
+        omxs_large_caps_instruments_list = (
+            list(omxs_large_caps_instruments_list.instruments)
+            if omxs_large_caps_instruments_list
+            else None
+        )
+        omxs_mid_caps_instruments_list = securities_grpc_service.get_market_list_instruments(
+            "omxs_mid_caps"
+        )
+        omxs_mid_caps_instruments_list = (
+            list(omxs_mid_caps_instruments_list.instruments)
+            if omxs_mid_caps_instruments_list
+            else None
+        )
+        instruments_list = omxs_large_caps_instruments_list + omxs_mid_caps_instruments_list
 
-        model_class, params = (
+        benchmark_instrument = securities_grpc_service.get_instrument("^OMX")
+
+        model_class, params, pipeline_args = (
             SVC,
             {
-                'C': np.array([0.01, 0.01, 1.0, 10]),
+                'C': np.array([0.01, 0.1, 1.0, 10]),
                 'kernel': np.array(['rbf', 'sigmoid', 'poly']),
                 'gamma': np.array(['scale', 'auto']),
                 'random_state': np.array([1]),
-            }
+            },
+            (('scaler', StandardScaler()),)
         )
 
         entry_args = cls.entry_args
         exit_args = cls.exit_args
         return MLTradingSystemProperties(
-            required_runs, symbols_list,
+            required_runs, instruments_list,
             (
-                benchmark_symbol, price_data_get_req,
+                benchmark_instrument, price_data_get,
                 entry_args, exit_args
             ),
             entry_args, exit_args,
@@ -414,7 +426,7 @@ class MetaLabelingExample(MLTradingSystemBase):
                 'forecast_data_fraction': 0.7,
                 'num_of_sims': 100
             },
-            model_class, params
+            model_class, params, pipeline_args
         )
 
 
@@ -422,7 +434,9 @@ if __name__ == '__main__':
     import trading_systems.env as env
     SYSTEMS_DB = TradingSystemsMongoDb(env.LOCALHOST_MONGO_DB_URL, env.SYSTEMS_DB)
     CLIENT_DB = TradingSystemsMongoDb(env.LOCALHOST_MONGO_DB_URL, env.CLIENT_DB)
-    INSTRUMENTS_DB = InstrumentsMongoDb(env.LOCALHOST_MONGO_DB_URL, env.CLIENT_DB)
+    securities_grpc_service = SecuritiesGRPCService(
+        f"{os.environ.get('RPC_SERVICE_HOST')}:{os.environ.get('RPC_SERVICE_PORT')}"
+    )
 
     start_dt = dt.datetime(1999, 1, 1)
     end_dt = dt.datetime(2011, 1, 1)
@@ -431,10 +445,12 @@ if __name__ == '__main__':
     insert_into_db = True
     target = MetaLabelingExample.target
 
-    system_props: MLTradingSystemProperties = MetaLabelingExample.get_properties(INSTRUMENTS_DB)
+    system_props: MLTradingSystemProperties = MetaLabelingExample.get_properties(
+        securities_grpc_service
+    )
 
     data_dict, composite_data = MetaLabelingExample.preprocess_data(
-        system_props.instruments_list,
+        securities_grpc_service, system_props.instruments_list,
         *system_props.preprocess_data_args, start_dt, end_dt,
         drop_nan_rows=True
     )
@@ -442,20 +458,21 @@ if __name__ == '__main__':
     features = MetaLabelingExample.get_features(composite_data)
     model_data = MetaLabelingExample.create_backtest_models(
         composite_data, features, target, system_props.model_class, system_props.params,
-        optimization_metric_func=f1_score, verbose=True
+        pipeline_args=system_props.pipeline_args, optimization_metric_func=f1_score, verbose=True
     )
 
     # TODO: How will the params for the inference models be determined?
     inference_params = {
-        'C': 1.0,
-        'kernel': 'sigmoid',
+        'C': 10.0,
+        'kernel': 'poly',
         'gamma': 'auto',
         'random_state': 1,
     }
 
     if create_model == True:
         inference_model = MetaLabelingExample.create_inference_models(
-            composite_data, features, target, system_props.model_class, inference_params
+            composite_data, features, target, system_props.model_class, inference_params,
+            pipeline_args=system_props.pipeline_args
         )
 
     model_data = model_data[model_data[TradingSystemAttributes.PRED_COL] == True]
@@ -465,7 +482,7 @@ if __name__ == '__main__':
         serialized_model = serialize_model(inference_model)
         insert_successful = SYSTEMS_DB.insert_ml_model(MetaLabelingExample.name, '', serialized_model)
         if insert_successful == False:
-            raise Exception('failed to insert data')
+            raise Exception('Failed to insert model.')
 
     if run_backtest == True:
         trading_system = TradingSystem(
