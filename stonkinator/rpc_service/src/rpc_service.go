@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"google.golang.org/grpc"
 )
@@ -265,6 +266,7 @@ func (s *server) InsertPriceData(ctx context.Context, req *pb.PriceData) (*pb.In
 				low_price, close_price, volume, date_time
 			)
 			VALUES($1, $2, $3, $4, $5, $6, $7)
+			ON CONFLICT DO NOTHING
 		`,
 		req.InstrumentId, req.OpenPrice, req.HighPrice, req.LowPrice, req.ClosePrice,
 		req.Volume, dateTime,
@@ -280,7 +282,54 @@ func (s *server) InsertPriceData(ctx context.Context, req *pb.PriceData) (*pb.In
 	return res, nil
 }
 
-func (s *server) GetPriceData(ctx context.Context, req *pb.GetPriceDataRequest) (*pb.GetPriceDataResponse, error) {
+func (s *server) InsertRepeatedPriceData(ctx context.Context, req *pb.RepeatedPriceData) (*pb.InsertResponse, error) {
+	batch := &pgx.Batch{}
+
+	var err error
+	for _, price := range req.PriceData {
+		dateTime, err := time.Parse(DATE_FORMAT, price.DateTime)
+		if err != nil {
+			// TODO: Log error
+			fmt.Println(err)
+		}
+
+		batch.Queue(
+			`
+				INSERT INTO price_data(
+					instrument_id, open_price, high_price,
+					low_price, close_price, volume, date_time
+				)
+				VALUES($1, $2, $3, $4, $5, $6, $7)
+				ON CONFLICT DO NOTHING
+			`,
+			price.InstrumentId, price.OpenPrice, price.HighPrice, price.LowPrice, price.ClosePrice,
+			price.Volume, dateTime,
+		)
+	}
+
+	batchQueryResult := s.pgPool.SendBatch(ctx, batch)
+	defer batchQueryResult.Close()
+
+	numAffected := 0
+
+	for range req.PriceData {
+		commantTag, err := batchQueryResult.Exec()
+		if err != nil {
+			// TODO: Log error
+			fmt.Println(err)
+		} else {
+			numAffected += int(commantTag.RowsAffected())
+		}
+	}
+
+	res := &pb.InsertResponse{
+		NumAffected: int32(numAffected),
+	}
+
+	return res, err
+}
+
+func (s *server) GetPriceData(ctx context.Context, req *pb.GetPriceDataRequest) (*pb.RepeatedPriceData, error) {
 	query, err := s.pgPool.Query(
 		ctx,
 		`
@@ -322,7 +371,7 @@ func (s *server) GetPriceData(ctx context.Context, req *pb.GetPriceDataRequest) 
 		}
 	}
 
-	res := &pb.GetPriceDataResponse{
+	res := &pb.RepeatedPriceData{
 		PriceData: priceData,
 	}
 

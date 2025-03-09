@@ -16,12 +16,12 @@ from persistance.persistance_services.stonkinator_pb2 import (
     GetExchangesResponse,
     GetLastDateRequest,
     GetPriceDataRequest,
-    GetPriceDataResponse,
     InsertResponse, 
     InsertExchangeRequest,
     Instrument,
     Instruments,
-    PriceData
+    PriceData,
+    RepeatedPriceData,
 )
 from persistance.persistance_services.stonkinator_pb2_grpc import (
     StonkinatorServiceStub
@@ -130,9 +130,15 @@ class SecuritiesGRPCService:
         return res
 
     @grpc_error_handler(default_return=None)
+    def insert_repeated_price_data(self, price_data: list[PriceData]) -> InsertResponse:
+        req = RepeatedPriceData(price_data=price_data)
+        res = self.__client.InsertRepeatedPriceData(req)
+        return res
+
+    @grpc_error_handler(default_return=None)
     def get_price_data(
         self, instrument_id: str, start_date_time: dt.datetime, end_date_time: dt.datetime
-    ) -> GetPriceDataResponse:
+    ) -> RepeatedPriceData:
         req = GetPriceDataRequest(
             instrument_id=instrument_id,
             start_date_time=start_date_time,

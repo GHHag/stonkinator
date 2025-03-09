@@ -17,14 +17,15 @@ service StonkinatorService {
     rpc GetDateTime (GetDateTimeRequest) returns (DateTime);
     rpc GetLastDate (GetLastDateRequest) returns (DateTime);
     rpc InsertPriceData (PriceData) returns (InsertResponse);
-    rpc GetPriceData (GetPriceDataRequest) returns (GetPriceDataResponse);
+    rpc InsertRepeatedPriceData (RepeatedPriceData) returns (InsertResponse);
+    rpc GetPriceData (GetPriceDataRequest) returns (RepeatedPriceData);
     // rpc InsertMarketList (MarketList) returns (InsertResponse);
     // rpc UpdateMarketList (MarketList) returns (UpdateResponse);
     rpc GetExchangeInstruments (GetByIdRequest) returns (Instruments);
     // rpc InsertMarketListInstrument () returns ();
     // rpc RemoveMarketListInstrument() returns ();
     rpc GetMarketListInstruments (GetByNameRequest) returns (Instruments);
-    // rpc GetMarketListInstrumentsPriceData (MarketList) returns (GetPriceDataResponse);
+    // rpc GetMarketListInstrumentsPriceData (MarketList) returns (RepeatedPriceData);
     
     // Methods previously implemented by SystemsMongoDB
     // trading system rpc service methods
@@ -104,19 +105,15 @@ message GetExchangesResponse {
     repeated GetExchangeResponse exchanges = 1;
 }
 
-// message InsertPriceDataRequest {
-//     repeated PriceData price_data = 1;
-// }
+message RepeatedPriceData {
+    repeated PriceData price_data = 1;
+}
 
 message GetPriceDataRequest {
     string instrument_id = 1;
     string start_date_time = 2;
     string end_date_time = 3;
 } 
-
-message GetPriceDataResponse {
-    repeated PriceData price_data = 2;
-}
 
 message GetDateTimeRequest {
     string instrument_id = 1;

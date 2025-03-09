@@ -1,3 +1,4 @@
+import os
 import pathlib
 import sys
 import datetime as dt
@@ -11,13 +12,13 @@ import pandas as pd
 from persistance.persistance_services.stonkinator_pb2 import (
     DateTime,
     GetExchangesResponse,
-    GetPriceDataResponse,
     InsertResponse,
     Instrument,
-    Instruments
+    Instruments,
+    PriceData,
+    RepeatedPriceData
 )
-from persistance.persistance_services.grpc_service import SecuritiesGRPCService
-import trading_systems.env as env
+from persistance.persistance_services.securities_grpc_service import SecuritiesGRPCService
 from trading.data.metadata.price import Price
 
 
@@ -63,7 +64,7 @@ def price_data_get(
     securities_grpc_service: SecuritiesGRPCService, instrument_id: str,
     start_date_time: dt.datetime, end_date_time: dt.datetime
 ) -> pd.DataFrame | None:
-    price_data_get_res: GetPriceDataResponse = securities_grpc_service.get_price_data(
+    price_data_get_res: RepeatedPriceData = securities_grpc_service.get_price_data(
         instrument_id, str(start_date_time), str(end_date_time)
     )
 
@@ -106,40 +107,39 @@ def insert_daily_data(
             continue
         df = df.drop(columns=["adjclose"], errors="ignore")
 
+        price_data = []
         for i, _ in enumerate(df.itertuples()):
-            try:
-                price_data_insert_res: InsertResponse = securities_grpc_service.insert_price_data(
-                    instrument_id,
-                    df[Price.OPEN].iloc[i], df[Price.HIGH].iloc[i],
-                    df[Price.LOW].iloc[i], df[Price.CLOSE].iloc[i],
-                    df[Price.VOLUME].iloc[i], df[Price.DT].iloc[i]
+            price_data.append(
+                PriceData(
+                    instrument_id=instrument_id,
+                    open_price=df[Price.OPEN].iloc[i], 
+                    high_price=df[Price.HIGH].iloc[i],
+                    low_price=df[Price.LOW].iloc[i], 
+                    close_price=df[Price.CLOSE].iloc[i],
+                    volume=int(df[Price.VOLUME].iloc[i]), 
+                    date_time=str(df[Price.DT].iloc[i])
                 )
-                if (
-                    not price_data_insert_res or 
-                    not price_data_insert_res.num_affected or
-                    price_data_insert_res.num_affected < 1
-                ):
-                    critical_logger.warning(
-                        "\n"
-                        f"\tPrice data insert had no effect. Symbol: {symbol}"
-                        "\n"
-                    )
-                elif (
-                    price_data_insert_res and
-                    price_data_insert_res.num_affected
-                ):
-                    base_logger.info(
-                        "\n"
-                        f"\tPrice data insert. Symbol: {symbol}\n"
-                        f"\tResult: {price_data_insert_res.num_affected} rows affected."
-                    )
-            except Exception as e:
-                critical_logger.error(
+            )
+        try:
+            price_data_insert_res: InsertResponse = securities_grpc_service.insert_repeated_price_data(
+                price_data
+            )
+            if (price_data_insert_res):
+                base_logger.info(
                     "\n"
-                    f"\tERROR while trying to insert data. Symbol: {symbol}"
-                    "\n"
-                    f"\t{e}"
+                    f"\tPrice data insert. Symbol: {symbol}\n"
+                    f"\tResult: {price_data_insert_res.num_affected} rows affected "
+                    f"of {len(price_data)} attempted."
                 )
+        except Exception as e:
+            critical_logger.error(
+                "\n"
+                f"\tERROR while trying to insert data. Symbol: {symbol}"
+                "\n"
+                f"\t{e}"
+            )
+            continue
+            
 
 
 def complete_historic_data(
@@ -213,15 +213,19 @@ def complete_historic_data(
 
 
 if __name__ == "__main__":
+    LOG_DIR_PATH = os.environ.get("LOG_DIR_PATH")
+
     logger_name = pathlib.Path(__file__).stem
     base_logger = set_up_logger(
-        logger_name, f"{env.LOG_DIR_PATH}{pathlib.Path(__file__).stem}.log"
+        logger_name, f"{LOG_DIR_PATH}{pathlib.Path(__file__).stem}.log"
     )
     critical_logger = set_up_logger(
-        f"{logger_name}_critical", f"{env.LOG_DIR_PATH}{pathlib.Path(__file__).stem}_critical.log"
+        f"{logger_name}_critical", f"{LOG_DIR_PATH}{pathlib.Path(__file__).stem}_critical.log"
     )
 
-    securities_grpc_service = SecuritiesGRPCService(f"{env.STONKINATOR_RPC_SERVICE}:{env.RPC_SERVICE_PORT}")
+    securities_grpc_service = SecuritiesGRPCService(
+        f"{os.environ.get('RPC_SERVICE_HOST')}:{os.environ.get('RPC_SERVICE_PORT')}"
+    )
 
     exchanges_get_res: GetExchangesResponse = securities_grpc_service.get_exchanges()
     if exchanges_get_res:
