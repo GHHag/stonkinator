@@ -1,10 +1,5 @@
 #!/bin/bash
-
 cp .env ./stonkinator/stonkinator/trading_systems/env.py 
-cp .env ./stonkinator/stonkinator/persistance/securities_db_py_dal/env.py
-cp .env ./stonkinator/.env
-cp .env ./stonkinator_api/.env
-cp .env ./alphascrape/.env
 
 watch=false
 run_cron=false
@@ -20,6 +15,11 @@ do
 			;;
 	esac
 done
+
+certificates_dir="stonkinator/.certs"
+if [ ! -d "$certificates_dir" ]; then
+	bash generate_certs.sh $certificates_dir
+fi
 
 if $watch; then
     docker compose -f ./docker-compose.yml watch

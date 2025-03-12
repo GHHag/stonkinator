@@ -1,0 +1,15 @@
+FROM golang:1.23 AS build
+
+WORKDIR /app
+COPY rpc_service/src/go.mod rpc_service/src/go.sum /app/
+RUN go mod download
+
+COPY rpc_service/src /app/
+
+COPY .certs/rpc_service.key /etc/ssl/private
+COPY .certs/rpc_service.pem .certs/ca.pem /etc/ssl/
+
+# RUN go build -o /bin/stonkinator_rpc_service
+RUN CGO_ENABLED=0 GOOS=linux go build -o /stonkinator_rpc_service
+
+CMD ["/stonkinator_rpc_service"]

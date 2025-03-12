@@ -51,8 +51,16 @@ def grpc_error_handler(default_return=None):
 class SecuritiesGRPCService:
 
     def __init__(self, channel_address):
-        # TODO: Use secure_channel instead
-        channel = grpc.insecure_channel(channel_address)
+        # TODO: Pass file paths into the constructor, read the files here with their paths as env variables?
+        with open("/etc/ssl/private/stonkinator.key", "rb") as file:
+            key = file.read()
+        with open("/etc/ssl/stonkinator.pem", "rb") as file:
+            cert = file.read()
+        with open("/etc/ssl/ca.pem", "rb") as file:
+            ca_cert = file.read()
+
+        creds = grpc.ssl_channel_credentials(ca_cert, key, cert)
+        channel = grpc.secure_channel(channel_address, creds)
         self.__client = StonkinatorServiceStub(channel)
 
     @grpc_error_handler(default_return=None)

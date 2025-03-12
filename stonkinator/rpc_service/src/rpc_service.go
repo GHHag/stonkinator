@@ -2,9 +2,12 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"fmt"
 	"log"
 	"net"
+	"os"
 	pb "stonkinator_rpc_service/stonkinator_rpc_service"
 	"strings"
 	"time"
@@ -12,6 +15,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 )
 
 // const dbTimeout = time.Second * 6
@@ -30,12 +34,36 @@ type service struct {
 	server     *server
 }
 
-func (service *service) create(pgPool *pgxpool.Pool) {
-	service.grpcServer = grpc.NewServer()
+func (service *service) create(pgPool *pgxpool.Pool, certFile string, keyFile string, caFile string) error {
+	cert, err := tls.LoadX509KeyPair(certFile, keyFile)
+	if err != nil {
+		return err
+	}
+
+	ca := x509.NewCertPool()
+	caBytes, err := os.ReadFile(caFile)
+	if err != nil {
+		log.Fatalf("failed to read ca cert %q: %v", caFile, err)
+		return err
+	}
+	if ok := ca.AppendCertsFromPEM(caBytes); !ok {
+		log.Fatalf("failed to parse %q", caFile)
+		return fmt.Errorf("failed to parse %q", caFile)
+	}
+
+	tlsConfig := &tls.Config{
+		ClientAuth:   tls.RequireAndVerifyClientCert,
+		Certificates: []tls.Certificate{cert},
+		ClientCAs:    ca,
+	}
+
+	service.grpcServer = grpc.NewServer(grpc.Creds(credentials.NewTLS(tlsConfig)))
 	service.server = &server{
 		pgPool: pgPool,
 	}
 	pb.RegisterStonkinatorServiceServer(service.grpcServer, service.server)
+
+	return nil
 }
 
 func (service *service) run(port string) error {

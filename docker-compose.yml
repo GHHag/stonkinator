@@ -52,7 +52,9 @@ services:
       PG_DB_NAME: ${PG_DB_NAME}
       PG_DB_SERVICE: ${PG_DB_SERVICE}
       RPC_SERVICE_PORT: ${RPC_SERVICE_PORT}
-    build: ./stonkinator/rpc_service
+    build:
+      context: ./stonkinator
+      dockerfile: Dockerfile.rpc_service
     develop:
       watch:
         - action: rebuild
@@ -70,7 +72,9 @@ services:
       RPC_SERVICE_PORT: ${RPC_SERVICE_PORT}
       LOG_DIR_PATH: ${LOG_DIR_PATH}
       TS_HANDLER_DIR_TARGET: ${TS_HANDLER_DIR_TARGET}
-    build: ./stonkinator/stonkinator
+    build:
+      context: ./stonkinator
+      dockerfile: Dockerfile.stonkinator
     volumes:
       - ./stonkinator/stonkinator:/app
 

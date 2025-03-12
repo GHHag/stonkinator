@@ -19,7 +19,7 @@ func main() {
 		// errorLog: log.New(os.Stderr, "Error\t", log.Ldate|log.Ltime),
 		errorLog: log.New(os.Stdout, "Error\t", log.Ldate|log.Ltime),
 	}
-	service.create(pgPool)
+	service.create(pgPool, "/etc/ssl/rpc_service.pem", "/etc/ssl/private/rpc_service.key", "/etc/ssl/ca.pem")
 	if err := service.run(port); err != nil {
 		panic(err)
 	}

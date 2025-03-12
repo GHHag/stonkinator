@@ -3,13 +3,13 @@ FROM python:3.10-slim-bullseye
 RUN apt-get update && apt-get install -y cron git
 
 WORKDIR /app
-
-COPY . /app
-
+COPY stonkinator /app
 RUN cd /app && pip install -e .
 
-COPY crontab /etc/cron.d/crontab
-
+COPY stonkinator/crontab /etc/cron.d/crontab
 RUN crontab /etc/cron.d/crontab
+
+COPY .certs/stonkinator.key /etc/ssl/private
+COPY .certs/stonkinator.pem .certs/ca.pem /etc/ssl/
 
 CMD ["cron", "-f"]
