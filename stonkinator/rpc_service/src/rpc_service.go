@@ -8,22 +8,28 @@ import (
 	"log"
 	"net"
 	"os"
+	"os/signal"
 	pb "stonkinator_rpc_service/stonkinator_rpc_service"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/keepalive"
 )
 
-// const dbTimeout = time.Second * 6
+const DB_TIMEOUT = time.Second * 20
 const DATE_FORMAT = "2006-01-02"
 const DATETIME_FORMAT = "2006-01-02 15:04:05"
+const MAX_MESSAGE_SIZE = 4 * 1024 * 1024
 
 type server struct {
-	pgPool *pgxpool.Pool
+	infoLog  *log.Logger
+	errorLog *log.Logger
+	pgPool   *pgxpool.Pool
 	pb.UnimplementedStonkinatorServiceServer
 }
 
@@ -37,17 +43,18 @@ type service struct {
 func (service *service) create(pgPool *pgxpool.Pool, certFile string, keyFile string, caFile string) error {
 	cert, err := tls.LoadX509KeyPair(certFile, keyFile)
 	if err != nil {
+		service.errorLog.Println(err)
 		return err
 	}
 
 	ca := x509.NewCertPool()
 	caBytes, err := os.ReadFile(caFile)
 	if err != nil {
-		log.Fatalf("failed to read ca cert %q: %v", caFile, err)
+		service.errorLog.Println(err)
 		return err
 	}
 	if ok := ca.AppendCertsFromPEM(caBytes); !ok {
-		log.Fatalf("failed to parse %q", caFile)
+		service.errorLog.Printf("failed to parse %q", caFile)
 		return fmt.Errorf("failed to parse %q", caFile)
 	}
 
@@ -57,9 +64,25 @@ func (service *service) create(pgPool *pgxpool.Pool, certFile string, keyFile st
 		ClientCAs:    ca,
 	}
 
-	service.grpcServer = grpc.NewServer(grpc.Creds(credentials.NewTLS(tlsConfig)))
+	keepAliveParams := keepalive.ServerParameters{
+		MaxConnectionIdle: 10 * time.Minute,
+		Time:              3 * time.Minute,
+		Timeout:           20 * time.Second,
+	}
+
+	// If all services are inside the same network, you can use local credentials for lightweight security.
+	// creds := grpc.LocalCredentials(grpc.LocalConnectionType.UDS)
+
+	service.grpcServer = grpc.NewServer(
+		grpc.Creds(credentials.NewTLS(tlsConfig)),
+		grpc.KeepaliveParams(keepAliveParams),
+		grpc.MaxRecvMsgSize(MAX_MESSAGE_SIZE),
+		grpc.MaxSendMsgSize(MAX_MESSAGE_SIZE),
+	)
 	service.server = &server{
-		pgPool: pgPool,
+		infoLog:  service.infoLog,
+		errorLog: service.errorLog,
+		pgPool:   pgPool,
 	}
 	pb.RegisterStonkinatorServiceServer(service.grpcServer, service.server)
 
@@ -69,10 +92,19 @@ func (service *service) create(pgPool *pgxpool.Pool, certFile string, keyFile st
 func (service *service) run(port string) error {
 	listener, err := net.Listen("tcp", fmt.Sprintf(":%s", port))
 	if err != nil {
+		service.errorLog.Println(err)
 		return err
 	}
 
+	go func() {
+		signalChan := make(chan os.Signal, 1)
+		signal.Notify(signalChan, os.Interrupt, syscall.SIGTERM)
+		<-signalChan
+		service.grpcServer.GracefulStop()
+	}()
+
 	if err := service.grpcServer.Serve(listener); err != nil {
+		service.errorLog.Println(err)
 		return err
 	}
 
@@ -80,9 +112,8 @@ func (service *service) run(port string) error {
 }
 
 func (s *server) InsertExchange(ctx context.Context, req *pb.InsertExchangeRequest) (*pb.InsertResponse, error) {
-	// TODO: Use context WithTimeout?
-	// ctx, cancel := context.WithTimeout(context.Background(), dbTimeout)
-	// defer cancel()
+	ctx, cancel := context.WithTimeout(ctx, DB_TIMEOUT)
+	defer cancel()
 
 	result, err := s.pgPool.Exec(
 		ctx,
@@ -94,7 +125,7 @@ func (s *server) InsertExchange(ctx context.Context, req *pb.InsertExchangeReque
 		req.ExchangeName, req.Currency,
 	)
 	if err != nil {
-		// TODO: Log errors, define centralized logging m
+		s.errorLog.Println(err)
 		return nil, err
 	}
 
@@ -106,6 +137,9 @@ func (s *server) InsertExchange(ctx context.Context, req *pb.InsertExchangeReque
 }
 
 func (s *server) GetExchange(ctx context.Context, req *pb.GetByNameRequest) (*pb.GetExchangeResponse, error) {
+	ctx, cancel := context.WithTimeout(ctx, DB_TIMEOUT)
+	defer cancel()
+
 	query := s.pgPool.QueryRow(
 		ctx,
 		`
@@ -119,6 +153,7 @@ func (s *server) GetExchange(ctx context.Context, req *pb.GetByNameRequest) (*pb
 	res := &pb.GetExchangeResponse{}
 	err := query.Scan(&res.Id, &res.ExchangeName)
 	if err != nil {
+		s.errorLog.Println(err)
 		return nil, err
 	}
 
@@ -126,6 +161,9 @@ func (s *server) GetExchange(ctx context.Context, req *pb.GetByNameRequest) (*pb
 }
 
 func (s *server) GetExchanges(ctx context.Context, req *pb.GetAllRequest) (*pb.GetExchangesResponse, error) {
+	ctx, cancel := context.WithTimeout(ctx, DB_TIMEOUT)
+	defer cancel()
+
 	query, err := s.pgPool.Query(
 		ctx,
 		`
@@ -134,6 +172,7 @@ func (s *server) GetExchanges(ctx context.Context, req *pb.GetAllRequest) (*pb.G
 		`,
 	)
 	if err != nil {
+		s.errorLog.Println(err)
 		return nil, err
 	}
 	defer query.Close()
@@ -159,6 +198,9 @@ func (s *server) GetExchanges(ctx context.Context, req *pb.GetAllRequest) (*pb.G
 }
 
 func (s *server) InsertInstrument(ctx context.Context, req *pb.Instrument) (*pb.InsertResponse, error) {
+	ctx, cancel := context.WithTimeout(ctx, DB_TIMEOUT)
+	defer cancel()
+
 	result, err := s.pgPool.Exec(
 		ctx,
 		`
@@ -169,6 +211,7 @@ func (s *server) InsertInstrument(ctx context.Context, req *pb.Instrument) (*pb.
 		req.ExchangeId, req.InstrumentName, req.Symbol, req.Sector,
 	)
 	if err != nil {
+		s.errorLog.Println(err)
 		return nil, err
 	}
 
@@ -180,6 +223,9 @@ func (s *server) InsertInstrument(ctx context.Context, req *pb.Instrument) (*pb.
 }
 
 func (s *server) GetInstrument(ctx context.Context, req *pb.GetBySymbolRequest) (*pb.Instrument, error) {
+	ctx, cancel := context.WithTimeout(ctx, DB_TIMEOUT)
+	defer cancel()
+
 	query := s.pgPool.QueryRow(
 		ctx,
 		`
@@ -193,6 +239,7 @@ func (s *server) GetInstrument(ctx context.Context, req *pb.GetBySymbolRequest) 
 	res := &pb.Instrument{}
 	err := query.Scan(&res.Id, &res.ExchangeId, &res.InstrumentName, &res.Symbol, &res.Sector)
 	if err != nil {
+		s.errorLog.Println(err)
 		return nil, err
 	}
 
@@ -200,6 +247,9 @@ func (s *server) GetInstrument(ctx context.Context, req *pb.GetBySymbolRequest) 
 }
 
 func (s *server) GetDateTime(ctx context.Context, req *pb.GetDateTimeRequest) (*pb.DateTime, error) {
+	ctx, cancel := context.WithTimeout(ctx, DB_TIMEOUT)
+	defer cancel()
+
 	var queryStr string
 	if req.Min {
 		queryStr = `
@@ -226,6 +276,7 @@ func (s *server) GetDateTime(ctx context.Context, req *pb.GetDateTimeRequest) (*
 	var dateTime time.Time
 	err := query.Scan(&dateTime)
 	if err != nil {
+		s.errorLog.Println(err)
 		return nil, err
 	}
 
@@ -237,6 +288,9 @@ func (s *server) GetDateTime(ctx context.Context, req *pb.GetDateTimeRequest) (*
 }
 
 func (s *server) GetLastDate(ctx context.Context, req *pb.GetLastDateRequest) (*pb.DateTime, error) {
+	ctx, cancel := context.WithTimeout(ctx, DB_TIMEOUT)
+	defer cancel()
+
 	query := s.pgPool.QueryRow(
 		ctx,
 		`
@@ -270,6 +324,7 @@ func (s *server) GetLastDate(ctx context.Context, req *pb.GetLastDateRequest) (*
 	var dateTime time.Time
 	err := query.Scan(&dateTime)
 	if err != nil {
+		s.errorLog.Println(err)
 		return nil, err
 	}
 
@@ -281,8 +336,12 @@ func (s *server) GetLastDate(ctx context.Context, req *pb.GetLastDateRequest) (*
 }
 
 func (s *server) InsertPriceData(ctx context.Context, req *pb.PriceData) (*pb.InsertResponse, error) {
+	ctx, cancel := context.WithTimeout(ctx, DB_TIMEOUT)
+	defer cancel()
+
 	dateTime, err := time.Parse(DATE_FORMAT, req.DateTime)
 	if err != nil {
+		s.errorLog.Println(err)
 		return nil, err
 	}
 
@@ -300,6 +359,7 @@ func (s *server) InsertPriceData(ctx context.Context, req *pb.PriceData) (*pb.In
 		req.Volume, dateTime,
 	)
 	if err != nil {
+		s.errorLog.Println(err)
 		return nil, err
 	}
 
@@ -311,14 +371,16 @@ func (s *server) InsertPriceData(ctx context.Context, req *pb.PriceData) (*pb.In
 }
 
 func (s *server) InsertRepeatedPriceData(ctx context.Context, req *pb.RepeatedPriceData) (*pb.InsertResponse, error) {
+	ctx, cancel := context.WithTimeout(ctx, DB_TIMEOUT)
+	defer cancel()
+
 	batch := &pgx.Batch{}
 
 	var err error
 	for _, price := range req.PriceData {
 		dateTime, err := time.Parse(DATE_FORMAT, price.DateTime)
 		if err != nil {
-			// TODO: Log error
-			fmt.Println(err)
+			s.errorLog.Println(err)
 		}
 
 		batch.Queue(
@@ -343,8 +405,7 @@ func (s *server) InsertRepeatedPriceData(ctx context.Context, req *pb.RepeatedPr
 	for range req.PriceData {
 		commantTag, err := batchQueryResult.Exec()
 		if err != nil {
-			// TODO: Log error
-			fmt.Println(err)
+			s.errorLog.Println(err)
 		} else {
 			numAffected += int(commantTag.RowsAffected())
 		}
@@ -358,6 +419,9 @@ func (s *server) InsertRepeatedPriceData(ctx context.Context, req *pb.RepeatedPr
 }
 
 func (s *server) GetPriceData(ctx context.Context, req *pb.GetPriceDataRequest) (*pb.RepeatedPriceData, error) {
+	ctx, cancel := context.WithTimeout(ctx, DB_TIMEOUT)
+	defer cancel()
+
 	query, err := s.pgPool.Query(
 		ctx,
 		`
@@ -375,6 +439,7 @@ func (s *server) GetPriceData(ctx context.Context, req *pb.GetPriceDataRequest) 
 		req.InstrumentId, req.StartDateTime, req.EndDateTime,
 	)
 	if err != nil {
+		s.errorLog.Println(err)
 		return nil, err
 	}
 	defer query.Close()
@@ -407,6 +472,9 @@ func (s *server) GetPriceData(ctx context.Context, req *pb.GetPriceDataRequest) 
 }
 
 func (s *server) GetExchangeInstruments(ctx context.Context, req *pb.GetByIdRequest) (*pb.Instruments, error) {
+	ctx, cancel := context.WithTimeout(ctx, DB_TIMEOUT)
+	defer cancel()
+
 	query, err := s.pgPool.Query(
 		ctx,
 		`
@@ -419,6 +487,7 @@ func (s *server) GetExchangeInstruments(ctx context.Context, req *pb.GetByIdRequ
 		req.Id,
 	)
 	if err != nil {
+		s.errorLog.Println(err)
 		return nil, err
 	}
 	defer query.Close()
@@ -447,6 +516,9 @@ func (s *server) GetExchangeInstruments(ctx context.Context, req *pb.GetByIdRequ
 }
 
 func (s *server) GetMarketListInstruments(ctx context.Context, req *pb.GetByNameRequest) (*pb.Instruments, error) {
+	ctx, cancel := context.WithTimeout(ctx, DB_TIMEOUT)
+	defer cancel()
+
 	query, err := s.pgPool.Query(
 		ctx,
 		`
@@ -460,6 +532,7 @@ func (s *server) GetMarketListInstruments(ctx context.Context, req *pb.GetByName
 		strings.ToUpper(req.Name),
 	)
 	if err != nil {
+		s.errorLog.Println(err)
 		return nil, err
 	}
 	defer query.Close()
@@ -488,12 +561,18 @@ func (s *server) GetMarketListInstruments(ctx context.Context, req *pb.GetByName
 }
 
 // func (s *server) GetMarketListInstrumentsPriceData(ctx context.Context, req *pb.MarketList) (*pb.GetPriceDataResponse, error) {
+// ctx, cancel := context.WithTimeout(ctx, DB_TIMEOUT)
+// defer cancel()
+
 // 	res := &pb.GetPriceDataResponse{}
 
 // 	return res, nil
 // }
 
 // func (s *server) InsertTradingSystem(ctx context.Context, req *pb.InsertTradingSystemRequest) (*pb.InsertTradingSystemResponse, error) {
+// ctx, cancel := context.WithTimeout(ctx, DB_TIMEOUT)
+// defer cancel()
+
 // 	res := &pb.InsertTradingSystemResponse{
 // 		Successful: true,
 // 	}
@@ -502,6 +581,9 @@ func (s *server) GetMarketListInstruments(ctx context.Context, req *pb.GetByName
 // }
 
 // func (s *server) InsertTradingSystemMetrics(ctx context.Context, req *pb.InsertTradingSystemMetricsRequest) (*pb.InsertTradingSystemMetricsResponse, error) {
+// ctx, cancel := context.WithTimeout(ctx, DB_TIMEOUT)
+// defer cancel()
+
 // 	res := &pb.InsertTradingSystemMetricsResponse{
 // 		Successful: true,
 // 	}
