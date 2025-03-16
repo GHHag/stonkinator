@@ -17,7 +17,7 @@ from trading.position.order import Order, LimitOrder, MarketOrder
 from trading.position.position import Position
 from trading.trading_system.trading_system import TradingSystem
 
-from persistance.persistance_services.stonkinator_pb2 import Instrument
+from persistance.persistance_services.securities_service_pb2 import Instrument
 from persistance.persistance_services.dal_grpc import price_data_get
 from persistance.persistance_services.securities_grpc_service import SecuritiesGRPCService
 from persistance.persistance_meta_classes.trading_systems_persister import (

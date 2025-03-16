@@ -5,30 +5,30 @@ import pathlib
 
 import grpc
 
-from persistance.persistance_services.stonkinator_pb2 import (
+from persistance.persistance_services.securities_service_pb2 import (
+    CUD,
     DateTime,
+    Exchange,
+    Exchanges,
     GetAllRequest,
-    GetByNameRequest,
-    GetByIdRequest,
-    GetBySymbolRequest,
+    GetBy,
     GetDateTimeRequest,
-    GetExchangeResponse,
-    GetExchangesResponse,
     GetLastDateRequest,
     GetPriceDataRequest,
-    InsertResponse, 
-    InsertExchangeRequest,
     Instrument,
     Instruments,
+    Price,
     PriceData,
-    RepeatedPriceData,
 )
-from persistance.persistance_services.stonkinator_pb2_grpc import (
-    StonkinatorServiceStub
+from persistance.persistance_services.securities_service_pb2_grpc import (
+    SecuritiesServiceStub
 )
 
 
 LOG_DIR_PATH = os.environ.get("LOG_DIR_PATH")
+if not os.path.exists(LOG_DIR_PATH):
+    os.makedirs(LOG_DIR_PATH)
+
 logger_name = pathlib.Path(__file__).stem
 logger = logging.getLogger(logger_name)
 logger.setLevel(logging.INFO)
@@ -61,11 +61,11 @@ class SecuritiesGRPCService:
 
         creds = grpc.ssl_channel_credentials(ca_cert, key, cert)
         channel = grpc.secure_channel(channel_address, creds)
-        self.__client = StonkinatorServiceStub(channel)
+        self.__client = SecuritiesServiceStub(channel)
 
     @grpc_error_handler(default_return=None)
-    def insert_exchange(self, exchange_name: str, currency: str) -> InsertResponse:
-        req = InsertExchangeRequest(
+    def insert_exchange(self, exchange_name: str, currency: str) -> CUD:
+        req = Exchange(
             exchange_name=exchange_name, currency=currency
         )
         res = self.__client.InsertExchange(req)
@@ -76,13 +76,13 @@ class SecuritiesGRPCService:
         ...
 
     @grpc_error_handler(default_return=None)
-    def get_exchange(self, exchange_name: str) -> GetExchangeResponse:
-        req = GetByNameRequest(name=exchange_name)
+    def get_exchange(self, name: str) -> Exchange:
+        req = GetBy(str_identifier=name)
         res = self.__client.GetExchange(req)
         return res
         
     @grpc_error_handler(default_return=None)
-    def get_exchanges(self) -> GetExchangesResponse:
+    def get_exchanges(self) -> Exchanges:
         req = GetAllRequest()
         res = self.__client.GetExchanges(req)
         return res
@@ -90,7 +90,7 @@ class SecuritiesGRPCService:
     @grpc_error_handler(default_return=None)
     def insert_instrument(
         self, exchange_id: str, instrument_name: str, symbol: str, sector: str
-    ) -> InsertResponse:
+    ) -> CUD:
         req = Instrument(
             exchange_id=exchange_id, instrument_name=instrument_name,
             symbol=symbol, sector=sector
@@ -105,7 +105,7 @@ class SecuritiesGRPCService:
     # TODO: Is this method needed or not?
     @grpc_error_handler(default_return=None)
     def get_instrument(self, symbol: str) -> Instrument:
-        req = GetBySymbolRequest(symbol=symbol)
+        req = GetBy(str_identifier=symbol)
         res = self.__client.GetInstrument(req)
         return res
 
@@ -126,31 +126,32 @@ class SecuritiesGRPCService:
         return res
 
     @grpc_error_handler(default_return=None)
-    def insert_price_data(
+    def insert_price(
         self, instrument_id: str, open_price: float, high_price: float,
         low_price: float, close_price: float, volume: int, date_time: dt.datetime
-    ) -> InsertResponse:
-        req = PriceData(
+    ) -> CUD:
+        req = Price(
             instrument_id=instrument_id, open_price=open_price, high_price=high_price,
-            low_price=low_price, close_price=close_price, volume=volume, date_time=str(date_time)
+            low_price=low_price, close_price=close_price, volume=volume,
+            date_time=DateTime(date_time=date_time)
         )
-        res = self.__client.InsertPriceData(req)
+        res = self.__client.InsertPrice(req)
         return res
 
     @grpc_error_handler(default_return=None)
-    def insert_repeated_price_data(self, price_data: list[PriceData]) -> InsertResponse:
-        req = RepeatedPriceData(price_data=price_data)
-        res = self.__client.InsertRepeatedPriceData(req)
+    def insert_price_data(self, price_data: list[Price]) -> CUD:
+        req = PriceData(price_data=price_data)
+        res = self.__client.InsertPriceData(req)
         return res
 
     @grpc_error_handler(default_return=None)
     def get_price_data(
         self, instrument_id: str, start_date_time: dt.datetime, end_date_time: dt.datetime
-    ) -> RepeatedPriceData:
+    ) -> PriceData:
         req = GetPriceDataRequest(
             instrument_id=instrument_id,
-            start_date_time=start_date_time,
-            end_date_time=end_date_time
+            start_date_time=DateTime(date_time=start_date_time),
+            end_date_time=DateTime(date_time=end_date_time)
         )
         res = self.__client.GetPriceData(req)
         return res
@@ -165,7 +166,7 @@ class SecuritiesGRPCService:
 
     @grpc_error_handler(default_return=None)
     def get_exchange_instruments(self, exchange_id: str) -> Instruments:
-        req = GetByIdRequest(id=exchange_id)
+        req = GetBy(str_identifier=exchange_id)
         res = self.__client.GetExchangeInstruments(req)
         return res
 
@@ -179,7 +180,7 @@ class SecuritiesGRPCService:
 
     @grpc_error_handler(default_return=None)
     def get_market_list_instruments(self, name: str) -> Instruments:
-        req = GetByNameRequest(name=name)
+        req = GetBy(str_identifier=name)
         res = self.__client.GetMarketListInstruments(req)
         return res
 

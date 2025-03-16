@@ -30,7 +30,7 @@ type server struct {
 	infoLog  *log.Logger
 	errorLog *log.Logger
 	pgPool   *pgxpool.Pool
-	pb.UnimplementedStonkinatorServiceServer
+	pb.UnimplementedSecuritiesServiceServer
 }
 
 type service struct {
@@ -84,7 +84,7 @@ func (service *service) create(pgPool *pgxpool.Pool, certFile string, keyFile st
 		errorLog: service.errorLog,
 		pgPool:   pgPool,
 	}
-	pb.RegisterStonkinatorServiceServer(service.grpcServer, service.server)
+	pb.RegisterSecuritiesServiceServer(service.grpcServer, service.server)
 
 	return nil
 }
@@ -111,7 +111,7 @@ func (service *service) run(port string) error {
 	return nil
 }
 
-func (s *server) InsertExchange(ctx context.Context, req *pb.InsertExchangeRequest) (*pb.InsertResponse, error) {
+func (s *server) InsertExchange(ctx context.Context, req *pb.Exchange) (*pb.CUD, error) {
 	ctx, cancel := context.WithTimeout(ctx, DB_TIMEOUT)
 	defer cancel()
 
@@ -122,21 +122,21 @@ func (s *server) InsertExchange(ctx context.Context, req *pb.InsertExchangeReque
 			VALUES($1, $2)
 			ON CONFLICT DO NOTHING
 		`,
-		req.ExchangeName, req.Currency,
+		req.Name, req.Currency,
 	)
 	if err != nil {
 		s.errorLog.Println(err)
 		return nil, err
 	}
 
-	res := &pb.InsertResponse{
+	res := &pb.CUD{
 		NumAffected: int32(result.RowsAffected()),
 	}
 
 	return res, nil
 }
 
-func (s *server) GetExchange(ctx context.Context, req *pb.GetByNameRequest) (*pb.GetExchangeResponse, error) {
+func (s *server) GetExchange(ctx context.Context, req *pb.GetBy) (*pb.Exchange, error) {
 	ctx, cancel := context.WithTimeout(ctx, DB_TIMEOUT)
 	defer cancel()
 
@@ -147,11 +147,11 @@ func (s *server) GetExchange(ctx context.Context, req *pb.GetByNameRequest) (*pb
 			FROM exchanges
 			WHERE UPPER(exchange_name) = $1
 		`,
-		strings.ToUpper(req.Name),
+		strings.ToUpper(req.GetStrIdentifier()),
 	)
 
-	res := &pb.GetExchangeResponse{}
-	err := query.Scan(&res.Id, &res.ExchangeName)
+	res := &pb.Exchange{}
+	err := query.Scan(&res.Id, &res.Name)
 	if err != nil {
 		s.errorLog.Println(err)
 		return nil, err
@@ -160,7 +160,7 @@ func (s *server) GetExchange(ctx context.Context, req *pb.GetByNameRequest) (*pb
 	return res, nil
 }
 
-func (s *server) GetExchanges(ctx context.Context, req *pb.GetAllRequest) (*pb.GetExchangesResponse, error) {
+func (s *server) GetExchanges(ctx context.Context, req *pb.GetAllRequest) (*pb.Exchanges, error) {
 	ctx, cancel := context.WithTimeout(ctx, DB_TIMEOUT)
 	defer cancel()
 
@@ -177,12 +177,12 @@ func (s *server) GetExchanges(ctx context.Context, req *pb.GetAllRequest) (*pb.G
 	}
 	defer query.Close()
 
-	exchanges := []*pb.GetExchangeResponse{}
+	exchanges := []*pb.Exchange{}
 	for query.Next() {
-		var exchange pb.GetExchangeResponse
+		var exchange pb.Exchange
 		err := query.Scan(
 			&exchange.Id,
-			&exchange.ExchangeName,
+			&exchange.Name,
 		)
 
 		if err == nil {
@@ -190,14 +190,14 @@ func (s *server) GetExchanges(ctx context.Context, req *pb.GetAllRequest) (*pb.G
 		}
 	}
 
-	res := &pb.GetExchangesResponse{
+	res := &pb.Exchanges{
 		Exchanges: exchanges,
 	}
 
 	return res, nil
 }
 
-func (s *server) InsertInstrument(ctx context.Context, req *pb.Instrument) (*pb.InsertResponse, error) {
+func (s *server) InsertInstrument(ctx context.Context, req *pb.Instrument) (*pb.CUD, error) {
 	ctx, cancel := context.WithTimeout(ctx, DB_TIMEOUT)
 	defer cancel()
 
@@ -215,14 +215,14 @@ func (s *server) InsertInstrument(ctx context.Context, req *pb.Instrument) (*pb.
 		return nil, err
 	}
 
-	res := &pb.InsertResponse{
+	res := &pb.CUD{
 		NumAffected: int32(result.RowsAffected()),
 	}
 
 	return res, nil
 }
 
-func (s *server) GetInstrument(ctx context.Context, req *pb.GetBySymbolRequest) (*pb.Instrument, error) {
+func (s *server) GetInstrument(ctx context.Context, req *pb.GetBy) (*pb.Instrument, error) {
 	ctx, cancel := context.WithTimeout(ctx, DB_TIMEOUT)
 	defer cancel()
 
@@ -233,7 +233,7 @@ func (s *server) GetInstrument(ctx context.Context, req *pb.GetBySymbolRequest) 
 			FROM instruments
 			WHERE UPPER(symbol) = $1
 		`,
-		strings.ToUpper(req.Symbol),
+		strings.ToUpper(req.GetStrIdentifier()),
 	)
 
 	res := &pb.Instrument{}
@@ -335,11 +335,11 @@ func (s *server) GetLastDate(ctx context.Context, req *pb.GetLastDateRequest) (*
 	return res, nil
 }
 
-func (s *server) InsertPriceData(ctx context.Context, req *pb.PriceData) (*pb.InsertResponse, error) {
+func (s *server) InsertPrice(ctx context.Context, req *pb.Price) (*pb.CUD, error) {
 	ctx, cancel := context.WithTimeout(ctx, DB_TIMEOUT)
 	defer cancel()
 
-	dateTime, err := time.Parse(DATE_FORMAT, req.DateTime)
+	dateTime, err := time.Parse(DATE_FORMAT, req.DateTime.DateTime)
 	if err != nil {
 		s.errorLog.Println(err)
 		return nil, err
@@ -363,14 +363,14 @@ func (s *server) InsertPriceData(ctx context.Context, req *pb.PriceData) (*pb.In
 		return nil, err
 	}
 
-	res := &pb.InsertResponse{
+	res := &pb.CUD{
 		NumAffected: int32(result.RowsAffected()),
 	}
 
 	return res, nil
 }
 
-func (s *server) InsertRepeatedPriceData(ctx context.Context, req *pb.RepeatedPriceData) (*pb.InsertResponse, error) {
+func (s *server) InsertPriceData(ctx context.Context, req *pb.PriceData) (*pb.CUD, error) {
 	ctx, cancel := context.WithTimeout(ctx, DB_TIMEOUT)
 	defer cancel()
 
@@ -378,7 +378,7 @@ func (s *server) InsertRepeatedPriceData(ctx context.Context, req *pb.RepeatedPr
 
 	var err error
 	for _, price := range req.PriceData {
-		dateTime, err := time.Parse(DATE_FORMAT, price.DateTime)
+		dateTime, err := time.Parse(DATE_FORMAT, price.DateTime.DateTime)
 		if err != nil {
 			s.errorLog.Println(err)
 		}
@@ -411,14 +411,14 @@ func (s *server) InsertRepeatedPriceData(ctx context.Context, req *pb.RepeatedPr
 		}
 	}
 
-	res := &pb.InsertResponse{
+	res := &pb.CUD{
 		NumAffected: int32(numAffected),
 	}
 
 	return res, err
 }
 
-func (s *server) GetPriceData(ctx context.Context, req *pb.GetPriceDataRequest) (*pb.RepeatedPriceData, error) {
+func (s *server) GetPriceData(ctx context.Context, req *pb.GetPriceDataRequest) (*pb.PriceData, error) {
 	ctx, cancel := context.WithTimeout(ctx, DB_TIMEOUT)
 	defer cancel()
 
@@ -436,7 +436,7 @@ func (s *server) GetPriceData(ctx context.Context, req *pb.GetPriceDataRequest) 
 			AND price_data.date_time <= $3
 			ORDER BY price_data.date_time
 		`,
-		req.InstrumentId, req.StartDateTime, req.EndDateTime,
+		req.InstrumentId, req.StartDateTime.DateTime, req.EndDateTime.DateTime,
 	)
 	if err != nil {
 		s.errorLog.Println(err)
@@ -444,9 +444,9 @@ func (s *server) GetPriceData(ctx context.Context, req *pb.GetPriceDataRequest) 
 	}
 	defer query.Close()
 
-	priceData := []*pb.PriceData{}
+	priceData := []*pb.Price{}
 	for query.Next() {
-		var price pb.PriceData
+		var price pb.Price
 		var dateTime time.Time
 		err = query.Scan(
 			&price.InstrumentId,
@@ -459,19 +459,21 @@ func (s *server) GetPriceData(ctx context.Context, req *pb.GetPriceDataRequest) 
 		)
 
 		if err == nil {
-			price.DateTime = dateTime.Format(DATETIME_FORMAT)
+			price.DateTime = &pb.DateTime{
+				DateTime: dateTime.Format(DATETIME_FORMAT),
+			}
 			priceData = append(priceData, &price)
 		}
 	}
 
-	res := &pb.RepeatedPriceData{
+	res := &pb.PriceData{
 		PriceData: priceData,
 	}
 
 	return res, nil
 }
 
-func (s *server) GetExchangeInstruments(ctx context.Context, req *pb.GetByIdRequest) (*pb.Instruments, error) {
+func (s *server) GetExchangeInstruments(ctx context.Context, req *pb.GetBy) (*pb.Instruments, error) {
 	ctx, cancel := context.WithTimeout(ctx, DB_TIMEOUT)
 	defer cancel()
 
@@ -484,7 +486,7 @@ func (s *server) GetExchangeInstruments(ctx context.Context, req *pb.GetByIdRequ
 			WHERE exchanges.id = instruments.exchange_id
 			AND exchanges.id = $1
 		`,
-		req.Id,
+		req.GetStrIdentifier(),
 	)
 	if err != nil {
 		s.errorLog.Println(err)
@@ -515,7 +517,7 @@ func (s *server) GetExchangeInstruments(ctx context.Context, req *pb.GetByIdRequ
 	return res, nil
 }
 
-func (s *server) GetMarketListInstruments(ctx context.Context, req *pb.GetByNameRequest) (*pb.Instruments, error) {
+func (s *server) GetMarketListInstruments(ctx context.Context, req *pb.GetBy) (*pb.Instruments, error) {
 	ctx, cancel := context.WithTimeout(ctx, DB_TIMEOUT)
 	defer cancel()
 
@@ -529,7 +531,7 @@ func (s *server) GetMarketListInstruments(ctx context.Context, req *pb.GetByName
 			AND market_lists.id = market_list_instruments.market_list_id
 			AND UPPER(market_lists.market_list) = $1
 		`,
-		strings.ToUpper(req.Name),
+		strings.ToUpper(req.GetStrIdentifier()),
 	)
 	if err != nil {
 		s.errorLog.Println(err)

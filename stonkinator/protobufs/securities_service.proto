@@ -1,0 +1,104 @@
+syntax = "proto3";
+
+package stonkinator;
+
+option go_package = "./stonkinator_rpc_service";
+
+service SecuritiesService {
+    rpc InsertExchange (Exchange) returns (CUD);
+    // rpc UpdateExchange () returns (CUD);
+    rpc GetExchange (GetBy) returns (Exchange);
+    rpc GetExchanges (GetAllRequest) returns (Exchanges);
+    rpc InsertInstrument (Instrument) returns (CUD);
+    // rpc UpdateInstrument (Instrument) returns (CUD);
+    rpc GetInstrument (GetBy) returns (Instrument);
+    // rpc RemoveInstrument () returns (CUD);
+    rpc GetDateTime (GetDateTimeRequest) returns (DateTime);
+    rpc GetLastDate (GetLastDateRequest) returns (DateTime);
+    rpc InsertPrice (Price) returns (CUD);
+    rpc InsertPriceData (PriceData) returns (CUD);
+    rpc GetPriceData (GetPriceDataRequest) returns (PriceData);
+    // rpc InsertMarketList (MarketList) returns (CUD);
+    // rpc UpdateMarketList (MarketList) returns (CUD);
+    rpc GetExchangeInstruments (GetBy) returns (Instruments);
+    // rpc InsertMarketListInstrument () returns (CUD);
+    // rpc RemoveMarketListInstrument() returns (CUD);
+    rpc GetMarketListInstruments (GetBy) returns (Instruments);
+    // rpc GetMarketListInstrumentsPriceData (MarketList) returns ();
+}
+
+message Exchange {
+    string id = 1;
+    string name = 2;
+    string currency = 3;
+}
+
+message Exchanges {
+    repeated Exchange exchanges = 1;
+}
+
+message Instrument {
+    string id = 1;
+    string exchange_id = 2;
+    string instrument_name = 3;
+    string symbol = 4;
+    string sector = 5;
+    // RepeatedPriceData price_data = 6;
+    // DateTime latest_date_time = 6;
+}
+
+message Instruments {
+    repeated Instrument instruments = 1;
+}
+
+message Price {
+    string instrument_id = 1;
+    double open_price = 2;
+    double high_price = 3;
+    double low_price = 4;
+    double close_price = 5;
+    int64 volume = 6;
+    DateTime date_time = 7;
+}
+
+message PriceData {
+    repeated Price price_data = 1;
+}
+
+// message MarketList {
+//     string id = 1;
+//     string market_list = 2;
+// }
+
+message DateTime {
+    string date_time = 1;
+}
+
+message CUD {
+    int32 num_affected = 1;
+}
+
+message GetBy {
+    oneof identifier {
+        string str_identifier = 1;
+        int32 int_identifier = 2;
+    }
+}
+
+message GetAllRequest {}
+
+message GetPriceDataRequest {
+    string instrument_id = 1;
+    DateTime start_date_time = 2;
+    DateTime end_date_time = 3;
+} 
+
+message GetDateTimeRequest {
+    string instrument_id = 1;
+    bool min = 2;
+}
+
+message GetLastDateRequest {
+    string symbol_1 = 1;
+    string symbol_2 = 2;
+}
