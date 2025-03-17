@@ -64,10 +64,8 @@ class SecuritiesGRPCService:
         self.__client = SecuritiesServiceStub(channel)
 
     @grpc_error_handler(default_return=None)
-    def insert_exchange(self, exchange_name: str, currency: str) -> CUD:
-        req = Exchange(
-            exchange_name=exchange_name, currency=currency
-        )
+    def insert_exchange(self, name: str, currency: str) -> CUD:
+        req = Exchange(name=name, currency=currency)
         res = self.__client.InsertExchange(req)
         return res
 
@@ -88,13 +86,8 @@ class SecuritiesGRPCService:
         return res
         
     @grpc_error_handler(default_return=None)
-    def insert_instrument(
-        self, exchange_id: str, instrument_name: str, symbol: str, sector: str
-    ) -> CUD:
-        req = Instrument(
-            exchange_id=exchange_id, instrument_name=instrument_name,
-            symbol=symbol, sector=sector
-        )
+    def insert_instrument(self, exchange_id: str, name: str, symbol: str, sector: str) -> CUD:
+        req = Instrument(exchange_id=exchange_id, name=name, symbol=symbol, sector=sector)
         res = self.__client.InsertInstrument(req)
         return res
 
@@ -200,7 +193,7 @@ if __name__ == '__main__':
     # print(get_exchange_res)
     # print(type(get_exchange_res))
     # print(get_exchange_res.id)
-    # print(get_exchange_res.exchange_name)
+    # print(get_exchange_res.name)
 
     # exchanges_get_res = securities_grpc_service.get_exchanges()
     # print(exchanges_get_res)
@@ -236,16 +229,6 @@ if __name__ == '__main__':
     # )
     # print(insert_price_data_res)
     # print(type(insert_price_data_res))
-
-    # get_price_data_res = securities_grpc_service.get_price_data(
-    #     get_instrument_res.id, 
-    #     get_first_date_time_res.date_time,
-    #     get_last_date_time_res.date_time
-    # )
-    # try:
-    #     print(list(get_price_data_res.price_data))
-    # except AttributeError as e:
-    #     print(e)
 
     get_price_data_res = securities_grpc_service.get_price_data(
         get_instrument_res.id,

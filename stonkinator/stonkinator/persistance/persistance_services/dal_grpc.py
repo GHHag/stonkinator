@@ -9,17 +9,17 @@ from functools import lru_cache
 from yahooquery import Ticker
 import pandas as pd
 
-from persistance.persistance_services.stonkinator_pb2 import (
+from persistance.persistance_services.securities_service_pb2 import (
     DateTime,
-    GetExchangesResponse,
-    InsertResponse,
+    Exchanges,
+    CUD,
     Instrument,
     Instruments,
-    PriceData,
-    RepeatedPriceData
+    Price,
+    PriceData
 )
 from persistance.persistance_services.securities_grpc_service import SecuritiesGRPCService
-from trading.data.metadata.price import Price
+from trading.data.metadata.price import Price as Price_consts
 
 
 def set_up_logger(name: str, log_file: str, level=logging.INFO) -> logging.Logger:
@@ -64,7 +64,7 @@ def price_data_get(
     securities_grpc_service: SecuritiesGRPCService, instrument_id: str,
     start_date_time: dt.datetime, end_date_time: dt.datetime
 ) -> pd.DataFrame | None:
-    price_data_get_res: RepeatedPriceData = securities_grpc_service.get_price_data(
+    price_data_get_res: PriceData = securities_grpc_service.get_price_data(
         instrument_id, str(start_date_time), str(end_date_time)
     )
 
@@ -76,12 +76,12 @@ def price_data_get(
                 [
                     {
                         "instrument_id": price.instrument_id,
-                        Price.OPEN: price.open_price, 
-                        Price.HIGH: price.high_price, 
-                        Price.LOW: price.low_price,
-                        Price.CLOSE: price.close_price,
-                        Price.VOLUME: price.volume,
-                        Price.DT: price.date_time
+                        Price_consts.OPEN: price.open_price, 
+                        Price_consts.HIGH: price.high_price, 
+                        Price_consts.LOW: price.low_price,
+                        Price_consts.CLOSE: price.close_price,
+                        Price_consts.VOLUME: price.volume,
+                        Price_consts.DT: price.date_time.date_time,
                     }
                     for price in price_data_get_res.price_data
                 ]
@@ -110,18 +110,18 @@ def insert_daily_data(
         price_data = []
         for i, _ in enumerate(df.itertuples()):
             price_data.append(
-                PriceData(
+                Price(
                     instrument_id=instrument_id,
-                    open_price=df[Price.OPEN].iloc[i], 
-                    high_price=df[Price.HIGH].iloc[i],
-                    low_price=df[Price.LOW].iloc[i], 
-                    close_price=df[Price.CLOSE].iloc[i],
-                    volume=int(df[Price.VOLUME].iloc[i]), 
-                    date_time=str(df[Price.DT].iloc[i])
+                    open_price=df[Price_consts.OPEN].iloc[i], 
+                    high_price=df[Price_consts.HIGH].iloc[i],
+                    low_price=df[Price_consts.LOW].iloc[i], 
+                    close_price=df[Price_consts.CLOSE].iloc[i],
+                    volume=int(df[Price_consts.VOLUME].iloc[i]), 
+                    date_time=DateTime(date_time=str(df[Price_consts.DT].iloc[i]))
                 )
             )
         try:
-            price_data_insert_res: InsertResponse = securities_grpc_service.insert_repeated_price_data(
+            price_data_insert_res: CUD = securities_grpc_service.insert_price_data(
                 price_data
             )
             if (price_data_insert_res):
@@ -227,7 +227,7 @@ if __name__ == "__main__":
         f"{os.environ.get('RPC_SERVICE_HOST')}:{os.environ.get('RPC_SERVICE_PORT')}"
     )
 
-    exchanges_get_res: GetExchangesResponse = securities_grpc_service.get_exchanges()
+    exchanges_get_res: Exchanges = securities_grpc_service.get_exchanges()
     if exchanges_get_res:
         exchanges = list(exchanges_get_res.exchanges)
     else:
@@ -269,7 +269,7 @@ if __name__ == "__main__":
     critical_logger.info(log_message)
 
     for exchange in exchanges:
-        base_logger.info(f"\nSeeding data for {exchange} instruments.")
+        base_logger.info(f"\nSeeding data for {exchange}.")
 
         instruments = exchanges_instruments_dict.get(exchange.id)
         if instruments is None:
@@ -282,7 +282,7 @@ if __name__ == "__main__":
             dt_now.day == end_date_time.day
         )
         omxs_stock = False
-        if exchange.exchange_name == "OMXS":
+        if exchange.name == "OMXS":
             omxs_stock = True
             if end_date_today_check and dt_now.hour < 18:
                 end_date_time = end_date_time - dt.timedelta(days=1)
@@ -308,7 +308,7 @@ if __name__ == "__main__":
             base_logger.info(f"\nCompleting data for {exchange} instruments.")
             for instrument in instruments:
                 complete_historic_data(
-                    securities_grpc_service, instrument, exchange.exchange_name,
+                    securities_grpc_service, instrument, exchange.name,
                     omxs_stock=omxs_stock
                 )
 

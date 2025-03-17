@@ -40,7 +40,7 @@ message Exchanges {
 message Instrument {
     string id = 1;
     string exchange_id = 2;
-    string instrument_name = 3;
+    string name = 3;
     string symbol = 4;
     string sector = 5;
     // RepeatedPriceData price_data = 6;

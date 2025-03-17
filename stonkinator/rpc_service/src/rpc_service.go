@@ -208,7 +208,7 @@ func (s *server) InsertInstrument(ctx context.Context, req *pb.Instrument) (*pb.
 			VALUES($1, $2, $3, $4)
 			ON CONFLICT DO NOTHING
 		`,
-		req.ExchangeId, req.InstrumentName, req.Symbol, req.Sector,
+		req.ExchangeId, req.Name, req.Symbol, req.Sector,
 	)
 	if err != nil {
 		s.errorLog.Println(err)
@@ -237,7 +237,7 @@ func (s *server) GetInstrument(ctx context.Context, req *pb.GetBy) (*pb.Instrume
 	)
 
 	res := &pb.Instrument{}
-	err := query.Scan(&res.Id, &res.ExchangeId, &res.InstrumentName, &res.Symbol, &res.Sector)
+	err := query.Scan(&res.Id, &res.ExchangeId, &res.Name, &res.Symbol, &res.Sector)
 	if err != nil {
 		s.errorLog.Println(err)
 		return nil, err
@@ -500,7 +500,7 @@ func (s *server) GetExchangeInstruments(ctx context.Context, req *pb.GetBy) (*pb
 		err = query.Scan(
 			&instrument.Id,
 			&instrument.ExchangeId,
-			&instrument.InstrumentName,
+			&instrument.Name,
 			&instrument.Symbol,
 			&instrument.Sector,
 		)
@@ -545,7 +545,7 @@ func (s *server) GetMarketListInstruments(ctx context.Context, req *pb.GetBy) (*
 		err = query.Scan(
 			&instrument.Id,
 			&instrument.ExchangeId,
-			&instrument.InstrumentName,
+			&instrument.Name,
 			&instrument.Symbol,
 			&instrument.Sector,
 		)
