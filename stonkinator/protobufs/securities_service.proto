@@ -2,6 +2,8 @@ syntax = "proto3";
 
 package stonkinator;
 
+import "general_messages.proto";
+
 option go_package = "./stonkinator_rpc_service";
 
 service SecuritiesService {
@@ -51,6 +53,16 @@ message Instruments {
     repeated Instrument instruments = 1;
 }
 
+// message MarketList {
+//     string exchange_id = 1;
+//     string market_list = 2;
+// }
+
+// message MarketListInstrument {
+//     string instrument_id = 1;
+//     string market_list_id = 2;
+// }
+
 message Price {
     string instrument_id = 1;
     double open_price = 2;
@@ -64,28 +76,6 @@ message Price {
 message PriceData {
     repeated Price price_data = 1;
 }
-
-// message MarketList {
-//     string id = 1;
-//     string market_list = 2;
-// }
-
-message DateTime {
-    string date_time = 1;
-}
-
-message CUD {
-    int32 num_affected = 1;
-}
-
-message GetBy {
-    oneof identifier {
-        string str_identifier = 1;
-        int32 int_identifier = 2;
-    }
-}
-
-message GetAllRequest {}
 
 message GetPriceDataRequest {
     string instrument_id = 1;

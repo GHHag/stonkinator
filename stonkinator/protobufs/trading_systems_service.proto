@@ -1,0 +1,84 @@
+syntax = "proto3";
+
+package stonkinator;
+
+import "general_messages.proto";
+
+option go_package = "./stonkinator_rpc_service";
+
+service TradingSystemsService {
+    rpc InsertTradingSystem(TradingSystem) returns(CUD);
+    rpc GetTradingSystem(GetBy) returns(TradingSystem);
+    // rpc UpsertTradingSystemMetrics() returns(CUD);
+    // rpc GetTradingSystems(GetAllRequest) returns(TradingSystems);
+    rpc UpsertMarketState(MarketState) returns(CUD);
+    rpc GetMarketState(GetBy) returns(MarketState);
+    rpc GetMarketStates(GetBy) returns(MarketStates);
+    rpc UpdateCurrentDateTime(UpdateCurrentDateTimeRequest) returns(CUD);
+    rpc GetCurrentDateTime(GetBy) returns(DateTime);
+    rpc UpsertOrder(Order) returns(CUD);
+    rpc GetOrder(GetBy) returns(Order);
+    rpc InsertPosition(Position) returns(CUD);
+    rpc InsertPositions(Positions) returns(CUD);
+    rpc GetPosition(GetBy) returns(Position);
+    rpc GetPositions(GetBy) returns(Positions);
+    // rpc IncrementNumOfPeriods(NumOfPeriodsRequest) returns(CUD);
+    rpc InsertTradingSystemModel(TradingSystemModel) returns(CUD);
+    rpc GetTradingSystemModel(GetBy) returns(TradingSystemModel);
+}
+
+message TradingSystem {
+    string id = 1;
+    string name = 2;
+    DateTime current_date_time = 3;
+}
+
+// message TradingSystems {
+//     repeated TradingSystem trading_systems = 1;
+// }
+
+message Order {
+    string instrument_id = 1;
+    string trading_system_id = 2;
+    bytes order_data = 3;
+    // bytes order_data_json  = 3;
+    // bytes order_data_binary = 4;
+}
+
+message Position {
+    string instrument_id = 1;
+    string trading_system_id = 2;
+    DateTime date_time = 3;
+    bytes position_data = 4;
+    // bytes position_data_json = 4;
+    // bytes position_data_binary = 5;
+}
+
+message Positions {
+    repeated Position positions = 1;
+}
+
+message MarketState {
+    string instrument_id = 1;
+    string trading_system_id = 2;
+    bytes metrics = 3;
+}
+
+message MarketStates {
+    repeated MarketState market_states = 1;
+}
+
+message TradingSystemModel {
+    string trading_system_id = 1;
+    string instrument_id = 2;
+    bytes serialized_model = 3;
+}
+
+message UpdateCurrentDateTimeRequest {
+    string trading_system_id = 1;
+    DateTime date_time = 2;
+}
+
+// message NumOfPeriodsRequest {
+//     int32 num_of_periods = 1;
+// }

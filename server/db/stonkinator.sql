@@ -128,7 +128,8 @@ CREATE TABLE IF NOT EXISTS trading_systems
 (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     trading_system_name VARCHAR(100) UNIQUE NOT NULL,
-    current_date_time TIMESTAMP
+    current_date_time TIMESTAMP,
+    metrics JSONB
 );
 
 
@@ -163,13 +164,12 @@ CREATE TABLE IF NOT EXISTS subscribed_trading_system_watchlists
 ---------------------------------------------------------------------------
 
 
-CREATE TABLE IF NOT EXISTS trading_system_orders
+CREATE TABLE IF NOT EXISTS orders
 (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     instrument_id UUID,
     trading_system_id UUID,
-    order_data_json JSONB NOT NULL,
-    order_data_binary BYTEA NOT NULL, --store all data to be able to recreate order objects in separate colums instead of as binary data?
+    order_data JSONB NOT NULL,
     CONSTRAINT instrument_id_fk FOREIGN KEY(instrument_id) REFERENCES instruments(id),
     CONSTRAINT trading_system_id_fk FOREIGN KEY(trading_system_id) REFERENCES trading_systems(id),
     UNIQUE(instrument_id, trading_system_id)
@@ -179,14 +179,13 @@ CREATE TABLE IF NOT EXISTS trading_system_orders
 ---------------------------------------------------------------------------
 
 
-CREATE TABLE IF NOT EXISTS trading_system_positions
+CREATE TABLE IF NOT EXISTS positions
 (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     instrument_id UUID,
     trading_system_id UUID,
     date_time TIMESTAMP NOT NULL,
-    position_data_json JSONB NOT NULL, --JSON
-    position_data_binary BYTEA NOT NULL, --store all data to be able to recreate order objects in separate colums instead of as binary data?
+    position_data JSONB NOT NULL,
     -- num_periods INTEGER, --Should this be defined here or can we derive this value from price data dates and existing position data?
     CONSTRAINT instrument_id_fk FOREIGN KEY(instrument_id) REFERENCES instruments(id),
     CONSTRAINT trading_system_id_fk FOREIGN KEY(trading_system_id) REFERENCES trading_systems(id)
@@ -195,13 +194,12 @@ CREATE TABLE IF NOT EXISTS trading_system_positions
 
 ---------------------------------------------------------------------------
 
-
-CREATE TABLE IF NOT EXISTS trading_system_market_states
+CREATE TABLE IF NOT EXISTS market_states
 (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     instrument_id UUID,
     trading_system_id UUID,
-    metrics JSONB NOT NULL, --JSON
+    metrics JSONB NOT NULL,
     CONSTRAINT instrument_id_fk FOREIGN KEY(instrument_id) REFERENCES instruments(id),
     CONSTRAINT trading_system_id_fk FOREIGN KEY(trading_system_id) REFERENCES trading_systems(id),
     UNIQUE(instrument_id, trading_system_id)

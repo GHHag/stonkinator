@@ -5,13 +5,15 @@ import pathlib
 
 import grpc
 
-from persistance.persistance_services.securities_service_pb2 import (
+from persistance.persistance_services.general_messages_pb2 import (
     CUD,
     DateTime,
-    Exchange,
-    Exchanges,
     GetAllRequest,
     GetBy,
+)
+from persistance.persistance_services.securities_service_pb2 import (
+    Exchange,
+    Exchanges,
     GetDateTimeRequest,
     GetLastDateRequest,
     GetPriceDataRequest,
