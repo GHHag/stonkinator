@@ -7,9 +7,9 @@ import "general_messages.proto";
 option go_package = "./stonkinator_rpc_service";
 
 service TradingSystemsService {
-    rpc InsertTradingSystem(TradingSystem) returns(CUD);
+    rpc InsertTradingSystem(TradingSystem) returns(TradingSystem);
     rpc GetTradingSystem(GetBy) returns(TradingSystem);
-    // rpc UpsertTradingSystemMetrics() returns(CUD);
+    rpc UpdateTradingSystemMetrics(TradingSystem) returns(CUD);
     // rpc GetTradingSystems(GetAllRequest) returns(TradingSystems);
     rpc UpsertMarketState(MarketState) returns(CUD);
     rpc GetMarketState(GetBy) returns(MarketState);
@@ -31,6 +31,7 @@ message TradingSystem {
     string id = 1;
     string name = 2;
     DateTime current_date_time = 3;
+    string metrics = 4;
 }
 
 // message TradingSystems {
@@ -40,18 +41,16 @@ message TradingSystem {
 message Order {
     string instrument_id = 1;
     string trading_system_id = 2;
-    bytes order_data = 3;
-    // bytes order_data_json  = 3;
-    // bytes order_data_binary = 4;
+    string order_data = 3;
+    bytes serialized_order = 4;
 }
 
 message Position {
     string instrument_id = 1;
     string trading_system_id = 2;
     DateTime date_time = 3;
-    bytes position_data = 4;
-    // bytes position_data_json = 4;
-    // bytes position_data_binary = 5;
+    string position_data = 4;
+    bytes serialized_position = 5;
 }
 
 message Positions {
@@ -61,7 +60,7 @@ message Positions {
 message MarketState {
     string instrument_id = 1;
     string trading_system_id = 2;
-    bytes metrics = 3;
+    string metrics = 3;
 }
 
 message MarketStates {

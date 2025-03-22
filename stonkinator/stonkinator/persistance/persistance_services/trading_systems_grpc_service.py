@@ -2,8 +2,7 @@ import os
 import datetime as dt
 import logging
 import pathlib
-# import json
-# import pickle
+import json
 
 import grpc
 
@@ -57,8 +56,10 @@ class TradingSystemsGRPCService:
         self.__client = TradingSystemsServiceStub(channel)
 
     @grpc_error_handler(default_return=None)
-    def insert_trading_system(self, name: str, current_date_time: dt.datetime) -> CUD:
-        req = TradingSystem(name=name, current_date_time=DateTime(date_time=current_date_time))
+    def insert_trading_system(self, name: str, current_date_time: dt.datetime) -> TradingSystem:
+        req = TradingSystem(
+            name=name, current_date_time=DateTime(date_time=str(current_date_time))
+        )
         res = self.__client.InsertTradingSystem(req)
         return res
 
@@ -69,15 +70,20 @@ class TradingSystemsGRPCService:
         return res
 
     @grpc_error_handler(default_return=None)
-    def upsert_trading_system_metrics(self, id: str, name: str) -> CUD:
-        ...
+    def update_trading_system_metrics(self, id: str, metrics: dict) -> CUD:
+        # TODO: dump to json here or before its passed to this method?
+        req = TradingSystem(id=id, metrics=json.dumps(metrics))
+        res = self.__client.UpdateTradingSystemMetrics(req)
+        return res
 
     @grpc_error_handler(default_return=None)
     def upsert_market_state(
         self, instrument_id: str, trading_system_id: str, metrics: dict
     ) -> CUD:
         req = MarketState(
-            instrument_id=instrument_id, trading_system_id=trading_system_id, metrics=metrics
+            instrument_id=instrument_id, trading_system_id=trading_system_id,
+            # TODO: dump to json here or before its passed to this method?
+            metrics=json.dumps(metrics)
         )
         res = self.__client.UpsertMarketState(req)
         return res
@@ -99,7 +105,9 @@ class TradingSystemsGRPCService:
         self, trading_system_id: str, current_date_time: dt.datetime
     ) -> CUD:
         req = UpdateCurrentDateTimeRequest(
-            trading_system_id=trading_system_id, date_time=DateTime(date_time=current_date_time)
+            # TODO: Use a GetBy nested in UpdateCurrentDateTimeRequest instead of trading_system_id as string type?
+            trading_system_id=trading_system_id, 
+            date_time=DateTime(date_time=str(current_date_time))
         )
         res = self.__client.UpdateCurrentDateTime(req)
         return res
@@ -111,10 +119,14 @@ class TradingSystemsGRPCService:
         return res
 
     @grpc_error_handler(default_return=None)
-    def upsert_order(self, instrument_id: str, trading_system_id: str, order_data: dict) -> CUD:
+    def upsert_order(
+        self, instrument_id: str, trading_system_id: str, order_data: dict,
+        serialized_order: bytes
+    ) -> CUD:
         req = Order(
             instrument_id=instrument_id, trading_system_id=trading_system_id,
-            order_data=order_data
+            # TODO: dump to json here or before its passed to this method?
+            order_data=json.dumps(order_data), serialized_order=serialized_order
         )
         res = self.__client.UpsertOrder(req)
         return res
@@ -128,11 +140,13 @@ class TradingSystemsGRPCService:
     @grpc_error_handler(default_return=None)
     def insert_position(
         self, instrument_id: str, trading_system_id: str, date_time: dt.datetime,
-        position_data: dict
+        position_data: dict, serialized_position: bytes
     ) -> CUD:
         req = Position(
             instrument_id=instrument_id, trading_system_id=trading_system_id,
-            date_time=DateTime(date_time=date_time), position_data=position_data
+            # TODO: dump to json here or before its passed to this method?
+            date_time=DateTime(date_time=str(date_time)), position_data=json.dumps(position_data),
+            serialized_position=serialized_position
         )
         res = self.__client.InsertPosition(req)
         return res
@@ -184,3 +198,9 @@ if __name__ == '__main__':
     # trading_systems_grpc_service.get_trading_system(id="test", name="abc")
     # trading_systems_grpc_service.get_trading_system(id="test")
     # trading_systems_grpc_service.get_trading_system(name="abc")
+
+    # x = trading_systems_grpc_service.get_trading_system(id="3d53a30f-d824-4a3a-a217-d6ab488afc10", name="trading_system_example")
+    # print(x)
+
+    # x = trading_systems_grpc_service.insert_trading_system("trading_system_example", dt.datetime.now())
+    # print(x)

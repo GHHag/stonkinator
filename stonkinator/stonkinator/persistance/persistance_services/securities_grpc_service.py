@@ -128,7 +128,7 @@ class SecuritiesGRPCService:
         req = Price(
             instrument_id=instrument_id, open_price=open_price, high_price=high_price,
             low_price=low_price, close_price=close_price, volume=volume,
-            date_time=DateTime(date_time=date_time)
+            date_time=DateTime(date_time=str(date_time))
         )
         res = self.__client.InsertPrice(req)
         return res
@@ -145,8 +145,8 @@ class SecuritiesGRPCService:
     ) -> PriceData:
         req = GetPriceDataRequest(
             instrument_id=instrument_id,
-            start_date_time=DateTime(date_time=start_date_time),
-            end_date_time=DateTime(date_time=end_date_time)
+            start_date_time=DateTime(date_time=str(start_date_time)),
+            end_date_time=DateTime(date_time=str(end_date_time))
         )
         res = self.__client.GetPriceData(req)
         return res
