@@ -1,10 +1,14 @@
 from abc import ABCMeta, abstractmethod
 from decimal import Decimal
 
+from pandas import Timestamp
+
 from trading.position.position import Position
 from trading.data.metadata.price import Price
 from trading.data.metadata.market_state_enum import MarketState
-from trading.data.metadata.trading_system_attributes import TradingSystemAttributes
+from trading.data.metadata.trading_system_attributes import (
+    TradingSystemAttributes, classproperty
+)
 
 
 class OrderBase(metaclass=ABCMeta):
@@ -47,24 +51,32 @@ class OrderBase(metaclass=ABCMeta):
 
 class Order(OrderBase):
 
-    def __init__(self, action: MarketState, dt, direction):
+    def __init__(self, action: MarketState, created_dt: Timestamp, direction, active):
         if action == MarketState.ENTRY and direction is None:
             raise ValueError(
                 'value of direction can not be None '
                 'if the given action is entry'
             )
         self.__action = action
-        self.__created_dt = dt
-        self.__active = True
+        self.__created_dt = created_dt
+        self.__active = active
         self.__direction = direction
 
+    @classproperty
+    def order_type(cls):
+        return cls.__name__
+
     @property
-    def action(self):
+    def action(self) -> MarketState:
         return self.__action
 
     @property
-    def created_dt(self):
+    def created_dt(self) -> Timestamp:
         return self.__created_dt
+
+    @property
+    def direction(self):
+        return self.__direction
 
     @property
     def active(self):
@@ -75,19 +87,15 @@ class Order(OrderBase):
         self.__active = value
 
     @property
-    def direction(self):
-        return self.__direction
-
-    @property
     def as_dict(self):
         order_dict = {
-            'type': type(self).__name__,
+            'type': self.order_type,
             'action': self.__action.value,
             'created_dt': self.__created_dt,
             'active': self.__active
         }
-        if self.direction:
-            order_dict['direction'] = self.direction
+        if self.__direction:
+            order_dict['direction'] = self.__direction
         return order_dict
 
     def execute_entry(
@@ -113,25 +121,69 @@ class Order(OrderBase):
 
 class MarketOrder(Order):
 
-    def __init__(self, action: MarketState, dt, direction=None):
-        super().__init__(action, dt, direction)
+    def __init__(
+        self, action: MarketState, created_dt: Timestamp,
+        direction=None, active=True
+    ):
+        super().__init__(action, created_dt, direction, active)
+
+    @classmethod
+    def from_proto(cls, order_proto) -> Order:
+        direction = None
+        match order_proto.action: 
+            case "entry":
+                market_state_action = MarketState.ENTRY
+                direction = "long" if order_proto.direction_long is True else "short"
+            case "active":
+                market_state_action = MarketState.ACTIVE
+            case "exit":
+                market_state_action = MarketState.EXIT
+        
+        return cls(
+            market_state_action,
+            Timestamp(order_proto.created_date_time.date_time),
+            direction=direction,
+            active=order_proto.active,
+        )
 
 
 class LimitOrder(Order):
 
     def __init__(
-        self, action: MarketState, dt, price, max_duration,
-        direction=None
+        self, action: MarketState, created_dt: Timestamp, price, max_duration,
+        direction=None, active=True, duration=0
     ):
-        super().__init__(action, dt, direction)
+        super().__init__(action, created_dt, direction, active)
         self.__price = price
         self.__max_duration = max_duration
-        self.__duration = 0
+        self.__duration = duration
+
+    @classmethod
+    def from_proto(cls, order_proto) -> Order:
+        direction = None
+        match order_proto.action: 
+            case "entry":
+                market_state_action = MarketState.ENTRY
+                direction = "long" if order_proto.direction_long is True else "short"
+            case "active":
+                market_state_action = MarketState.ACTIVE
+            case "exit":
+                market_state_action = MarketState.EXIT
+
+        return cls(
+            market_state_action,
+            Timestamp(order_proto.created_date_time.date_time),
+            order_proto.price,
+            order_proto.max_duration, 
+            direction=direction,
+            active=order_proto.active,
+            duration=order_proto.duration,
+        )
 
     @property
     def as_dict(self):
         order_dict = {
-            'type': type(self).__name__,
+            'type': self.order_type,
             'action': self.action.value,
             'created_dt': self.created_dt,
             'active': self.active,

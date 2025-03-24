@@ -179,7 +179,7 @@ func (s *server) GetDateTime(ctx context.Context, req *pb.GetDateTimeRequest) (*
 	}
 
 	res := &pb.DateTime{
-		DateTime: dateTime.Format(DATETIME_FORMAT),
+		DateTime: dateTime.Format(DATE_TIME_FORMAT),
 	}
 
 	return res, nil
@@ -227,7 +227,7 @@ func (s *server) GetLastDate(ctx context.Context, req *pb.GetLastDateRequest) (*
 	}
 
 	res := &pb.DateTime{
-		DateTime: dateTime.Format(DATETIME_FORMAT),
+		DateTime: dateTime.Format(DATE_TIME_FORMAT),
 	}
 
 	return res, nil
@@ -358,7 +358,7 @@ func (s *server) GetPriceData(ctx context.Context, req *pb.GetPriceDataRequest) 
 
 		if err == nil {
 			price.DateTime = &pb.DateTime{
-				DateTime: dateTime.Format(DATETIME_FORMAT),
+				DateTime: dateTime.Format(DATE_TIME_FORMAT),
 			}
 			priceData = append(priceData, &price)
 		}

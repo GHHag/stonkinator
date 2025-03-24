@@ -12,6 +12,10 @@ class TradingSystemSignals:
         self.__data_list: list[dict] = []
 
     @property
+    def data_list(self) -> list[dict]:
+        return self.__data_list
+
+    @property
     def dataframe(self):
         """
         Returns a Pandas DataFrame with data from the __data_list

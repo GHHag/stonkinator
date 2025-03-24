@@ -20,7 +20,7 @@ import (
 
 const DB_TIMEOUT = time.Second * 20
 const DATE_FORMAT = "2006-01-02"
-const DATETIME_FORMAT = "2006-01-02 15:04:05"
+const DATE_TIME_FORMAT = "2006-01-02 15:04:05"
 const MAX_MESSAGE_SIZE = 4 * 1024 * 1024
 
 type server struct {

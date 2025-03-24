@@ -169,7 +169,14 @@ CREATE TABLE IF NOT EXISTS orders
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     instrument_id UUID,
     trading_system_id UUID,
-    order_data JSONB NOT NULL,
+    order_type VARCHAR(20) NOT NULL,
+    order_action VARCHAR(20) NOT NULL,
+    created_date_time TIMESTAMP NOT NULL,
+    active BOOLEAN NOT NULL,
+    direction_long BOOLEAN,
+    price REAL,
+    max_order_duration SMALLINT,
+    duration SMALLINT,
     CONSTRAINT instrument_id_fk FOREIGN KEY(instrument_id) REFERENCES instruments(id),
     CONSTRAINT trading_system_id_fk FOREIGN KEY(trading_system_id) REFERENCES trading_systems(id),
     UNIQUE(instrument_id, trading_system_id)
@@ -186,6 +193,7 @@ CREATE TABLE IF NOT EXISTS positions
     trading_system_id UUID,
     date_time TIMESTAMP NOT NULL,
     position_data JSONB NOT NULL,
+    serialized_position BYTEA NOT NULL,
     -- num_periods INTEGER, --Should this be defined here or can we derive this value from price data dates and existing position data?
     CONSTRAINT instrument_id_fk FOREIGN KEY(instrument_id) REFERENCES instruments(id),
     CONSTRAINT trading_system_id_fk FOREIGN KEY(trading_system_id) REFERENCES trading_systems(id)
@@ -199,6 +207,7 @@ CREATE TABLE IF NOT EXISTS market_states
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     instrument_id UUID,
     trading_system_id UUID,
+    signal_date_time TIMESTAMP NOT NULL,
     metrics JSONB NOT NULL,
     CONSTRAINT instrument_id_fk FOREIGN KEY(instrument_id) REFERENCES instruments(id),
     CONSTRAINT trading_system_id_fk FOREIGN KEY(trading_system_id) REFERENCES trading_systems(id),

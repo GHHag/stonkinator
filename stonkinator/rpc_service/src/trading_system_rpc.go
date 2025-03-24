@@ -87,7 +87,7 @@ func (s *server) GetTradingSystem(ctx context.Context, req *pb.GetBy) (*pb.Tradi
 		s.errorLog.Println(err)
 		return nil, err
 	}
-	res.CurrentDateTime = &pb.DateTime{DateTime: dateTime.Format(DATETIME_FORMAT)}
+	res.CurrentDateTime = &pb.DateTime{DateTime: dateTime.Format(DATE_TIME_FORMAT)}
 
 	return res, nil
 }
@@ -98,6 +98,7 @@ func (s *server) UpdateTradingSystemMetrics(ctx context.Context, req *pb.Trading
 
 	var metrics map[string]interface{}
 	if err := json.Unmarshal([]byte(req.Metrics), &metrics); err != nil {
+		s.errorLog.Println(err)
 		return nil, err
 	}
 
@@ -122,34 +123,26 @@ func (s *server) UpdateTradingSystemMetrics(ctx context.Context, req *pb.Trading
 	return res, nil
 }
 
-// func (s *server) GetTradingSystems(ctx context.Context, req *pb.GetAllRequest) (*pb.TradingSystems, error) {
-// 	ctx, cancel := context.WithTimeout(ctx, DB_TIMEOUT)
-// 	defer cancel()
-
-// 	res := &pb.TradingSystems{}
-// 	return res, nil
-// }
-
 func (s *server) UpsertMarketState(ctx context.Context, req *pb.MarketState) (*pb.CUD, error) {
 	ctx, cancel := context.WithTimeout(ctx, DB_TIMEOUT)
 	defer cancel()
 
 	var metrics map[string]interface{}
 	if err := json.Unmarshal([]byte(req.Metrics), &metrics); err != nil {
+		s.errorLog.Println(err)
 		return nil, err
 	}
 
 	result, err := s.pgPool.Exec(
 		ctx,
 		`
-			INSERT INTO market_states(instrument_id, trading_system_id, metrics)
-			VALUES($1, $2, $3)
-			ON CONFLICT DO UPDATE 
-			SET metrics = $3
-			WHERE instrument_id = $1
-			AND trading_system_id = $2
+			INSERT INTO market_states(instrument_id, trading_system_id, signal_date_time, metrics)
+			VALUES($1, $2, $3, $4)
+			ON CONFLICT(instrument_id, trading_system_id) DO UPDATE 
+			SET signal_date_time = EXCLUDED.signal_date_time,
+				metrics = EXCLUDED.metrics
 		`,
-		req.InstrumentId, req.TradingSystemId, metrics,
+		req.InstrumentId, req.TradingSystemId, req.SignalDateTime.DateTime, metrics,
 	)
 	if err != nil {
 		s.errorLog.Println(err)
@@ -279,7 +272,7 @@ func (s *server) GetCurrentDateTime(ctx context.Context, req *pb.GetBy) (*pb.Dat
 	}
 
 	res := &pb.DateTime{
-		DateTime: dateTime.Format(DATETIME_FORMAT),
+		DateTime: dateTime.Format(DATE_TIME_FORMAT),
 	}
 
 	return res, nil
@@ -289,22 +282,32 @@ func (s *server) UpsertOrder(ctx context.Context, req *pb.Order) (*pb.CUD, error
 	ctx, cancel := context.WithTimeout(ctx, DB_TIMEOUT)
 	defer cancel()
 
-	var orderData map[string]interface{}
-	if err := json.Unmarshal([]byte(req.OrderData), &orderData); err != nil {
+	createdDateTime, err := time.Parse(DATE_FORMAT, req.CreatedDateTime.DateTime)
+	if err != nil {
+		s.errorLog.Println(err)
 		return nil, err
 	}
 
 	result, err := s.pgPool.Exec(
 		ctx,
 		`
-			INSERT INTO orders(instrument_id, trading_system_id, order_data, serialized_order)
-			VALUES($1, $2, $3, $4)
-			ON CONFLICT DO UPDATE
-			SET order_data = $3
-			WHERE instrument_id = $1
-			AND trading_system_id = $2
+			INSERT INTO orders(
+				instrument_id, trading_system_id, order_type, order_action, created_date_time,
+				active, direction_long, price, max_order_duration, duration
+			)
+			VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+			ON CONFLICT(instrument_id, trading_system_id) DO UPDATE
+			SET order_type = EXCLUDED.order_type, 
+				order_action = EXCLUDED.order_action, 
+				created_date_time = EXCLUDED.created_date_time,
+				active = EXCLUDED.active, 
+				direction_long = EXCLUDED.direction_long, 
+				price = EXCLUDED.price, 
+				max_order_duration = EXCLUDED.max_order_duration, 
+				duration = EXCLUDED.duration
 		`,
-		req.InstrumentId, req.TradingSystemId, orderData, req.SerializedOrder,
+		req.InstrumentId, req.TradingSystemId, req.OrderType, req.Action, createdDateTime,
+		req.Active, req.DirectionLong, req.Price, req.MaxDuration, req.Duration,
 	)
 	if err != nil {
 		s.errorLog.Println(err)
@@ -325,7 +328,8 @@ func (s *server) GetOrder(ctx context.Context, req *pb.GetBy) (*pb.Order, error)
 	query := s.pgPool.QueryRow(
 		ctx,
 		`
-			SELECT instrument_id, trading_system_id, order_data, serialized_order
+			SELECT instrument_id, trading_system_id, order_type, order_action, created_date_time, 
+				active, direction_long, price, max_order_duration, duration
 			FROM orders
 			WHERE instrument_id = $1
 			AND trading_system_id = $2
@@ -333,10 +337,18 @@ func (s *server) GetOrder(ctx context.Context, req *pb.GetBy) (*pb.Order, error)
 		req.GetStrIdentifier(), req.GetAltStrIdentifier(),
 	)
 
+	var createdDateTime time.Time
 	res := &pb.Order{}
-	if err := query.Scan(&res.InstrumentId, res.TradingSystemId, &res.OrderData, &res.SerializedOrder); err != nil {
+	if err := query.Scan(
+		&res.InstrumentId, &res.TradingSystemId, &res.OrderType, &res.Action, &createdDateTime,
+		&res.Active, &res.DirectionLong, &res.Price, &res.MaxDuration, &res.Duration,
+	); err != nil {
 		s.errorLog.Println(err)
 		return nil, err
+	}
+
+	res.CreatedDateTime = &pb.DateTime{
+		DateTime: createdDateTime.Format(DATE_TIME_FORMAT),
 	}
 
 	return res, nil
@@ -348,6 +360,7 @@ func (s *server) InsertPosition(ctx context.Context, req *pb.Position) (*pb.CUD,
 
 	var positionData map[string]interface{}
 	if err := json.Unmarshal([]byte(req.PositionData), &positionData); err != nil {
+		s.errorLog.Println(err)
 		return nil, err
 	}
 
@@ -445,7 +458,7 @@ func (s *server) GetPosition(ctx context.Context, req *pb.GetBy) (*pb.Position, 
 	}
 
 	res.DateTime = &pb.DateTime{
-		DateTime: dateTime.Format(DATETIME_FORMAT),
+		DateTime: dateTime.Format(DATE_TIME_FORMAT),
 	}
 
 	return res, nil
@@ -485,7 +498,7 @@ func (s *server) GetPositions(ctx context.Context, req *pb.GetBy) (*pb.Positions
 
 		if err == nil {
 			position.DateTime = &pb.DateTime{
-				DateTime: dateTime.Format(DATETIME_FORMAT),
+				DateTime: dateTime.Format(DATE_TIME_FORMAT),
 			}
 			positions = append(positions, &position)
 		}

@@ -10,7 +10,6 @@ service TradingSystemsService {
     rpc InsertTradingSystem(TradingSystem) returns(TradingSystem);
     rpc GetTradingSystem(GetBy) returns(TradingSystem);
     rpc UpdateTradingSystemMetrics(TradingSystem) returns(CUD);
-    // rpc GetTradingSystems(GetAllRequest) returns(TradingSystems);
     rpc UpsertMarketState(MarketState) returns(CUD);
     rpc GetMarketState(GetBy) returns(MarketState);
     rpc GetMarketStates(GetBy) returns(MarketStates);
@@ -34,15 +33,18 @@ message TradingSystem {
     string metrics = 4;
 }
 
-// message TradingSystems {
-//     repeated TradingSystem trading_systems = 1;
-// }
-
+// TODO: Define different messages for limit and market order?
 message Order {
     string instrument_id = 1;
     string trading_system_id = 2;
-    string order_data = 3;
-    bytes serialized_order = 4;
+    string order_type = 3;
+    string action = 4;
+    DateTime created_date_time = 5;
+    bool active = 6;
+    bool direction_long = 7;
+    double price = 8;
+    int32 max_duration = 9;
+    int32 duration = 10;
 }
 
 message Position {
@@ -60,7 +62,8 @@ message Positions {
 message MarketState {
     string instrument_id = 1;
     string trading_system_id = 2;
-    string metrics = 3;
+    DateTime signal_date_time = 3;
+    string metrics = 4;
 }
 
 message MarketStates {
