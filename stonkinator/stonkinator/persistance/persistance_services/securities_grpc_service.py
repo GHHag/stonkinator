@@ -44,7 +44,7 @@ def grpc_error_handler(default_return=None):
             try:
                 return func(*args, **kwargs)
             except grpc.RpcError as e:
-                logger.error(e)
+                logger.error(f"error in {func.__name__}\n{e}")
                 return default_return        
         return wrapper
     return decorator

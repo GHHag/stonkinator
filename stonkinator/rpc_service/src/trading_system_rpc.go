@@ -3,16 +3,22 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	pb "stonkinator_rpc_service/stonkinator_rpc_service"
 	"time"
 
 	"github.com/jackc/pgx/v5"
 )
 
-func (s *server) InsertTradingSystem(ctx context.Context, req *pb.TradingSystem) (*pb.TradingSystem, error) {
+func (s *server) GetOrInsertTradingSystem(ctx context.Context, req *pb.TradingSystem) (*pb.TradingSystem, error) {
 	ctx, cancel := context.WithTimeout(ctx, DB_TIMEOUT)
 	defer cancel()
+
+	// TODO: Parse date time or not?
+	// currentDateTime, err := time.Parse(DATE_TIME_FORMAT, req.CurrentDateTime.DateTime)
+	// if err != nil {
+	// 	s.errorLog.Println(err)
+	// 	return nil, err
+	// }
 
 	query := s.pgPool.QueryRow(
 		ctx,
@@ -20,23 +26,25 @@ func (s *server) InsertTradingSystem(ctx context.Context, req *pb.TradingSystem)
 			INSERT INTO trading_systems(trading_system_name, current_date_time)
 			VALUES($1, $2)
 			ON CONFLICT DO NOTHING
-			RETURNING id, trading_system_name
+			RETURNING id, trading_system_name, current_date_time
 		`,
 		req.Name, req.CurrentDateTime.DateTime,
 	)
+
+	var dateTime time.Time
 	res := &pb.TradingSystem{}
-	if err := query.Scan(&res.Id, &res.Name); err != nil && err == pgx.ErrNoRows {
+	if err := query.Scan(&res.Id, &res.Name, &dateTime); err == pgx.ErrNoRows {
 		query = s.pgPool.QueryRow(
 			ctx,
 			`
-				SELECT id, trading_system_name 
-				FROM trading_systems 
+				SELECT id, trading_system_name, current_date_time
+				FROM trading_systems
 				WHERE trading_system_name = $1
 			`,
 			req.Name,
 		)
 
-		if err = query.Scan(&res.Id, &res.Name); err != nil {
+		if err := query.Scan(&res.Id, &res.Name, &dateTime); err != nil {
 			s.errorLog.Println(err)
 			return nil, err
 		}
@@ -45,48 +53,6 @@ func (s *server) InsertTradingSystem(ctx context.Context, req *pb.TradingSystem)
 		return nil, err
 	}
 
-	return res, nil
-}
-
-func (s *server) GetTradingSystem(ctx context.Context, req *pb.GetBy) (*pb.TradingSystem, error) {
-	ctx, cancel := context.WithTimeout(ctx, DB_TIMEOUT)
-	defer cancel()
-
-	var query pgx.Row
-	strIdentifier := req.GetStrIdentifier()
-	altStrIdentifier := req.GetAltStrIdentifier()
-	if len(strIdentifier) > 0 {
-		query = s.pgPool.QueryRow(
-			ctx,
-			`
-				SELECT id, trading_system_name, current_date_time
-				FROM trading_systems
-				WHERE id = $1
-			`,
-			strIdentifier,
-		)
-	} else if len(altStrIdentifier) > 0 {
-		query = s.pgPool.QueryRow(
-			ctx,
-			`
-				SELECT id, trading_system_name, current_date_time
-				FROM trading_systems
-				WHERE trading_system_name = $1
-			`,
-			altStrIdentifier,
-		)
-	} else {
-		err := errors.New("no identifier passed with the request")
-		s.errorLog.Println(err)
-		return nil, err
-	}
-
-	var dateTime time.Time
-	res := &pb.TradingSystem{}
-	if err := query.Scan(&res.Id, &res.Name, &dateTime); err != nil {
-		s.errorLog.Println(err)
-		return nil, err
-	}
 	res.CurrentDateTime = &pb.DateTime{DateTime: dateTime.Format(DATE_TIME_FORMAT)}
 
 	return res, nil
@@ -127,6 +93,13 @@ func (s *server) UpsertMarketState(ctx context.Context, req *pb.MarketState) (*p
 	ctx, cancel := context.WithTimeout(ctx, DB_TIMEOUT)
 	defer cancel()
 
+	// TODO: Parse date time or not?
+	// signalDateTime, err := time.Parse(DATE_TIME_FORMAT, req.SignalDateTime.DateTime)
+	// if err != nil {
+	// 	s.errorLog.Println(err)
+	// 	return nil, err
+	// }
+
 	var metrics map[string]interface{}
 	if err := json.Unmarshal([]byte(req.Metrics), &metrics); err != nil {
 		s.errorLog.Println(err)
@@ -143,6 +116,7 @@ func (s *server) UpsertMarketState(ctx context.Context, req *pb.MarketState) (*p
 				metrics = EXCLUDED.metrics
 		`,
 		req.InstrumentId, req.TradingSystemId, req.SignalDateTime.DateTime, metrics,
+		// req.InstrumentId, req.TradingSystemId, signalDateTime, metrics,
 	)
 	if err != nil {
 		s.errorLog.Println(err)
@@ -156,29 +130,29 @@ func (s *server) UpsertMarketState(ctx context.Context, req *pb.MarketState) (*p
 	return res, nil
 }
 
-func (s *server) GetMarketState(ctx context.Context, req *pb.GetBy) (*pb.MarketState, error) {
-	ctx, cancel := context.WithTimeout(ctx, DB_TIMEOUT)
-	defer cancel()
+// func (s *server) GetMarketState(ctx context.Context, req *pb.GetBy) (*pb.MarketState, error) {
+// 	ctx, cancel := context.WithTimeout(ctx, DB_TIMEOUT)
+// 	defer cancel()
 
-	query := s.pgPool.QueryRow(
-		ctx,
-		`
-			SELECT instrument_id, trading_system_id, metrics
-			FROM market_states
-			WHERE instrument_id = $1
-			AND trading_system_id = $2
-		`,
-		req.GetStrIdentifier(), req.GetAltStrIdentifier(),
-	)
+// 	query := s.pgPool.QueryRow(
+// 		ctx,
+// 		`
+// 			SELECT instrument_id, trading_system_id, metrics
+// 			FROM market_states
+// 			WHERE instrument_id = $1
+// 			AND trading_system_id = $2
+// 		`,
+// 		req.GetStrIdentifier(), req.GetAltStrIdentifier(),
+// 	)
 
-	res := &pb.MarketState{}
-	if err := query.Scan(&res.InstrumentId, &res.TradingSystemId, &res.Metrics); err != nil {
-		s.errorLog.Println(err)
-		return nil, err
-	}
+// 	res := &pb.MarketState{}
+// 	if err := query.Scan(&res.InstrumentId, &res.TradingSystemId, &res.Metrics); err != nil {
+// 		s.errorLog.Println(err)
+// 		return nil, err
+// 	}
 
-	return res, nil
-}
+// 	return res, nil
+// }
 
 func (s *server) GetMarketStates(ctx context.Context, req *pb.GetBy) (*pb.MarketStates, error) {
 	ctx, cancel := context.WithTimeout(ctx, DB_TIMEOUT)
@@ -224,11 +198,12 @@ func (s *server) UpdateCurrentDateTime(ctx context.Context, req *pb.UpdateCurren
 	ctx, cancel := context.WithTimeout(ctx, DB_TIMEOUT)
 	defer cancel()
 
-	dateTime, err := time.Parse(DATE_FORMAT, req.DateTime.DateTime)
-	if err != nil {
-		s.errorLog.Println(err)
-		return nil, err
-	}
+	// TODO: Parse date time or not?
+	// dateTime, err := time.Parse(DATE_TIME_FORMAT, req.DateTime.DateTime)
+	// if err != nil {
+	// 	s.errorLog.Println(err)
+	// 	return nil, err
+	// }
 
 	result, err := s.pgPool.Exec(
 		ctx,
@@ -237,7 +212,7 @@ func (s *server) UpdateCurrentDateTime(ctx context.Context, req *pb.UpdateCurren
 			SET current_date_time = $1
 			WHERE id = $2
 		`,
-		dateTime, req.TradingSystemId,
+		req.DateTime.DateTime, req.TradingSystemId,
 	)
 	if err != nil {
 		s.errorLog.Println(err)
@@ -282,11 +257,12 @@ func (s *server) UpsertOrder(ctx context.Context, req *pb.Order) (*pb.CUD, error
 	ctx, cancel := context.WithTimeout(ctx, DB_TIMEOUT)
 	defer cancel()
 
-	createdDateTime, err := time.Parse(DATE_FORMAT, req.CreatedDateTime.DateTime)
-	if err != nil {
-		s.errorLog.Println(err)
-		return nil, err
-	}
+	// TODO: Parse date time or not?
+	// createdDateTime, err := time.Parse(DATE_FORMAT, req.CreatedDateTime.DateTime)
+	// if err != nil {
+	// 	s.errorLog.Println(err)
+	// 	return nil, err
+	// }
 
 	result, err := s.pgPool.Exec(
 		ctx,
@@ -297,16 +273,17 @@ func (s *server) UpsertOrder(ctx context.Context, req *pb.Order) (*pb.CUD, error
 			)
 			VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
 			ON CONFLICT(instrument_id, trading_system_id) DO UPDATE
-			SET order_type = EXCLUDED.order_type, 
-				order_action = EXCLUDED.order_action, 
+			SET order_type = EXCLUDED.order_type,
+				order_action = EXCLUDED.order_action,
 				created_date_time = EXCLUDED.created_date_time,
-				active = EXCLUDED.active, 
-				direction_long = EXCLUDED.direction_long, 
-				price = EXCLUDED.price, 
-				max_order_duration = EXCLUDED.max_order_duration, 
+				active = EXCLUDED.active,
+				direction_long = EXCLUDED.direction_long,
+				price = EXCLUDED.price,
+				max_order_duration = EXCLUDED.max_order_duration,
 				duration = EXCLUDED.duration
 		`,
-		req.InstrumentId, req.TradingSystemId, req.OrderType, req.Action, createdDateTime,
+		// req.InstrumentId, req.TradingSystemId, req.OrderType, req.Action, createdDateTime,
+		req.InstrumentId, req.TradingSystemId, req.OrderType, req.Action, req.CreatedDateTime.DateTime,
 		req.Active, req.DirectionLong, req.Price, req.MaxDuration, req.Duration,
 	)
 	if err != nil {
@@ -342,7 +319,9 @@ func (s *server) GetOrder(ctx context.Context, req *pb.GetBy) (*pb.Order, error)
 	if err := query.Scan(
 		&res.InstrumentId, &res.TradingSystemId, &res.OrderType, &res.Action, &createdDateTime,
 		&res.Active, &res.DirectionLong, &res.Price, &res.MaxDuration, &res.Duration,
-	); err != nil {
+	); err == pgx.ErrNoRows {
+		return nil, nil
+	} else if err != nil {
 		s.errorLog.Println(err)
 		return nil, err
 	}
@@ -364,11 +343,12 @@ func (s *server) InsertPosition(ctx context.Context, req *pb.Position) (*pb.CUD,
 		return nil, err
 	}
 
-	dateTime, err := time.Parse(DATE_FORMAT, req.DateTime.DateTime)
-	if err != nil {
-		s.errorLog.Println(err)
-		return nil, err
-	}
+	// TODO: Parse date time or not?
+	// dateTime, err := time.Parse(DATE_FORMAT, req.DateTime.DateTime)
+	// if err != nil {
+	// 	s.errorLog.Println(err)
+	// 	return nil, err
+	// }
 
 	result, err := s.pgPool.Exec(
 		ctx,
@@ -376,7 +356,8 @@ func (s *server) InsertPosition(ctx context.Context, req *pb.Position) (*pb.CUD,
 			INSERT INTO positions(instrument_id, trading_system_id, date_time, position_data, serialized_position)
 			VALUES($1, $2, $3, $4, $5)
 		`,
-		req.InstrumentId, req.TradingSystemId, dateTime, positionData, req.SerializedPosition,
+		// req.InstrumentId, req.TradingSystemId, dateTime, positionData, req.SerializedPosition,
+		req.InstrumentId, req.TradingSystemId, req.DateTime.DateTime, positionData, req.SerializedPosition,
 	)
 	if err != nil {
 		s.errorLog.Println(err)

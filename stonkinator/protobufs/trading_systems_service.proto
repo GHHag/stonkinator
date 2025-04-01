@@ -7,11 +7,10 @@ import "general_messages.proto";
 option go_package = "./stonkinator_rpc_service";
 
 service TradingSystemsService {
-    rpc InsertTradingSystem(TradingSystem) returns(TradingSystem);
-    rpc GetTradingSystem(GetBy) returns(TradingSystem);
+    rpc GetOrInsertTradingSystem(TradingSystem) returns(TradingSystem);
     rpc UpdateTradingSystemMetrics(TradingSystem) returns(CUD);
     rpc UpsertMarketState(MarketState) returns(CUD);
-    rpc GetMarketState(GetBy) returns(MarketState);
+    // rpc GetMarketState(GetBy) returns(MarketState);
     rpc GetMarketStates(GetBy) returns(MarketStates);
     rpc UpdateCurrentDateTime(UpdateCurrentDateTimeRequest) returns(CUD);
     rpc GetCurrentDateTime(GetBy) returns(DateTime);

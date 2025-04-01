@@ -3,11 +3,12 @@ import datetime as dt
 import logging
 import pathlib
 import json
+import pickle
 
 import grpc
+from pandas import Timestamp
 
 from persistance.persistance_meta_classes.trading_systems_persister import TradingSystemsPersisterBase
-from persistance.persistance_services.securities_grpc_service import grpc_error_handler
 from persistance.persistance_services.general_messages_pb2 import (
     CUD,
     DateTime,
@@ -27,6 +28,9 @@ from persistance.persistance_services.trading_systems_service_pb2_grpc import (
     TradingSystemsServiceStub
 )
 
+# TODO: Resolve import collision with Position proto with a better "as" naming
+from trading.position.position import Position as PositionClass
+
 
 LOG_DIR_PATH = os.environ.get("LOG_DIR_PATH")
 if not os.path.exists(LOG_DIR_PATH):
@@ -39,10 +43,22 @@ handler = logging.FileHandler(f"{LOG_DIR_PATH}{logger_name}.log")
 logger.addHandler(handler)
 
 
+def grpc_error_handler(default_return=None):
+    def decorator(func):
+        def wrapper(*args, **kwargs):
+            try:
+                return func(*args, **kwargs)
+            except grpc.RpcError as e:
+                logger.error(f"error in {func.__name__}\n{e}")
+                return default_return        
+        return wrapper
+    return decorator
+
+
 # class TradingSystemsGRPCService(TradingSystemsPersisterBase):
 class TradingSystemsGRPCService:
 
-    def __init__(self, channel_address):
+    def __init__(self, channel_address: str):
         # TODO: Pass file paths into the constructor, read the files here with their paths as env variables?
         with open("/etc/ssl/private/stonkinator.key", "rb") as file:
             key = file.read()
@@ -56,43 +72,39 @@ class TradingSystemsGRPCService:
         self.__client = TradingSystemsServiceStub(channel)
 
     @grpc_error_handler(default_return=None)
-    def insert_trading_system(self, name: str, current_date_time: dt.datetime) -> TradingSystem:
+    def get_or_insert_trading_system(
+        self, name: str, current_date_time: dt.datetime | Timestamp
+    ) -> TradingSystem:
         req = TradingSystem(
             name=name, current_date_time=DateTime(date_time=str(current_date_time))
         )
-        res = self.__client.InsertTradingSystem(req)
-        return res
-
-    @grpc_error_handler(default_return=None)
-    def get_trading_system(self, id: str | None=None, name: str | None=None) -> TradingSystem:
-        req = GetBy(str_identifier=id, alt_str_identifier=name)
-        res = self.__client.GetTradingSystem(req)
+        res = self.__client.GetOrInsertTradingSystem(req)
         return res
 
     @grpc_error_handler(default_return=None)
     def update_trading_system_metrics(self, id: str, metrics: dict) -> CUD:
-        # TODO: dump to json here or before its passed to this method?
         req = TradingSystem(id=id, metrics=json.dumps(metrics))
         res = self.__client.UpdateTradingSystemMetrics(req)
         return res
 
     @grpc_error_handler(default_return=None)
     def upsert_market_state(
-        self, instrument_id: str, trading_system_id: str, metrics: dict
+        self, instrument_id: str, trading_system_id: str, 
+        signal_date_time: dt.datetime | Timestamp, metrics: dict
     ) -> CUD:
         req = MarketState(
             instrument_id=instrument_id, trading_system_id=trading_system_id,
-            # TODO: dump to json here or before its passed to this method?
+            signal_date_time=DateTime(date_time=str(signal_date_time)),
             metrics=json.dumps(metrics)
         )
         res = self.__client.UpsertMarketState(req)
         return res
 
-    @grpc_error_handler(default_return=None)
-    def get_market_state(self, instrument_id: str, trading_system_id: str) -> MarketState:
-        req = GetBy(str_identifier=instrument_id, alt_str_identifier=trading_system_id)
-        res = self.__client.GetMarketState(req)
-        return res
+    # @grpc_error_handler(default_return=None)
+    # def get_market_state(self, instrument_id: str, trading_system_id: str) -> MarketState:
+    #     req = GetBy(str_identifier=instrument_id, alt_str_identifier=trading_system_id)
+    #     res = self.__client.GetMarketState(req)
+    #     return res
 
     @grpc_error_handler(default_return=None)
     def get_market_states(self, instrument_id: str) -> MarketStates:
@@ -102,7 +114,7 @@ class TradingSystemsGRPCService:
 
     @grpc_error_handler(default_return=None)
     def update_current_date_time(
-        self, trading_system_id: str, current_date_time: dt.datetime
+        self, trading_system_id: str, current_date_time: dt.datetime | Timestamp
     ) -> CUD:
         req = UpdateCurrentDateTimeRequest(
             # TODO: Use a GetBy nested in UpdateCurrentDateTimeRequest instead of trading_system_id as string type?
@@ -120,13 +132,17 @@ class TradingSystemsGRPCService:
 
     @grpc_error_handler(default_return=None)
     def upsert_order(
-        self, instrument_id: str, trading_system_id: str, order_data: dict,
-        serialized_order: bytes
+        self, instrument_id: str, trading_system_id: str, order_type: str, action: str,
+        created_date_time: dt.datetime | Timestamp, active: bool, direction_long: bool, 
+        # TODO: How to handle these values that are exclusive to limit orders for market orders?
+        price: float | None=None, max_duration: int | None=None, duration: int | None=None
     ) -> CUD:
         req = Order(
             instrument_id=instrument_id, trading_system_id=trading_system_id,
-            # TODO: dump to json here or before its passed to this method?
-            order_data=json.dumps(order_data), serialized_order=serialized_order
+            order_type=order_type, action=action,
+            created_date_time=DateTime(date_time=str(created_date_time)),
+            active=active, direction_long=direction_long,
+            price=price, max_duration=max_duration, duration=duration
         )
         res = self.__client.UpsertOrder(req)
         return res
@@ -135,18 +151,20 @@ class TradingSystemsGRPCService:
     def get_order(self, instrument_id: str, trading_system_id: str) -> Order:
         req = GetBy(str_identifier=instrument_id, alt_str_identifier=trading_system_id)
         res = self.__client.GetOrder(req)
-        return res
+        if res.instrument_id and res.trading_system_id:
+            return res
+        else:
+            return None
 
     @grpc_error_handler(default_return=None)
     def insert_position(
-        self, instrument_id: str, trading_system_id: str, date_time: dt.datetime,
-        position_data: dict, serialized_position: bytes
+        self, instrument_id: str, trading_system_id: str, date_time: dt.datetime | Timestamp,
+        position_data: dict, position: PositionClass
     ) -> CUD:
         req = Position(
             instrument_id=instrument_id, trading_system_id=trading_system_id,
-            # TODO: dump to json here or before its passed to this method?
             date_time=DateTime(date_time=str(date_time)), position_data=json.dumps(position_data),
-            serialized_position=serialized_position
+            serialized_position=pickle.dumps(position)
         )
         res = self.__client.InsertPosition(req)
         return res
