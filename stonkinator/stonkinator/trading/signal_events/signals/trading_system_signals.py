@@ -47,17 +47,23 @@ class TradingSystemSignals:
         """
         
         return {
-            x[TradingSystemAttributes.SYMBOL]: x['data'][position_sizing_metric_str] 
+            (
+                x.get(TradingSystemAttributes.INSTRUMENT_ID),
+                x.get(TradingSystemAttributes.SYMBOL)
+            ): 
+                x['data'][position_sizing_metric_str] 
             for x in self.__data_list
         }
 
-    def add_data(self, symbol, data_dict):
+    def add_data(self, instrument_id, symbol, data_dict):
         """
         Appends a dict with a symbol/ticker and given data to the
         __data_list member.
 
         Parameters
         ----------
+        :param instrument_id:
+            'str' : Identifier of an instrument.
         :param symbol:
             'str' : The symbol/ticker of an asset.
         :param data_dict:
@@ -65,7 +71,11 @@ class TradingSystemSignals:
         """
 
         self.__data_list.append(
-            {TradingSystemAttributes.SYMBOL: symbol, 'data': data_dict}
+            {
+                TradingSystemAttributes.INSTRUMENT_ID: instrument_id,
+                TradingSystemAttributes.SYMBOL: symbol,
+                'data': data_dict
+            }
         )
 
     def add_evaluation_data(self, evaluation_data_dict: dict):
@@ -83,12 +93,14 @@ class TradingSystemSignals:
 
         for instrument_dict in self.__data_list:
             if (
-                instrument_dict[TradingSystemAttributes.SYMBOL] == 
-                evaluation_data_dict[TradingSystemAttributes.SYMBOL]
+                instrument_dict.get(TradingSystemAttributes.SYMBOL) == 
+                evaluation_data_dict.get(TradingSystemAttributes.SYMBOL)
             ):
-                assert 'data' in instrument_dict, \
-                    "'instrument_dict' is missing required 'data' key is missing."
-                assert isinstance(instrument_dict['data'], dict), \
-                    "The value mapping to the 'data' key in 'instrument_dict' " \
-                    "does not have the right format."
-                instrument_dict['data'].update(evaluation_data_dict)
+                instrument_data: dict = instrument_dict.get('data')
+                if instrument_data is not None:
+                    assert (
+                        isinstance(instrument_data, dict),
+                        "The value mapping to the 'data' key in 'instrument_dict' "
+                        "does not have the right type."
+                    )
+                    instrument_data.update(evaluation_data_dict)
