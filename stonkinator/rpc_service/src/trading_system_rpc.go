@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 func (s *server) GetOrInsertTradingSystem(ctx context.Context, req *pb.TradingSystem) (*pb.TradingSystem, error) {
@@ -84,6 +85,60 @@ func (s *server) UpdateTradingSystemMetrics(ctx context.Context, req *pb.Trading
 
 	res := &pb.CUD{
 		NumAffected: int32(result.RowsAffected()),
+	}
+
+	return res, nil
+}
+
+func (s *server) RemoveTradingSystemRelations(ctx context.Context, req *pb.OperateOn) (*pb.CUD, error) {
+	ctx, cancel := context.WithTimeout(ctx, DB_TIMEOUT)
+	defer cancel()
+
+	var numAffected int64 = 0
+	result, err := s.pgPool.Exec(
+		ctx,
+		`
+			DELETE FROM orders
+			WHERE orders.trading_system_id = $1
+		`,
+		req.GetStrIdentifier(),
+	)
+	if err != nil {
+		s.errorLog.Println(err)
+		return nil, err
+	}
+	numAffected += result.RowsAffected()
+
+	result, err = s.pgPool.Exec(
+		ctx,
+		`
+			DELETE FROM positions
+			WHERE positions.trading_system_id = $1
+		`,
+		req.GetStrIdentifier(),
+	)
+	if err != nil {
+		s.errorLog.Println(err)
+		return nil, err
+	}
+	numAffected += result.RowsAffected()
+
+	result, err = s.pgPool.Exec(
+		ctx,
+		`
+			DELETE FROM market_states
+			WHERE market_states.trading_system_id = $1
+		`,
+		req.GetStrIdentifier(),
+	)
+	if err != nil {
+		s.errorLog.Println(err)
+		return nil, err
+	}
+	numAffected += result.RowsAffected()
+
+	res := &pb.CUD{
+		NumAffected: int32(numAffected),
 	}
 
 	return res, nil
@@ -333,12 +388,13 @@ func (s *server) GetOrder(ctx context.Context, req *pb.GetBy) (*pb.Order, error)
 	return res, nil
 }
 
-func (s *server) InsertPosition(ctx context.Context, req *pb.Position) (*pb.CUD, error) {
+func (s *server) UpsertPosition(ctx context.Context, req *pb.Position) (*pb.CUD, error) {
 	ctx, cancel := context.WithTimeout(ctx, DB_TIMEOUT)
 	defer cancel()
 
+	var err error
 	var positionData map[string]interface{}
-	if err := json.Unmarshal([]byte(req.PositionData), &positionData); err != nil {
+	if err = json.Unmarshal([]byte(req.PositionData), &positionData); err != nil {
 		s.errorLog.Println(err)
 		return nil, err
 	}
@@ -350,18 +406,36 @@ func (s *server) InsertPosition(ctx context.Context, req *pb.Position) (*pb.CUD,
 	// 	return nil, err
 	// }
 
-	result, err := s.pgPool.Exec(
-		ctx,
-		`
-			INSERT INTO positions(instrument_id, trading_system_id, date_time, position_data, serialized_position)
-			VALUES($1, $2, $3, $4, $5)
-		`,
-		// req.InstrumentId, req.TradingSystemId, dateTime, positionData, req.SerializedPosition,
-		req.InstrumentId, req.TradingSystemId, req.DateTime.DateTime, positionData, req.SerializedPosition,
-	)
-	if err != nil {
-		s.errorLog.Println(err)
-		return nil, err
+	var result pgconn.CommandTag
+	if req.Id != "" {
+		result, err = s.pgPool.Exec(
+			ctx,
+			`
+				UPDATE positions
+				SET date_time = $1, position_data = $2, serialized_position = $3
+				WHERE id = $4
+			`,
+			// dateTime, positionData, req.SerializedPosition, req.Id,
+			req.DateTime.DateTime, positionData, req.SerializedPosition, req.Id,
+		)
+		if err != nil {
+			s.errorLog.Println(err)
+			return nil, err
+		}
+	} else {
+		result, err = s.pgPool.Exec(
+			ctx,
+			`
+				INSERT INTO positions(instrument_id, trading_system_id, date_time, position_data, serialized_position)
+				VALUES($1, $2, $3, $4, $5)
+			`,
+			// req.InstrumentId, req.TradingSystemId, dateTime, positionData, req.SerializedPosition,
+			req.InstrumentId, req.TradingSystemId, req.DateTime.DateTime, positionData, req.SerializedPosition,
+		)
+		if err != nil {
+			s.errorLog.Println(err)
+			return nil, err
+		}
 	}
 
 	res := &pb.CUD{
@@ -379,8 +453,14 @@ func (s *server) InsertPositions(ctx context.Context, req *pb.Positions) (*pb.CU
 
 	var err error
 	for _, position := range req.Positions {
-		dateTime, err := time.Parse(DATE_FORMAT, position.DateTime.DateTime)
-		if err != nil {
+		// TODO: Parse date time or not?
+		// dateTime, err := time.Parse(DATE_FORMAT, position.DateTime.DateTime)
+		// if err != nil {
+		// 	s.errorLog.Println(err)
+		// }
+
+		var positionData map[string]interface{}
+		if err = json.Unmarshal([]byte(position.PositionData), &positionData); err != nil {
 			s.errorLog.Println(err)
 		}
 
@@ -389,7 +469,8 @@ func (s *server) InsertPositions(ctx context.Context, req *pb.Positions) (*pb.CU
 				INSERT INTO positions(instrument_id, trading_system_id, date_time, position_data, serialized_position)
 				VALUES($1, $2, $3, $4, $5)
 			`,
-			position.InstrumentId, position.TradingSystemId, dateTime, position.PositionData, position.SerializedPosition,
+			// position.InstrumentId, position.TradingSystemId, dateTime, position.PositionData, position.SerializedPosition,
+			position.InstrumentId, position.TradingSystemId, position.DateTime.DateTime, positionData, position.SerializedPosition,
 		)
 	}
 
@@ -397,7 +478,6 @@ func (s *server) InsertPositions(ctx context.Context, req *pb.Positions) (*pb.CU
 	defer batchQueryResult.Close()
 
 	numAffected := 0
-
 	for range req.Positions {
 		commandTag, err := batchQueryResult.Exec()
 		if err != nil {
@@ -421,7 +501,7 @@ func (s *server) GetPosition(ctx context.Context, req *pb.GetBy) (*pb.Position, 
 	query := s.pgPool.QueryRow(
 		ctx,
 		`
-			SELECT instrument_id, trading_system_id, date_time, position_data, serialized_position
+			SELECT id, instrument_id, trading_system_id, date_time, position_data, serialized_position
 			FROM positions
 			WHERE instrument_id = $1
 			AND trading_system_id = $2
@@ -433,7 +513,7 @@ func (s *server) GetPosition(ctx context.Context, req *pb.GetBy) (*pb.Position, 
 
 	var dateTime time.Time
 	res := &pb.Position{}
-	if err := query.Scan(&res.InstrumentId, &res.TradingSystemId, &dateTime, &res.PositionData, &res.SerializedPosition); err != nil {
+	if err := query.Scan(&res.Id, &res.InstrumentId, &res.TradingSystemId, &dateTime, &res.PositionData, &res.SerializedPosition); err != nil {
 		s.errorLog.Println(err)
 		return nil, err
 	}
@@ -452,7 +532,7 @@ func (s *server) GetPositions(ctx context.Context, req *pb.GetBy) (*pb.Positions
 	query, err := s.pgPool.Query(
 		ctx,
 		`
-			SELECT instrument_id, trading_system_id, date_time, position_data, serialized_position
+			SELECT id, instrument_id, trading_system_id, date_time, position_data, serialized_position
 			FROM positions
 			WHERE instrument_id = $1
 			AND trading_system_id = $2
@@ -470,6 +550,7 @@ func (s *server) GetPositions(ctx context.Context, req *pb.GetBy) (*pb.Positions
 		var position pb.Position
 		var dateTime time.Time
 		err = query.Scan(
+			&position.Id,
 			&position.InstrumentId,
 			&position.TradingSystemId,
 			&dateTime,
@@ -491,10 +572,6 @@ func (s *server) GetPositions(ctx context.Context, req *pb.GetBy) (*pb.Positions
 
 	return res, nil
 }
-
-// func (s *server) IncrementNumOfPeriods(ctx context.Context, req *pb.NumOfPeriodsRequest) (*pb.CUD, error) {
-
-// }
 
 func (s *server) InsertTradingSystemModel(ctx context.Context, req *pb.TradingSystemModel) (*pb.CUD, error) {
 	ctx, cancel := context.WithTimeout(ctx, DB_TIMEOUT)

@@ -11,6 +11,7 @@ class TradingSystemAttributes:
     __SIGNAL_INDEX = 'signal_index'
     __SIGNAL_DT = 'signal_dt'
     __SYMBOL = 'symbol'
+    __INSTRUMENT_ID = 'instrument_id'
     __DIRECTION = 'direction'
     __ORDER = 'order'
     __PERIODS_IN_POSITION = 'periods_in_position'
@@ -53,6 +54,10 @@ class TradingSystemAttributes:
     @classproperty
     def SYMBOL(cls):
         return cls.__SYMBOL
+
+    @classproperty
+    def INSTRUMENT_ID(cls):
+        return cls.__INSTRUMENT_ID
 
     @classproperty
     def DIRECTION(cls):

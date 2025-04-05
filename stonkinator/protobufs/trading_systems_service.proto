@@ -9,6 +9,7 @@ option go_package = "./stonkinator_rpc_service";
 service TradingSystemsService {
     rpc GetOrInsertTradingSystem(TradingSystem) returns(TradingSystem);
     rpc UpdateTradingSystemMetrics(TradingSystem) returns(CUD);
+    rpc RemoveTradingSystemRelations(OperateOn) returns(CUD);
     rpc UpsertMarketState(MarketState) returns(CUD);
     // rpc GetMarketState(GetBy) returns(MarketState);
     rpc GetMarketStates(GetBy) returns(MarketStates);
@@ -16,11 +17,10 @@ service TradingSystemsService {
     rpc GetCurrentDateTime(GetBy) returns(DateTime);
     rpc UpsertOrder(Order) returns(CUD);
     rpc GetOrder(GetBy) returns(Order);
-    rpc InsertPosition(Position) returns(CUD);
+    rpc UpsertPosition(Position) returns(CUD);
     rpc InsertPositions(Positions) returns(CUD);
     rpc GetPosition(GetBy) returns(Position);
     rpc GetPositions(GetBy) returns(Positions);
-    // rpc IncrementNumOfPeriods(NumOfPeriodsRequest) returns(CUD);
     rpc InsertTradingSystemModel(TradingSystemModel) returns(CUD);
     rpc GetTradingSystemModel(GetBy) returns(TradingSystemModel);
 }
@@ -47,11 +47,12 @@ message Order {
 }
 
 message Position {
-    string instrument_id = 1;
-    string trading_system_id = 2;
-    DateTime date_time = 3;
-    string position_data = 4;
-    bytes serialized_position = 5;
+    string id = 1;
+    string instrument_id = 2;
+    string trading_system_id = 3;
+    DateTime date_time = 4;
+    string position_data = 5;
+    bytes serialized_position = 6;
 }
 
 message Positions {
@@ -79,7 +80,3 @@ message UpdateCurrentDateTimeRequest {
     string trading_system_id = 1;
     DateTime date_time = 2;
 }
-
-// message NumOfPeriodsRequest {
-//     int32 num_of_periods = 1;
-// }

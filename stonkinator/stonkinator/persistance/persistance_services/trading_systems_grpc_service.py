@@ -13,6 +13,7 @@ from persistance.persistance_services.general_messages_pb2 import (
     CUD,
     DateTime,
     GetBy,
+    OperateOn,
 )
 from persistance.persistance_services.trading_systems_service_pb2 import (
     MarketState,
@@ -27,9 +28,6 @@ from persistance.persistance_services.trading_systems_service_pb2 import (
 from persistance.persistance_services.trading_systems_service_pb2_grpc import (
     TradingSystemsServiceStub
 )
-
-# TODO: Resolve import collision with Position proto with a better "as" naming
-from trading.position.position import Position as PositionClass
 
 
 LOG_DIR_PATH = os.environ.get("LOG_DIR_PATH")
@@ -88,6 +86,12 @@ class TradingSystemsGRPCService:
         return res
 
     @grpc_error_handler(default_return=None)
+    def remove_trading_system_relations(self, trading_system_id: str) -> CUD:
+        req = OperateOn(str_identifier=trading_system_id)
+        res = self.__client.RemoveTradingSystemRelations(req)
+        return res
+
+    @grpc_error_handler(default_return=None)
     def upsert_market_state(
         self, instrument_id: str, trading_system_id: str, 
         signal_date_time: dt.datetime | Timestamp, metrics: dict
@@ -117,7 +121,6 @@ class TradingSystemsGRPCService:
         self, trading_system_id: str, current_date_time: dt.datetime | Timestamp
     ) -> CUD:
         req = UpdateCurrentDateTimeRequest(
-            # TODO: Use a GetBy nested in UpdateCurrentDateTimeRequest instead of trading_system_id as string type?
             trading_system_id=trading_system_id, 
             date_time=DateTime(date_time=str(current_date_time))
         )
@@ -157,29 +160,43 @@ class TradingSystemsGRPCService:
             return None
 
     @grpc_error_handler(default_return=None)
-    def insert_position(
+    def upsert_position(
         self, instrument_id: str, trading_system_id: str, date_time: dt.datetime | Timestamp,
-        position_data: dict, position: PositionClass
+        position_data: dict, position, id: str | None=None
     ) -> CUD:
         req = Position(
-            instrument_id=instrument_id, trading_system_id=trading_system_id,
+            id=id, instrument_id=instrument_id, trading_system_id=trading_system_id,
             date_time=DateTime(date_time=str(date_time)), position_data=json.dumps(position_data),
             serialized_position=pickle.dumps(position)
         )
-        res = self.__client.InsertPosition(req)
+        res = self.__client.UpsertPosition(req)
         return res
 
     @grpc_error_handler(default_return=None)
-    def insert_positions(self, positions: list[Position]) -> CUD:
+    def insert_positions(
+        self, instrument_id: str, trading_system_id: str, positions: list
+    ) -> CUD:
+        positions = [
+            Position(
+                instrument_id=instrument_id, trading_system_id=trading_system_id,
+                date_time=DateTime(date_time=str(position.current_dt)),
+                position_data=json.dumps(position.as_dict),
+                serialized_position=pickle.dumps(position)
+            )
+            for position in positions
+        ]
         req = Positions(positions=positions)
         res = self.__client.InsertPositions(req)
         return res
 
     @grpc_error_handler(default_return=None)
-    def get_position(self, instrument_id: str, trading_system_id: str) -> Position:
+    def get_position(self, instrument_id: str, trading_system_id: str):
         req = GetBy(str_identifier=instrument_id, alt_str_identifier=trading_system_id)
         res = self.__client.GetPosition(req)
-        return res
+        if res.serialized_position:
+            return res.id, pickle.loads(res.serialized_position)
+        else:
+            return None, None
 
     @grpc_error_handler(default_return=None)
     def get_positions(self, instrument_id: str, trading_system_id: str) -> Positions:
