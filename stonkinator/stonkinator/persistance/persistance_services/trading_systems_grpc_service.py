@@ -93,26 +93,20 @@ class TradingSystemsGRPCService:
 
     @grpc_error_handler(default_return=None)
     def upsert_market_state(
-        self, instrument_id: str, trading_system_id: str, 
-        signal_date_time: dt.datetime | Timestamp, metrics: dict
+        self, instrument_id: str, trading_system_id: str, metrics: dict, 
+        action: str | None=None, signal_date_time: dt.datetime | Timestamp | None=None
     ) -> CUD:
         req = MarketState(
             instrument_id=instrument_id, trading_system_id=trading_system_id,
-            signal_date_time=DateTime(date_time=str(signal_date_time)),
-            metrics=json.dumps(metrics)
+            metrics=json.dumps(metrics), action=action,
+            signal_date_time=DateTime(date_time=str(signal_date_time)) if signal_date_time else None,
         )
         res = self.__client.UpsertMarketState(req)
         return res
 
-    # @grpc_error_handler(default_return=None)
-    # def get_market_state(self, instrument_id: str, trading_system_id: str) -> MarketState:
-    #     req = GetBy(str_identifier=instrument_id, alt_str_identifier=trading_system_id)
-    #     res = self.__client.GetMarketState(req)
-    #     return res
-
     @grpc_error_handler(default_return=None)
-    def get_market_states(self, instrument_id: str) -> MarketStates:
-        req = GetBy(str_identifier=instrument_id)
+    def get_market_states(self, instrument_id: str, action: str) -> MarketStates:
+        req = GetBy(str_identifier=instrument_id, alt_str_identifier=action)
         res = self.__client.GetMarketStates(req)
         return res
 
@@ -199,10 +193,16 @@ class TradingSystemsGRPCService:
             return None, None
 
     @grpc_error_handler(default_return=None)
-    def get_positions(self, instrument_id: str, trading_system_id: str) -> Positions:
+    def get_positions(self, instrument_id: str, trading_system_id: str) -> Positions | None:
         req = GetBy(str_identifier=instrument_id, alt_str_identifier=trading_system_id)
         res = self.__client.GetPositions(req)
-        return res
+        if res.positions:
+            positions_list = list(res.positions)
+            # return [pickle.loads(position.serialized_position) for position in positions_list]
+            positions = [pickle.loads(position.serialized_position) for position in positions_list]
+            return [position for position in positions if position.active == False]
+        else:
+            return None
 
     @grpc_error_handler(default_return=None)
     def insert_trading_system_model(

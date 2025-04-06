@@ -155,27 +155,47 @@ func (s *server) UpsertMarketState(ctx context.Context, req *pb.MarketState) (*p
 	// 	return nil, err
 	// }
 
+	var err error
 	var metrics map[string]interface{}
-	if err := json.Unmarshal([]byte(req.Metrics), &metrics); err != nil {
+	if err = json.Unmarshal([]byte(req.Metrics), &metrics); err != nil {
 		s.errorLog.Println(err)
 		return nil, err
 	}
 
-	result, err := s.pgPool.Exec(
-		ctx,
-		`
-			INSERT INTO market_states(instrument_id, trading_system_id, signal_date_time, metrics)
-			VALUES($1, $2, $3, $4)
-			ON CONFLICT(instrument_id, trading_system_id) DO UPDATE 
-			SET signal_date_time = EXCLUDED.signal_date_time,
-				metrics = EXCLUDED.metrics
-		`,
-		req.InstrumentId, req.TradingSystemId, req.SignalDateTime.DateTime, metrics,
-		// req.InstrumentId, req.TradingSystemId, signalDateTime, metrics,
-	)
-	if err != nil {
-		s.errorLog.Println(err)
-		return nil, err
+	var result pgconn.CommandTag
+	if req.Action != "" {
+		result, err = s.pgPool.Exec(
+			ctx,
+			`
+				INSERT INTO market_states(instrument_id, trading_system_id, signal_date_time, metrics, market_action)
+				VALUES($1, $2, $3, $4, $5)
+				ON CONFLICT(instrument_id, trading_system_id) DO UPDATE 
+				SET signal_date_time = EXCLUDED.signal_date_time,
+					metrics = EXCLUDED.metrics,
+					market_action = EXCLUDED.market_action
+			`,
+			req.InstrumentId, req.TradingSystemId, req.SignalDateTime.DateTime, metrics, req.Action,
+			// req.InstrumentId, req.TradingSystemId, signalDateTime, metrics, req.Action,
+		)
+		if err != nil {
+			s.errorLog.Println(err)
+			return nil, err
+		}
+	} else {
+		result, err = s.pgPool.Exec(
+			ctx,
+			`
+				UPDATE market_states
+				SET metrics = metrics || $1
+				WHERE instrument_id = $2
+				AND trading_system_id = $3
+			`,
+			metrics, req.InstrumentId, req.TradingSystemId,
+		)
+		if err != nil {
+			s.errorLog.Println(err)
+			return nil, err
+		}
 	}
 
 	res := &pb.CUD{
@@ -185,30 +205,6 @@ func (s *server) UpsertMarketState(ctx context.Context, req *pb.MarketState) (*p
 	return res, nil
 }
 
-// func (s *server) GetMarketState(ctx context.Context, req *pb.GetBy) (*pb.MarketState, error) {
-// 	ctx, cancel := context.WithTimeout(ctx, DB_TIMEOUT)
-// 	defer cancel()
-
-// 	query := s.pgPool.QueryRow(
-// 		ctx,
-// 		`
-// 			SELECT instrument_id, trading_system_id, metrics
-// 			FROM market_states
-// 			WHERE instrument_id = $1
-// 			AND trading_system_id = $2
-// 		`,
-// 		req.GetStrIdentifier(), req.GetAltStrIdentifier(),
-// 	)
-
-// 	res := &pb.MarketState{}
-// 	if err := query.Scan(&res.InstrumentId, &res.TradingSystemId, &res.Metrics); err != nil {
-// 		s.errorLog.Println(err)
-// 		return nil, err
-// 	}
-
-// 	return res, nil
-// }
-
 func (s *server) GetMarketStates(ctx context.Context, req *pb.GetBy) (*pb.MarketStates, error) {
 	ctx, cancel := context.WithTimeout(ctx, DB_TIMEOUT)
 	defer cancel()
@@ -216,11 +212,12 @@ func (s *server) GetMarketStates(ctx context.Context, req *pb.GetBy) (*pb.Market
 	query, err := s.pgPool.Query(
 		ctx,
 		`
-			SELECT instrument_id, trading_system_id, metrics
+			SELECT instrument_id, trading_system_id, metrics, market_action
 			FROM market_states
 			WHERE trading_system_id = $1
+			AND market_action = $2
 		`,
-		req.GetStrIdentifier(),
+		req.GetStrIdentifier(), req.GetAltStrIdentifier(),
 	)
 	if err != nil {
 		s.errorLog.Println(err)
@@ -235,6 +232,7 @@ func (s *server) GetMarketStates(ctx context.Context, req *pb.GetBy) (*pb.Market
 			&marketState.InstrumentId,
 			&marketState.TradingSystemId,
 			&marketState.Metrics,
+			&marketState.Action,
 		)
 
 		if err == nil {

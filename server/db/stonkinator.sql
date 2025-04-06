@@ -194,7 +194,6 @@ CREATE TABLE IF NOT EXISTS positions
     date_time TIMESTAMP NOT NULL,
     position_data JSONB NOT NULL,
     serialized_position BYTEA NOT NULL,
-    -- num_periods INTEGER, --Should this be defined here or can we derive this value from price data dates and existing position data?
     CONSTRAINT instrument_id_fk FOREIGN KEY(instrument_id) REFERENCES instruments(id),
     CONSTRAINT trading_system_id_fk FOREIGN KEY(trading_system_id) REFERENCES trading_systems(id)
 );
@@ -209,6 +208,7 @@ CREATE TABLE IF NOT EXISTS market_states
     trading_system_id UUID,
     signal_date_time TIMESTAMP NOT NULL,
     metrics JSONB NOT NULL,
+    market_action VARCHAR(10) NOT NULL,
     CONSTRAINT instrument_id_fk FOREIGN KEY(instrument_id) REFERENCES instruments(id),
     CONSTRAINT trading_system_id_fk FOREIGN KEY(trading_system_id) REFERENCES trading_systems(id),
     UNIQUE(instrument_id, trading_system_id)

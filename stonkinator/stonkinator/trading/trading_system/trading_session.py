@@ -23,10 +23,11 @@ class TradingSession:
         A function with logic for when to enter a market.
     exit_logic_function: 'function'
         A function with logic for when to exit a market.
-    signal_handler: Keyword arg 'None/SignalHandler'
+    signal_handler: 'SignalHandler'
         An instance of the SignalHandler class. Handles
         data from generated events/signals.
-        Default value=None
+    instrument_id: 'str'
+        Identifier of an instrument.
     symbol: Keyword arg 'str'
         The ticker/symbol of the instrument to be traded
         in the current trading session. Default value=''
@@ -34,11 +35,12 @@ class TradingSession:
 
     def __init__(
         self, entry_logic_function, exit_logic_function,
-        signal_handler: SignalHandler, symbol=''
+        signal_handler: SignalHandler, instrument_id, symbol=''
     ):
         self.__entry_logic_function = entry_logic_function
         self.__exit_logic_function = exit_logic_function
         self.__signal_handler = signal_handler
+        self.__instrument_id = instrument_id
         self.__symbol = symbol
 
     def __call__(
@@ -50,7 +52,7 @@ class TradingSession:
         entry_args=None, exit_args=None,
         fixed_position_size=True, capital=10000, commission_pct_cost=0.0,
         print_data=False, **kwargs
-    ):
+    ) -> tuple[Order | None, Position | None]:
         """
         Generates positions using the __entry_logic_function and 
         __exit_logic_function members.
@@ -111,7 +113,7 @@ class TradingSession:
                         f'Realised return: {position.position_return}'
                     )
                 return order, position
-        elif position is None and order and order.active == True:
+        elif (position is None or position.active == False) and order and order.active == True:
             position = order.execute_entry(
                 capital, 
                 dataframe.iloc[-1],
@@ -130,13 +132,12 @@ class TradingSession:
             if print_data:
                 position.print_position_status()
             self.__signal_handler.handle_active_position(
-                self.__symbol, {
-                    TradingSystemAttributes.SIGNAL_INDEX: len(dataframe), 
+                self.__instrument_id, self.__symbol, {
                     TradingSystemAttributes.SIGNAL_DT: dataframe.index[-1],
                     TradingSystemAttributes.SYMBOL: self.__symbol, 
-                    TradingSystemAttributes.ORDER: order.as_dict if order else None,
+                    TradingSystemAttributes.ORDER: order.as_dict if order and order.active else None,
                     TradingSystemAttributes.PERIODS_IN_POSITION: position.periods_in_position, 
-                    TradingSystemAttributes.UNREALISED_RETURN: position.unrealised_return,
+                    TradingSystemAttributes.UNREALISED_RETURN: float(position.unrealised_return),
                     TradingSystemAttributes.MARKET_STATE: MarketState.ACTIVE.value
                 }
             )
@@ -144,13 +145,12 @@ class TradingSession:
                 order = self.__exit_logic_function(dataframe, position, exit_args=exit_args)
             if order and order.active == True:
                 self.__signal_handler.handle_exit_signal(
-                    self.__symbol, {
-                        TradingSystemAttributes.SIGNAL_INDEX: len(dataframe), 
+                    self.__instrument_id, self.__symbol, {
                         TradingSystemAttributes.SIGNAL_DT: dataframe.index[-1],
                         TradingSystemAttributes.SYMBOL: self.__symbol, 
                         TradingSystemAttributes.ORDER: order.as_dict,
                         TradingSystemAttributes.PERIODS_IN_POSITION: position.periods_in_position,
-                        TradingSystemAttributes.UNREALISED_RETURN: position.unrealised_return,
+                        TradingSystemAttributes.UNREALISED_RETURN: float(position.unrealised_return),
                         TradingSystemAttributes.MARKET_STATE: MarketState.EXIT.value
                     }
                 )
@@ -160,8 +160,7 @@ class TradingSession:
             order = self.__entry_logic_function(dataframe, entry_args=entry_args)
             if order and order.active == True:
                 self.__signal_handler.handle_entry_signal(
-                    self.__symbol, {
-                        TradingSystemAttributes.SIGNAL_INDEX: len(dataframe), 
+                    self.__instrument_id, self.__symbol, {
                         TradingSystemAttributes.SIGNAL_DT: dataframe.index[-1],
                         TradingSystemAttributes.SYMBOL: self.__symbol,
                         TradingSystemAttributes.ORDER: order.as_dict,
@@ -188,10 +187,11 @@ class BacktestTradingSession:
         A function with logic for when to exit a market.
     dataframe: 'Pandas.DataFrame'
         Data in the form of a Pandas DataFrame.
-    signal_handler: Keyword arg 'None/SignalHandler'
+    signal_handler: 'SignalHandler'
         An instance of the SignalHandler class. Handles
         data from generated events/signals.
-        Default value=None
+    instrument_id: 'str'
+        Identifier of an instrument.
     symbol: Keyword arg 'str'
         The ticker/symbol of the instrument to be traded
         in the current trading session. Default value=''
@@ -199,12 +199,13 @@ class BacktestTradingSession:
 
     def __init__(
         self, entry_logic_function, exit_logic_function, dataframe: pd.DataFrame,
-        signal_handler: SignalHandler, symbol=''
+        signal_handler: SignalHandler, instrument_id, symbol=''
     ):
         self.__entry_logic_function = entry_logic_function
         self.__exit_logic_function = exit_logic_function
         self.__dataframe = dataframe
         self.__signal_handler = signal_handler
+        self.__instrument_id = instrument_id
         self.__symbol = symbol
 
     def __call__(
@@ -362,13 +363,12 @@ class BacktestTradingSession:
                 if print_data:
                     position.print_position_status()
                 self.__signal_handler.handle_active_position(
-                    self.__symbol, {
-                        TradingSystemAttributes.SIGNAL_INDEX: len(self.__dataframe), 
+                    self.__instrument_id, self.__symbol, {
                         TradingSystemAttributes.SIGNAL_DT: self.__dataframe.index[-1], 
                         TradingSystemAttributes.SYMBOL: self.__symbol, 
                         TradingSystemAttributes.ORDER: order.as_dict if order else None,
                         TradingSystemAttributes.PERIODS_IN_POSITION: position.periods_in_position, 
-                        TradingSystemAttributes.UNREALISED_RETURN: position.unrealised_return,
+                        TradingSystemAttributes.UNREALISED_RETURN: float(position.unrealised_return),
                         TradingSystemAttributes.MARKET_STATE: MarketState.ACTIVE.value
                     }
                 )
@@ -376,13 +376,12 @@ class BacktestTradingSession:
                     order = self.__exit_logic_function(self.__dataframe, position, exit_args=exit_args)
                 if order and order.active == True:
                     self.__signal_handler.handle_exit_signal(
-                        self.__symbol, {
-                            TradingSystemAttributes.SIGNAL_INDEX: len(self.__dataframe), 
+                        self.__instrument_id, self.__symbol, {
                             TradingSystemAttributes.SIGNAL_DT: self.__dataframe.index[-1], 
                             TradingSystemAttributes.SYMBOL: self.__symbol, 
                             TradingSystemAttributes.ORDER: order.as_dict,
                             TradingSystemAttributes.PERIODS_IN_POSITION: position.periods_in_position,
-                            TradingSystemAttributes.UNREALISED_RETURN: position.unrealised_return,
+                            TradingSystemAttributes.UNREALISED_RETURN: float(position.unrealised_return),
                             TradingSystemAttributes.MARKET_STATE: MarketState.EXIT.value
                         }
                     )
@@ -392,8 +391,7 @@ class BacktestTradingSession:
                 order = self.__entry_logic_function(self.__dataframe, entry_args=entry_args)
                 if order and order.active == True:
                     self.__signal_handler.handle_entry_signal(
-                        self.__symbol, {
-                            TradingSystemAttributes.SIGNAL_INDEX: len(self.__dataframe), 
+                        self.__instrument_id, self.__symbol, {
                             TradingSystemAttributes.SIGNAL_DT: self.__dataframe.index[-1], 
                             TradingSystemAttributes.SYMBOL: self.__symbol,
                             TradingSystemAttributes.ORDER: order.as_dict,
@@ -404,5 +402,5 @@ class BacktestTradingSession:
                     if print_data: 
                         print(f'\nEntry order:\n{order.as_dict}')
             
-            self.__signal_handler.current_order = (order, self.__symbol)
-            self.__signal_handler.current_position = (position, self.__symbol)
+            self.__signal_handler.current_order = (order, self.__instrument_id)
+            self.__signal_handler.current_position = (position, self.__instrument_id)
