@@ -20,6 +20,7 @@ service TradingSystemsService {
     rpc InsertPositions(Positions) returns(CUD);
     rpc GetPosition(GetBy) returns(Position);
     rpc GetPositions(GetBy) returns(Positions);
+    rpc GetTradingSystemPositions(GetBy) returns(Positions);
     rpc InsertTradingSystemModel(TradingSystemModel) returns(CUD);
     rpc GetTradingSystemModel(GetBy) returns(TradingSystemModel);
 }

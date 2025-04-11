@@ -74,7 +74,7 @@ func (s *server) UpdateTradingSystemMetrics(ctx context.Context, req *pb.Trading
 		`
 			UPDATE trading_systems
 			SET metrics = $1
-			WHERE trading_system_id = $2
+			WHERE id = $2
 		`,
 		metrics, req.Id,
 	)
@@ -534,8 +534,67 @@ func (s *server) GetPositions(ctx context.Context, req *pb.GetBy) (*pb.Positions
 			FROM positions
 			WHERE instrument_id = $1
 			AND trading_system_id = $2
+			AND position_data ? 'exit_price'
 		`,
 		req.GetStrIdentifier(), req.GetAltStrIdentifier(),
+	)
+	if err != nil {
+		s.errorLog.Println(err)
+		return nil, err
+	}
+	defer query.Close()
+
+	positions := []*pb.Position{}
+	for query.Next() {
+		var position pb.Position
+		var dateTime time.Time
+		err = query.Scan(
+			&position.Id,
+			&position.InstrumentId,
+			&position.TradingSystemId,
+			&dateTime,
+			&position.PositionData,
+			&position.SerializedPosition,
+		)
+
+		if err == nil {
+			position.DateTime = &pb.DateTime{
+				DateTime: dateTime.Format(DATE_TIME_FORMAT),
+			}
+			positions = append(positions, &position)
+		}
+	}
+
+	res := &pb.Positions{
+		Positions: positions,
+	}
+
+	return res, nil
+}
+
+func (s *server) GetTradingSystemPositions(ctx context.Context, req *pb.GetBy) (*pb.Positions, error) {
+	ctx, cancel := context.WithTimeout(ctx, DB_TIMEOUT)
+	defer cancel()
+
+	query, err := s.pgPool.Query(
+		ctx,
+		// `
+		// 	SELECT id, instrument_id, trading_system_id, date_time, position_data, serialized_position
+		// 	FROM positions
+		// 	WHERE trading_system_id = $1
+		// 	AND position_data ? 'exit_price'
+		// 	ORDER BY date_time DESC
+		// 	LIMIT $2
+		// `,
+		`
+			SELECT id, instrument_id, trading_system_id, date_time, position_data, serialized_position
+			FROM positions
+			WHERE trading_system_id = $1
+			AND position_data ? 'exit_price'
+			ORDER BY position_data->>'entry_dt' DESC
+			LIMIT $2
+		`,
+		req.GetStrIdentifier(), req.GetAltIntIdentifier(),
 	)
 	if err != nil {
 		s.errorLog.Println(err)
