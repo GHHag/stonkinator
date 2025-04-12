@@ -53,8 +53,7 @@ def grpc_error_handler(default_return=None):
     return decorator
 
 
-# class TradingSystemsGRPCService(TradingSystemsPersisterBase):
-class TradingSystemsGRPCService:
+class TradingSystemsGRPCService(TradingSystemsPersisterBase):
 
     def __init__(self, channel_address: str):
         # TODO: Pass file paths into the constructor, read the files here with their paths as env variables?
@@ -131,7 +130,6 @@ class TradingSystemsGRPCService:
     def upsert_order(
         self, instrument_id: str, trading_system_id: str, order_type: str, action: str,
         created_date_time: dt.datetime | Timestamp, active: bool, direction_long: bool, 
-        # TODO: How to handle these values that are exclusive to limit orders for market orders?
         price: float | None=None, max_duration: int | None=None, duration: int | None=None
     ) -> CUD:
         req = Order(
@@ -197,10 +195,20 @@ class TradingSystemsGRPCService:
         req = GetBy(str_identifier=instrument_id, alt_str_identifier=trading_system_id)
         res = self.__client.GetPositions(req)
         if res.positions:
-            positions_list = list(res.positions)
-            # return [pickle.loads(position.serialized_position) for position in positions_list]
-            positions = [pickle.loads(position.serialized_position) for position in positions_list]
-            return [position for position in positions if position.active == False]
+            positions = list(res.positions)
+            return [pickle.loads(position.serialized_position) for position in positions]
+        else:
+            return None
+
+    @grpc_error_handler(default_return=None)
+    def get_trading_system_positions(
+        self, trading_system_id: str, num_of_positions: int
+    ) -> Positions | None:
+        req = GetBy(str_identifier=trading_system_id, alt_int_identifier=num_of_positions)
+        res = self.__client.GetTradingSystemPositions(req)
+        if res.positions:
+            positions = list(res.positions)
+            return [pickle.loads(position.serialized_position) for position in positions]
         else:
             return None
 

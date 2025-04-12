@@ -5,7 +5,7 @@ import numpy as np
 
 from trading.data.metadata.trading_system_attributes import classproperty
 
-from persistance.stonkinator_mongo_db.instruments_mongo_db import InstrumentsMongoDb
+from persistance.persistance_meta_classes.securities_service import SecuritiesServiceBase
 from persistance.persistance_meta_classes.trading_systems_persister import TradingSystemsPersisterBase
 
 from trading_systems.trading_system_properties import TradingSystemProperties
@@ -48,10 +48,7 @@ class TradingSystemBase(metaclass=ABCMeta):
     @classmethod
     @abstractmethod
     def get_properties(
-        cls, instruments_db: InstrumentsMongoDb, 
-        target_period: int, 
-        import_instruments: bool, 
-        path: str | None
+        cls, securities_service: SecuritiesServiceBase
     ) -> TradingSystemProperties:
         ...
 
@@ -82,7 +79,7 @@ class MLTradingSystemBase(TradingSystemBase):
     @abstractmethod
     def operate_models(
         cls, 
-        systems_db: TradingSystemsPersisterBase,
+        trading_systems_persister: TradingSystemsPersisterBase,
         data_dict: dict[str, pd.DataFrame],
         target_period: int
     ) -> dict[str, pd.DataFrame]:
@@ -92,7 +89,7 @@ class MLTradingSystemBase(TradingSystemBase):
     @abstractmethod
     def make_predictions(
         cls, 
-        systems_db: TradingSystemsPersisterBase,
+        trading_systems_persister: TradingSystemsPersisterBase,
         data_dict: dict[str, pd.DataFrame],
         pred_features_data_dict: dict[str, np.ndarray]
     ) -> dict[str, pd.DataFrame]:

@@ -26,7 +26,10 @@ class TradingSystemSignals:
         """
 
         if self.__data_list:
-            return pd.DataFrame(instrument['data'] for instrument in self.__data_list)
+            return pd.DataFrame(
+                instrument[TradingSystemAttributes.DATA_KEY]
+                for instrument in self.__data_list
+            )
         else:
             return None
 
@@ -51,7 +54,7 @@ class TradingSystemSignals:
                 x.get(TradingSystemAttributes.INSTRUMENT_ID),
                 x.get(TradingSystemAttributes.SYMBOL)
             ): 
-                x['data'][position_sizing_metric_str] 
+                x[TradingSystemAttributes.DATA_KEY][position_sizing_metric_str] 
             for x in self.__data_list
         }
 
@@ -74,7 +77,7 @@ class TradingSystemSignals:
             {
                 TradingSystemAttributes.INSTRUMENT_ID: instrument_id,
                 TradingSystemAttributes.SYMBOL: symbol,
-                'data': data_dict
+                TradingSystemAttributes.DATA_KEY: data_dict
             }
         )
 
@@ -96,11 +99,11 @@ class TradingSystemSignals:
                 instrument_dict.get(TradingSystemAttributes.SYMBOL) == 
                 evaluation_data_dict.get(TradingSystemAttributes.SYMBOL)
             ):
-                instrument_data: dict = instrument_dict.get('data')
+                instrument_data: dict = instrument_dict.get(TradingSystemAttributes.DATA_KEY)
                 if instrument_data is not None:
                     assert (
                         isinstance(instrument_data, dict),
-                        "The value mapping to the 'data' key in 'instrument_dict' "
+                        "The value mapping to the DATA_KEY key in 'instrument_dict' "
                         "does not have the right type."
                     )
                     instrument_data.update(evaluation_data_dict)

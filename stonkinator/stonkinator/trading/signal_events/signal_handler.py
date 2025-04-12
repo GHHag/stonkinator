@@ -1,10 +1,11 @@
 from trading.position.order import Order
 from trading.position.position import Position
+from trading.data.metadata.trading_system_attributes import TradingSystemAttributes
 from trading.signal_events.signals.entry_signal import EntrySignals
 from trading.signal_events.signals.exit_signal import ExitSignals
 from trading.signal_events.signals.active_position import ActivePositions
 
-from persistance.persistance_meta_classes.signals_persister import SignalsPersisterBase
+from persistance.persistance_meta_classes.trading_systems_persister import TradingSystemsPersisterBase
 
 
 class SignalHandler:
@@ -42,13 +43,15 @@ class SignalHandler:
     def current_position(self, value: tuple[Position | None, str]):
         self.__current_position = value
 
-    def handle_entry_signal(self, symbol, data_dict):
+    def handle_entry_signal(self, instrument_id, symbol, data_dict):
         """
         Calls the __entry_signals members add_signal_data method,
         passing it the given symbol and data_dict.
 
         Parameters
         ----------
+        :param instrument_id:
+            'str' : Identifier of an instrument.
         :param symbol:
             'str' : The symbol/ticker of an asset.
         :param data_dict:
@@ -56,37 +59,41 @@ class SignalHandler:
         """
 
         self.__entry_signal_given = True
-        self.__entry_signals.add_data(symbol, data_dict)
+        self.__entry_signals.add_data(instrument_id, symbol, data_dict)
 
-    def handle_active_position(self, symbol, data_dict):
+    def handle_active_position(self, instrument_id, symbol, data_dict):
         """
         Calls the __active_positions members add_data method,
         passing it the given symbol and data_dict.
 
         Parameters
         ----------
+        :param instrument_id:
+            'str' : Identifier of an instrument.
         :param symbol:
             'str' : The symbol/ticker of an asset.
         :param data_dict:
             'dict' : Data to be handled.
         """
 
-        self.__active_positions.add_data(symbol, data_dict)
+        self.__active_positions.add_data(instrument_id, symbol, data_dict)
 
-    def handle_exit_signal(self, symbol, data_dict):
+    def handle_exit_signal(self, instrument_id, symbol, data_dict):
         """
         Calls the __exit_signals members add_signal_data method,
         passing it the given symbol and data_dict.
 
         Parameters
         ----------
+        :param instrument_id:
+            'str' : Identifier of an instrument.
         :param symbol:
             'str' : The symbol/ticker of an asset.
         :param data_dict:
             'dict' : Data to be handled.
         """
 
-        self.__exit_signals.add_data(symbol, data_dict)
+        self.__exit_signals.add_data(instrument_id, symbol, data_dict)
 
     def _execute_signals(self):
         # TODO: Implement functionality to be able to connect to brokers
@@ -136,44 +143,58 @@ class SignalHandler:
             if self.__exit_signals.dataframe is not None:
                 self.__exit_signals.dataframe.to_csv(path, mode='a')
 
-    def insert_into_db(self, db: SignalsPersisterBase, system_name):
+    def insert_into_db(
+        self, trading_systems_persister: TradingSystemsPersisterBase, trading_system_id
+    ):
         """
-        Insert data into database from the dataframes that holds data 
-        and stats for signals and positions.
+        Passes data from the dataframes that holds data and stats for 
+        signals and positions to a trading systems persister service.
 
         Parameters
         ----------
-        :param db:
-            'SignalsPersisterBase' : A database object of a class that
-            implements the 'SignalsPersisterBase' meta class.
-        :param system_name:
-            'str' : The name of a system which it will be identified by in
-            in the database.
+        :param trading_systems_persister:
+            'TradingSystemsPersisterBase' : Instance of a class that implements 
+            the TradingSystemsPersisterBase meta class. Client for service that 
+            handles data persistance.
+        :param trading_system_id:
+            'str': Identifier of a trading system.
         """
 
         if self.__entry_signals.dataframe is not None:
-            insert_successful = db.insert_market_state_data(
-                system_name, self.__entry_signals.dataframe.to_json(orient='table')
-            )
-
-            if not insert_successful:
-                raise Exception('DatabaseInsertException, failed to insert to database.')
+            for data_p in self.__entry_signals.data_list:
+                data: dict = data_p.get(TradingSystemAttributes.DATA_KEY)
+                instrument_id = data_p.get(TradingSystemAttributes.INSTRUMENT_ID)
+                signal_dt = data.pop(TradingSystemAttributes.SIGNAL_DT)
+                action = data.pop(TradingSystemAttributes.MARKET_STATE)
+                data.pop(TradingSystemAttributes.ORDER)
+                if data is not None and instrument_id is not None:
+                    trading_systems_persister.upsert_market_state(
+                        instrument_id, trading_system_id, data, action, signal_date_time=signal_dt
+                    )
 
         if self.__active_positions.dataframe is not None:
-            insert_successful = db.insert_market_state_data(
-                system_name, self.__active_positions.dataframe.to_json(orient='table')
-            )
-
-            if not insert_successful:
-                raise Exception('DatabaseInsertException, failed to insert to database.')
+            for data_p in self.__active_positions.data_list:
+                data: dict = data_p.get(TradingSystemAttributes.DATA_KEY)
+                instrument_id = data_p.get(TradingSystemAttributes.INSTRUMENT_ID)
+                signal_dt = data.pop(TradingSystemAttributes.SIGNAL_DT)
+                action = data.pop(TradingSystemAttributes.MARKET_STATE)
+                data.pop(TradingSystemAttributes.ORDER)
+                if data is not None and instrument_id is not None:
+                    trading_systems_persister.upsert_market_state(
+                        instrument_id, trading_system_id, data, action, signal_date_time=signal_dt
+                    )
 
         if self.__exit_signals.dataframe is not None:
-            insert_successful = db.insert_market_state_data(
-                system_name, self.__exit_signals.dataframe.to_json(orient='table')
-            )
-
-            if not insert_successful:
-                raise Exception('DatabaseInsertException, failed to insert to database.')
+            for data_p in self.__exit_signals.data_list:
+                data: dict = data_p.get(TradingSystemAttributes.DATA_KEY)
+                instrument_id = data_p.get(TradingSystemAttributes.INSTRUMENT_ID)
+                signal_dt = data.pop(TradingSystemAttributes.SIGNAL_DT)
+                action = data.pop(TradingSystemAttributes.MARKET_STATE)
+                data.pop(TradingSystemAttributes.ORDER)
+                if data is not None and instrument_id is not None:
+                    trading_systems_persister.upsert_market_state(
+                        instrument_id, trading_system_id, data, action, signal_date_time=signal_dt
+                    )
 
     def get_position_sizing_dict(self, position_sizing_metric_str):
         """

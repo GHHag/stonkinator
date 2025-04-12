@@ -1,68 +1,70 @@
 from abc import ABCMeta, abstractmethod
 
-from persistance.persistance_meta_classes.signals_persister import SignalsPersisterBase
 
-
-class TradingSystemsPersisterBase(SignalsPersisterBase):
+class TradingSystemsPersisterBase(metaclass=ABCMeta):
 
     __metaclass__ = ABCMeta
 
     @abstractmethod
-    def get_system_metrics(self):
+    def get_or_insert_trading_system(self):
         ...
 
     @abstractmethod
-    def update_current_datetime(self):
+    def update_trading_system_metrics(self):
         ...
 
     @abstractmethod
-    def get_current_datetime(self):
+    def upsert_market_state(self):
         ...
 
     @abstractmethod
-    def insert_position_list(self):
+    def get_market_states(self):
         ...
 
     @abstractmethod
-    def insert_position(self):
+    def update_current_date_time(self):
         ...
 
     @abstractmethod
-    def get_position_list(self):
+    def get_current_date_time(self):
         ...
 
     @abstractmethod
-    def insert_single_symbol_position_list(self):
+    def upsert_order(self):
         ...
 
     @abstractmethod
-    def insert_single_symbol_position(self):
+    def get_order(self):
         ...
 
     @abstractmethod
-    def get_single_symbol_position_list(self):
+    def upsert_position(self):
         ...
 
     @abstractmethod
-    def get_single_symbol_latest_position(self):
+    def insert_positions(self):
         ...
 
     @abstractmethod
-    def insert_current_position(self):
+    def get_position(self):
         ...
 
     @abstractmethod
-    def get_current_position(self):
+    def get_positions(self):
         ...
 
     @abstractmethod
-    def increment_num_of_periods(self):
+    def get_trading_system_positions(self):
         ...
 
     @abstractmethod
-    def insert_ml_model(self):
+    def remove_trading_system_relations(self):
         ...
 
     @abstractmethod
-    def get_ml_model(self):
+    def insert_trading_system_model(self):
+        ...
+
+    @abstractmethod
+    def get_trading_system_model(self):
         ...

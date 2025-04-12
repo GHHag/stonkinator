@@ -25,6 +25,7 @@ from persistance.persistance_services.securities_service_pb2 import (
 from persistance.persistance_services.securities_service_pb2_grpc import (
     SecuritiesServiceStub
 )
+from persistance.persistance_meta_classes.securities_service import SecuritiesServiceBase
 
 
 LOG_DIR_PATH = os.environ.get("LOG_DIR_PATH")
@@ -50,7 +51,7 @@ def grpc_error_handler(default_return=None):
     return decorator
  
 
-class SecuritiesGRPCService:
+class SecuritiesGRPCService(SecuritiesServiceBase):
 
     def __init__(self, channel_address):
         # TODO: Pass file paths into the constructor, read the files here with their paths as env variables?
