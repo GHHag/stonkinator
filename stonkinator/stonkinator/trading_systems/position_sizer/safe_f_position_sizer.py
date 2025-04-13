@@ -1,6 +1,5 @@
 import random
 
-import numpy as np
 import pandas as pd
 
 from trading.data.metadata.trading_system_attributes import TradingSystemAttributes
@@ -46,15 +45,15 @@ class SafeFPositionSizer(PositionSizer):
             for ki, vi in v.items():
                 if not ki in pos_sizer_data:
                     pos_sizer_data[ki] = {}
-                    pos_sizer_data[ki][TradingSystemAttributes.SYMBOL] = ki
+                    pos_sizer_data[ki][TradingSystemAttributes.INSTRUMENT_ID] = ki
                 pos_sizer_data[ki][k] = vi
 
-        return {'data': list(pos_sizer_data.values())}
+        return {TradingSystemAttributes.DATA_KEY: list(pos_sizer_data.values())}
 
     def _monte_carlo_simulate_pos_sequence(
-        self, positions: list[Position], num_testing_periods, start_capital,
-        capital_fraction=1.0, num_of_sims=1000, data_fraction_used=0.66, 
-        symbol='', print_dataframe=False, plot_fig=False, **kwargs
+        self, positions: list[Position], num_testing_periods, start_capital, instrument_id,
+        capital_fraction=1.0, num_of_sims=1000, data_fraction_used=0.66,
+        print_dataframe=False, plot_fig=False, **kwargs
     ):
         monte_carlo_sims_df = pd.DataFrame()
         final_equity_list = []
@@ -68,7 +67,7 @@ class SafeFPositionSizer(PositionSizer):
 
         for _ in range(num_of_sims):
             sim_positions = PositionManager(
-                symbol, int(num_testing_periods * data_fraction_used + 0.5), start_capital,
+                instrument_id, int(num_testing_periods * data_fraction_used + 0.5), start_capital,
                 capital_fraction
             )
 
@@ -102,16 +101,16 @@ class SafeFPositionSizer(PositionSizer):
             print(monte_carlo_sims_df.to_string())
         if plot_fig:
             monte_carlo_simulations_plot(
-                symbol, equity_curves_list, max_drawdowns_list, final_equity_list,
+                instrument_id, equity_curves_list, max_drawdowns_list, final_equity_list,
                 capital_fraction, car25, car75
             )
 
         return monte_carlo_sims_df
 
     def __call__(
-        self, position_list: list[Position], num_of_periods, 
+        self, position_list: list[Position], num_of_periods, instrument_id,
         avg_yearly_periods=251, years_to_forecast=2, persistant_safe_f=None,
-        capital=10000, num_of_sims=2500, symbol='', plot_fig=False, 
+        capital=10000, num_of_sims=2500, plot_fig=False, 
         **kwargs
     ):
         position_list = position_list if position_list[-1].entry_dt else position_list[:-1]
@@ -128,10 +127,9 @@ class SafeFPositionSizer(PositionSizer):
 
         # simulate sequences of given Position objects
         monte_carlo_sims_df: pd.DataFrame = self._monte_carlo_simulate_pos_sequence(
-            position_list, num_of_periods, capital, 
-            capital_fraction=persistant_safe_f[symbol] if symbol in persistant_safe_f else 1.0, 
-            num_of_sims=num_of_sims, data_fraction_used=forecast_data_fraction,
-            symbol=symbol, plot_fig=plot_fig 
+            position_list, num_of_periods, capital, instrument_id,
+            capital_fraction=persistant_safe_f[instrument_id] if instrument_id in persistant_safe_f else 1.0,
+            num_of_sims=num_of_sims, data_fraction_used=forecast_data_fraction, plot_fig=plot_fig 
         )
 
         # sort the Max drawdown column and convert to a list
@@ -143,13 +141,13 @@ class SafeFPositionSizer(PositionSizer):
         if dd_at_tolerated_threshold < 1:
             dd_at_tolerated_threshold = 1
 
-        if not symbol in persistant_safe_f:
+        if not instrument_id in persistant_safe_f:
             safe_f = self.__tol_pct_max_dd / dd_at_tolerated_threshold
         else:
-            safe_f = persistant_safe_f[symbol]
+            safe_f = persistant_safe_f[instrument_id]
 
-        self.__position_sizer_data_dict[self.__POSITION_SIZE_METRIC_STR][symbol] = safe_f
-        self.__position_sizer_data_dict[self.__CAPITAL_FRACTION][symbol] = safe_f
-        self.__position_sizer_data_dict[self.__PERSISTANT_SAFE_F][symbol] = safe_f
-        self.__position_sizer_data_dict[self.__CAR25][symbol] = monte_carlo_sims_df.iloc[-1][self.__CAR25]
-        self.__position_sizer_data_dict[self.__CAR75][symbol] = monte_carlo_sims_df.iloc[-1][self.__CAR75]
+        self.__position_sizer_data_dict[self.__POSITION_SIZE_METRIC_STR][instrument_id] = safe_f
+        self.__position_sizer_data_dict[self.__CAPITAL_FRACTION][instrument_id] = safe_f
+        self.__position_sizer_data_dict[self.__PERSISTANT_SAFE_F][instrument_id] = safe_f
+        self.__position_sizer_data_dict[self.__CAR25][instrument_id] = monte_carlo_sims_df.iloc[-1][self.__CAR25]
+        self.__position_sizer_data_dict[self.__CAR75][instrument_id] = monte_carlo_sims_df.iloc[-1][self.__CAR75]

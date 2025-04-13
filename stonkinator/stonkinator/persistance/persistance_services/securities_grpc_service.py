@@ -39,7 +39,7 @@ handler = logging.FileHandler(f"{LOG_DIR_PATH}{logger_name}.log")
 logger.addHandler(handler)
 
 
-def grpc_error_handler(default_return=None):
+def grpc_error_handler(logger, default_return=None):
     def decorator(func):
         def wrapper(*args, **kwargs):
             try:
@@ -66,7 +66,7 @@ class SecuritiesGRPCService(SecuritiesServiceBase):
         channel = grpc.secure_channel(channel_address, creds)
         self.__client = SecuritiesServiceStub(channel)
 
-    @grpc_error_handler(default_return=None)
+    @grpc_error_handler(logger, default_return=None)
     def insert_exchange(self, name: str, currency: str) -> CUD:
         req = Exchange(name=name, currency=currency)
         res = self.__client.InsertExchange(req)
@@ -76,19 +76,19 @@ class SecuritiesGRPCService(SecuritiesServiceBase):
         # TODO: Implement
         ...
 
-    @grpc_error_handler(default_return=None)
+    @grpc_error_handler(logger, default_return=None)
     def get_exchange(self, name: str) -> Exchange:
         req = GetBy(str_identifier=name)
         res = self.__client.GetExchange(req)
         return res
         
-    @grpc_error_handler(default_return=None)
+    @grpc_error_handler(logger, default_return=None)
     def get_exchanges(self) -> Exchanges:
         req = GetAllRequest()
         res = self.__client.GetExchanges(req)
         return res
         
-    @grpc_error_handler(default_return=None)
+    @grpc_error_handler(logger, default_return=None)
     def insert_instrument(self, exchange_id: str, name: str, symbol: str, sector: str) -> CUD:
         req = Instrument(exchange_id=exchange_id, name=name, symbol=symbol, sector=sector)
         res = self.__client.InsertInstrument(req)
@@ -98,8 +98,7 @@ class SecuritiesGRPCService(SecuritiesServiceBase):
         # TODO: Implement
         ...
 
-    # TODO: Is this method needed or not?
-    @grpc_error_handler(default_return=None)
+    @grpc_error_handler(logger, default_return=None)
     def get_instrument(self, symbol: str) -> Instrument:
         req = GetBy(str_identifier=symbol)
         res = self.__client.GetInstrument(req)
@@ -109,19 +108,19 @@ class SecuritiesGRPCService(SecuritiesServiceBase):
         # TODO: Implement
         ...
 
-    @grpc_error_handler(default_return=None)
+    @grpc_error_handler(logger, default_return=None)
     def get_date_time(self, instrument_id: str, min=True) -> DateTime:
         req = GetDateTimeRequest(instrument_id=instrument_id, min=min)
         res = self.__client.GetDateTime(req)
         return res
 
-    @grpc_error_handler(default_return=None)
+    @grpc_error_handler(logger, default_return=None)
     def get_last_date(self, symbol_1: str, symbol_2: str) -> DateTime:
         req = GetLastDateRequest(symbol_1=symbol_1, symbol_2=symbol_2)
         res = self.__client.GetLastDate(req)
         return res
 
-    @grpc_error_handler(default_return=None)
+    @grpc_error_handler(logger, default_return=None)
     def insert_price(
         self, instrument_id: str, open_price: float, high_price: float,
         low_price: float, close_price: float, volume: int, date_time: dt.datetime
@@ -134,13 +133,13 @@ class SecuritiesGRPCService(SecuritiesServiceBase):
         res = self.__client.InsertPrice(req)
         return res
 
-    @grpc_error_handler(default_return=None)
+    @grpc_error_handler(logger, default_return=None)
     def insert_price_data(self, price_data: list[Price]) -> CUD:
         req = PriceData(price_data=price_data)
         res = self.__client.InsertPriceData(req)
         return res
 
-    @grpc_error_handler(default_return=None)
+    @grpc_error_handler(logger, default_return=None)
     def get_price_data(
         self, instrument_id: str, start_date_time: dt.datetime, end_date_time: dt.datetime
     ) -> PriceData:
@@ -160,7 +159,7 @@ class SecuritiesGRPCService(SecuritiesServiceBase):
         # TODO: Implement
         ...
 
-    @grpc_error_handler(default_return=None)
+    @grpc_error_handler(logger, default_return=None)
     def get_exchange_instruments(self, exchange_id: str) -> Instruments:
         req = GetBy(str_identifier=exchange_id)
         res = self.__client.GetExchangeInstruments(req)
@@ -174,7 +173,7 @@ class SecuritiesGRPCService(SecuritiesServiceBase):
         # TODO: Implement
         ...
 
-    @grpc_error_handler(default_return=None)
+    @grpc_error_handler(logger, default_return=None)
     def get_market_list_instruments(self, name: str) -> Instruments:
         req = GetBy(str_identifier=name)
         res = self.__client.GetMarketListInstruments(req)

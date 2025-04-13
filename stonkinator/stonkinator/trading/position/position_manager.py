@@ -8,8 +8,8 @@ class PositionManager:
 
     Parameters
     ----------
-    symbol : 'str'
-        The symbol/ticker of an asset.
+    identifier : 'str'
+        Identifier of an asset.
     num_testing_periods : 'int'
         The number of periods in the data set.
     start_capital : 'int/float'
@@ -21,10 +21,10 @@ class PositionManager:
     """
 
     def __init__(
-        self, symbol, num_testing_periods, start_capital, capital_fraction, 
+        self, identifier, num_testing_periods, start_capital, capital_fraction, 
         asset_price_series=None
     ):
-        self.__symbol = symbol
+        self.__identifier = identifier
         self.__asset_price_series = asset_price_series
         self.__num_testing_periods = num_testing_periods
         self.__start_capital = start_capital
@@ -36,15 +36,15 @@ class PositionManager:
         self.__metrics = None
 
     @property
-    def symbol(self):
+    def identifier(self):
         """
-        The symbol/ticker of an asset.
+        The identifier of an asset.
 
         :return:
             'str'
         """
 
-        return self.__symbol
+        return self.__identifier
 
     @property
     def position_list(self) -> list[Position]:
@@ -98,7 +98,7 @@ class PositionManager:
             print('No positions generated.')
         else:
             self.__metrics = Metrics(
-                self.__symbol, self.__start_capital, self.__num_testing_periods
+                self.__identifier, self.__start_capital, self.__num_testing_periods
             )
             self.__metrics.calculate_metrics(
                 self.__generated_positions, self.__asset_price_series

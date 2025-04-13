@@ -8,6 +8,7 @@ import pickle
 import grpc
 from pandas import Timestamp
 
+from persistance.persistance_services.securities_grpc_service import grpc_error_handler
 from persistance.persistance_meta_classes.trading_systems_persister import TradingSystemsPersisterBase
 from persistance.persistance_services.general_messages_pb2 import (
     CUD,
@@ -41,18 +42,6 @@ handler = logging.FileHandler(f"{LOG_DIR_PATH}{logger_name}.log")
 logger.addHandler(handler)
 
 
-def grpc_error_handler(default_return=None):
-    def decorator(func):
-        def wrapper(*args, **kwargs):
-            try:
-                return func(*args, **kwargs)
-            except grpc.RpcError as e:
-                logger.error(f"error in {func.__name__}\n{e}")
-                return default_return        
-        return wrapper
-    return decorator
-
-
 class TradingSystemsGRPCService(TradingSystemsPersisterBase):
 
     def __init__(self, channel_address: str):
@@ -68,7 +57,7 @@ class TradingSystemsGRPCService(TradingSystemsPersisterBase):
         channel = grpc.secure_channel(channel_address, creds)
         self.__client = TradingSystemsServiceStub(channel)
 
-    @grpc_error_handler(default_return=None)
+    @grpc_error_handler(logger, default_return=None)
     def get_or_insert_trading_system(
         self, name: str, current_date_time: dt.datetime | Timestamp
     ) -> TradingSystem:
@@ -78,19 +67,19 @@ class TradingSystemsGRPCService(TradingSystemsPersisterBase):
         res = self.__client.GetOrInsertTradingSystem(req)
         return res
 
-    @grpc_error_handler(default_return=None)
+    @grpc_error_handler(logger, default_return=None)
     def update_trading_system_metrics(self, id: str, metrics: dict) -> CUD:
         req = TradingSystem(id=id, metrics=json.dumps(metrics))
         res = self.__client.UpdateTradingSystemMetrics(req)
         return res
 
-    @grpc_error_handler(default_return=None)
+    @grpc_error_handler(logger, default_return=None)
     def remove_trading_system_relations(self, trading_system_id: str) -> CUD:
         req = OperateOn(str_identifier=trading_system_id)
         res = self.__client.RemoveTradingSystemRelations(req)
         return res
 
-    @grpc_error_handler(default_return=None)
+    @grpc_error_handler(logger, default_return=None)
     def upsert_market_state(
         self, instrument_id: str, trading_system_id: str, metrics: dict, 
         action: str | None=None, signal_date_time: dt.datetime | Timestamp | None=None
@@ -103,13 +92,13 @@ class TradingSystemsGRPCService(TradingSystemsPersisterBase):
         res = self.__client.UpsertMarketState(req)
         return res
 
-    @grpc_error_handler(default_return=None)
+    @grpc_error_handler(logger, default_return=None)
     def get_market_states(self, instrument_id: str, action: str) -> MarketStates:
         req = GetBy(str_identifier=instrument_id, alt_str_identifier=action)
         res = self.__client.GetMarketStates(req)
         return res
 
-    @grpc_error_handler(default_return=None)
+    @grpc_error_handler(logger, default_return=None)
     def update_current_date_time(
         self, trading_system_id: str, current_date_time: dt.datetime | Timestamp
     ) -> CUD:
@@ -120,13 +109,13 @@ class TradingSystemsGRPCService(TradingSystemsPersisterBase):
         res = self.__client.UpdateCurrentDateTime(req)
         return res
 
-    @grpc_error_handler(default_return=None)
+    @grpc_error_handler(logger, default_return=None)
     def get_current_date_time(self, trading_system_id: str) -> DateTime:
         req = GetBy(str_identifier=trading_system_id)
         res = self.__client.GetCurrentDateTime(req)
         return res
 
-    @grpc_error_handler(default_return=None)
+    @grpc_error_handler(logger, default_return=None)
     def upsert_order(
         self, instrument_id: str, trading_system_id: str, order_type: str, action: str,
         created_date_time: dt.datetime | Timestamp, active: bool, direction_long: bool, 
@@ -142,7 +131,7 @@ class TradingSystemsGRPCService(TradingSystemsPersisterBase):
         res = self.__client.UpsertOrder(req)
         return res
 
-    @grpc_error_handler(default_return=None)
+    @grpc_error_handler(logger, default_return=None)
     def get_order(self, instrument_id: str, trading_system_id: str) -> Order:
         req = GetBy(str_identifier=instrument_id, alt_str_identifier=trading_system_id)
         res = self.__client.GetOrder(req)
@@ -151,7 +140,7 @@ class TradingSystemsGRPCService(TradingSystemsPersisterBase):
         else:
             return None
 
-    @grpc_error_handler(default_return=None)
+    @grpc_error_handler(logger, default_return=None)
     def upsert_position(
         self, instrument_id: str, trading_system_id: str, date_time: dt.datetime | Timestamp,
         position_data: dict, position, id: str | None=None
@@ -164,7 +153,7 @@ class TradingSystemsGRPCService(TradingSystemsPersisterBase):
         res = self.__client.UpsertPosition(req)
         return res
 
-    @grpc_error_handler(default_return=None)
+    @grpc_error_handler(logger, default_return=None)
     def insert_positions(
         self, instrument_id: str, trading_system_id: str, positions: list
     ) -> CUD:
@@ -181,7 +170,7 @@ class TradingSystemsGRPCService(TradingSystemsPersisterBase):
         res = self.__client.InsertPositions(req)
         return res
 
-    @grpc_error_handler(default_return=None)
+    @grpc_error_handler(logger, default_return=None)
     def get_position(self, instrument_id: str, trading_system_id: str):
         req = GetBy(str_identifier=instrument_id, alt_str_identifier=trading_system_id)
         res = self.__client.GetPosition(req)
@@ -190,7 +179,7 @@ class TradingSystemsGRPCService(TradingSystemsPersisterBase):
         else:
             return None, None
 
-    @grpc_error_handler(default_return=None)
+    @grpc_error_handler(logger, default_return=None)
     def get_positions(self, instrument_id: str, trading_system_id: str) -> Positions | None:
         req = GetBy(str_identifier=instrument_id, alt_str_identifier=trading_system_id)
         res = self.__client.GetPositions(req)
@@ -200,7 +189,7 @@ class TradingSystemsGRPCService(TradingSystemsPersisterBase):
         else:
             return None
 
-    @grpc_error_handler(default_return=None)
+    @grpc_error_handler(logger, default_return=None)
     def get_trading_system_positions(
         self, trading_system_id: str, num_of_positions: int
     ) -> Positions | None:
@@ -212,7 +201,7 @@ class TradingSystemsGRPCService(TradingSystemsPersisterBase):
         else:
             return None
 
-    @grpc_error_handler(default_return=None)
+    @grpc_error_handler(logger, default_return=None)
     def insert_trading_system_model(
         self, trading_system_id: str, instrument_id: str, serialized_model: bytes
     ) -> CUD:
@@ -223,7 +212,7 @@ class TradingSystemsGRPCService(TradingSystemsPersisterBase):
         res = self.__client.InsertTradingSystemModel(req)
         return res
 
-    @grpc_error_handler(default_return=None)
+    @grpc_error_handler(logger, default_return=None)
     def get_trading_system_model(
         self, trading_system_id: str, instrument_id: str | None=None
     ) -> TradingSystemModel:
