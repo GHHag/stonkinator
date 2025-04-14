@@ -13,8 +13,9 @@ from trading.trading_system.trading_system import TradingSystem
 
 from persistance.persistance_services.securities_service_pb2 import Instrument
 from persistance.persistance_services.dal_grpc import price_data_get
+from persistance.persistance_meta_classes.securities_service import SecuritiesServiceBase
 from persistance.persistance_services.securities_grpc_service import SecuritiesGRPCService
-from persistance.stonkinator_mongo_db.systems_mongo_db import TradingSystemsMongoDb
+from persistance.persistance_services.trading_systems_grpc_service import TradingSystemsGRPCService
 
 from trading_systems.trading_system_base import TradingSystemBase
 from trading_systems.trading_system_properties import TradingSystemProperties
@@ -110,25 +111,25 @@ class TradingSystemExample(TradingSystemBase):
 
     @staticmethod
     def preprocess_data(
-        securities_grpc_service: SecuritiesGRPCService,
+        securities_service: SecuritiesServiceBase,
         instruments_list: list[Instrument], 
         benchmark_instrument: Instrument,
         get_data_function: Callable[[str, dt.datetime, dt.datetime], pd.DataFrame | None],
         entry_args: dict, exit_args: dict,
         start_dt: dt.datetime, end_dt: dt.datetime,
         ts_processor: TradingSystemProcessor | None=None
-    ) -> tuple[dict[str, pd.DataFrame], None]:
-        data_dict: dict[str, pd.DataFrame] = {}
+    ) -> tuple[dict[tuple[str, str], pd.DataFrame], None]:
+        data_dict: dict[tuple[str, str], pd.DataFrame] = {}
         for instrument in instruments_list:
-            df = get_data_function(securities_grpc_service, instrument.id, start_dt, end_dt)
+            df = get_data_function(securities_service, instrument.id, start_dt, end_dt)
             if df is None:
                 continue
-            data_dict[instrument.symbol] = df
+            data_dict[(instrument.id, instrument.symbol)] = df
 
         benchmark_col_suffix = '_benchmark'
-        df_benchmark = get_data_function(securities_grpc_service, benchmark_instrument.id, start_dt, end_dt)
+        df_benchmark = get_data_function(securities_service, benchmark_instrument.id, start_dt, end_dt)
         if df_benchmark is not None:
-            df_benchmark = df_benchmark.drop('instrument_id', axis=1)
+            df_benchmark = df_benchmark.drop(TradingSystemAttributes.INSTRUMENT_ID, axis=1)
             df_benchmark = df_benchmark.rename(
                 columns={
                     Price.OPEN: f'{Price.OPEN}{benchmark_col_suffix}', 
@@ -143,10 +144,10 @@ class TradingSystemExample(TradingSystemBase):
                 ts_processor.penult_dt = pd.to_datetime(df_benchmark[Price.DT].iloc[-2])
                 ts_processor.current_dt = pd.to_datetime(df_benchmark[Price.DT].iloc[-1])
 
-        for symbol, data in data_dict.items():
+        instruments_to_remove = []
+        for instrument, data in data_dict.items():
             if data.empty or len(data) < entry_args.get(TradingSystemAttributes.REQ_PERIOD_ITERS):
-                print(symbol, 'DataFrame empty')
-                del data_dict[symbol]
+                instruments_to_remove.append(instrument)
             else:
                 df_benchmark[Price.DT] = pd.to_datetime(df_benchmark[Price.DT])
                 data[Price.DT] = pd.to_datetime(data[Price.DT])
@@ -158,14 +159,16 @@ class TradingSystemExample(TradingSystemBase):
                 # apply indicators/features to dataframe
                 data['SMA'] = data[Price.CLOSE].rolling(20).mean()
 
-                data_dict[symbol] = data.dropna()
+                data_dict[instrument] = data.dropna()
+        for instrument in instruments_to_remove:
+            data_dict.pop(instrument)
         return data_dict, None
 
     @classmethod
-    def get_properties(cls, securities_grpc_service: SecuritiesGRPCService):
+    def get_properties(cls, securities_service: SecuritiesServiceBase):
         required_runs = 2
 
-        omxs_large_caps_instruments_list = securities_grpc_service.get_market_list_instruments(
+        omxs_large_caps_instruments_list = securities_service.get_market_list_instruments(
             "omxs_large_caps"
         )
         omxs_large_caps_instruments_list = (
@@ -173,7 +176,7 @@ class TradingSystemExample(TradingSystemBase):
             if omxs_large_caps_instruments_list
             else None
         )
-        omxs_mid_caps_instruments_list = securities_grpc_service.get_market_list_instruments(
+        omxs_mid_caps_instruments_list = securities_service.get_market_list_instruments(
             "omxs_mid_caps"
         )
         omxs_mid_caps_instruments_list = (
@@ -183,7 +186,7 @@ class TradingSystemExample(TradingSystemBase):
         )
         instruments_list = omxs_large_caps_instruments_list + omxs_mid_caps_instruments_list
 
-        benchmark_instrument = securities_grpc_service.get_instrument("^OMX")
+        benchmark_instrument = securities_service.get_instrument("^OMX")
 
         entry_args = cls.entry_args
         exit_args = cls.exit_args
@@ -206,10 +209,10 @@ class TradingSystemExample(TradingSystemBase):
 
 
 if __name__ == '__main__':
-    import trading_systems.env as env
-    SYSTEMS_DB = TradingSystemsMongoDb(env.LOCALHOST_MONGO_DB_URL, env.SYSTEMS_DB)
-    CLIENT_DB = TradingSystemsMongoDb(env.LOCALHOST_MONGO_DB_URL, env.CLIENT_DB)
     securities_grpc_service = SecuritiesGRPCService(
+        f"{os.environ.get('RPC_SERVICE_HOST')}:{os.environ.get('RPC_SERVICE_PORT')}"
+    )
+    trading_systems_grpc_service = TradingSystemsGRPCService(
         f"{os.environ.get('RPC_SERVICE_HOST')}:{os.environ.get('RPC_SERVICE_PORT')}"
     )
 
@@ -230,7 +233,7 @@ if __name__ == '__main__':
         TradingSystemExample.name,
         TradingSystemExample.entry_signal_logic,
         TradingSystemExample.exit_signal_logic,
-        SYSTEMS_DB, CLIENT_DB
+        trading_systems_grpc_service
     )
 
     trading_system.run_trading_system_backtest(
