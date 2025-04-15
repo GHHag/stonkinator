@@ -220,6 +220,12 @@ if __name__ == '__main__':
     end_dt = dt.datetime(2011, 1, 1)
     insert_into_db = False
 
+    trading_system_proto = None
+    if insert_into_db == True:
+        trading_system_proto = trading_systems_grpc_service.get_or_insert_trading_system(
+            TradingSystemExample.name, end_dt
+        )
+
     system_props: TradingSystemProperties = TradingSystemExample.get_properties(
         securities_grpc_service
     )
@@ -230,6 +236,7 @@ if __name__ == '__main__':
     )
 
     trading_system = TradingSystem(
+        '' if not trading_system_proto else trading_system_proto.id,
         TradingSystemExample.name,
         TradingSystemExample.entry_signal_logic,
         TradingSystemExample.exit_signal_logic,

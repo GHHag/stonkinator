@@ -1,5 +1,4 @@
 #!/bin/bash
-cp .env ./stonkinator/stonkinator/trading_systems/env.py 
 
 watch=false
 run_cron=false

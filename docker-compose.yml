@@ -12,16 +12,6 @@ services:
     ports:
       - ${PG_DB_PORT_EXP}:${PG_DB_PORT}
 
-  mongodb:
-    image: mongo
-    environment:
-      MONGO_INITDB_ROOT_USERNAME: ${MDB_USER}
-      MONGO_INITDB_ROOT_PASSWORD: ${MDB_PASSWORD}
-    volumes:
-      - stonkinator_data:/data/db
-    ports:
-      - ${MDB_PORT_EXP}:${MDB_PORT}
-
   http_api:
     depends_on:
       - ${PG_DB_SERVICE}

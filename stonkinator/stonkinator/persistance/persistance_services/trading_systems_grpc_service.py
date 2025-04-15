@@ -29,6 +29,7 @@ from persistance.persistance_services.trading_systems_service_pb2 import (
 from persistance.persistance_services.trading_systems_service_pb2_grpc import (
     TradingSystemsServiceStub
 )
+from trading_systems.model_creation.model_creation import SKModel
 
 
 LOG_DIR_PATH = os.environ.get("LOG_DIR_PATH")
@@ -203,11 +204,11 @@ class TradingSystemsGRPCService(TradingSystemsPersisterBase):
 
     @grpc_error_handler(logger, default_return=None)
     def insert_trading_system_model(
-        self, trading_system_id: str, instrument_id: str, serialized_model: bytes
+        self, trading_system_id: str, instrument_id: str, model: SKModel
     ) -> CUD:
         req = TradingSystemModel(
             trading_system_id=trading_system_id, instrument_id=instrument_id,
-            serialized_model=serialized_model
+            serialized_model=pickle.dumps(model)
         )
         res = self.__client.InsertTradingSystemModel(req)
         return res
@@ -215,13 +216,16 @@ class TradingSystemsGRPCService(TradingSystemsPersisterBase):
     @grpc_error_handler(logger, default_return=None)
     def get_trading_system_model(
         self, trading_system_id: str, instrument_id: str | None=None
-    ) -> TradingSystemModel:
+    ) -> SKModel | None:
         if instrument_id is None:
             req = GetBy(str_identifier=trading_system_id)
         else:
             req = GetBy(str_identifier=trading_system_id, alt_str_identifier=instrument_id)
         res = self.__client.GetTradingSystemModel(req)
-        return res
+        if res.serialized_model:
+            return pickle.loads(res.serialized_model)
+        else:
+            return None
 
 
 if __name__ == '__main__':

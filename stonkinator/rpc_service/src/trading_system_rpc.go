@@ -578,19 +578,12 @@ func (s *server) GetTradingSystemPositions(ctx context.Context, req *pb.GetBy) (
 
 	query, err := s.pgPool.Query(
 		ctx,
-		// `
-		// 	SELECT id, instrument_id, trading_system_id, date_time, position_data, serialized_position
-		// 	FROM positions
-		// 	WHERE trading_system_id = $1
-		// 	AND position_data ? 'exit_price'
-		// 	ORDER BY date_time DESC
-		// 	LIMIT $2
-		// `,
 		`
 			SELECT id, instrument_id, trading_system_id, date_time, position_data, serialized_position
 			FROM positions
 			WHERE trading_system_id = $1
-			AND position_data ? 'exit_price'
+			AND position_data ? 'active'
+			AND (position_data ->> 'active')::boolean = false
 			ORDER BY position_data->>'entry_dt' DESC
 			LIMIT $2
 		`,
@@ -639,6 +632,8 @@ func (s *server) InsertTradingSystemModel(ctx context.Context, req *pb.TradingSy
 		`
 			INSERT INTO trading_system_models(trading_system_id, instrument_id, serialized_model)
 			VALUES($1, $2, $3)
+			ON CONFLICT(trading_system_id, instrument_id) DO UPDATE
+			SET serialized_model = EXCLUDED.serialized_model
 		`,
 		req.TradingSystemId, req.InstrumentId, req.SerializedModel,
 	)

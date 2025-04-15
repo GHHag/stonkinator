@@ -233,6 +233,7 @@ class Position:
     def as_dict(self):
         if self.__active == True:
             return {
+                'active': self.active,
                 'entry_dt': str(self.entry_dt),
                 'entry_price': float(self.entry_price),
                 'returns_list': [float(x) for x in self.returns_list],
@@ -242,6 +243,7 @@ class Position:
             }
         else:
             return {
+                'active': self.active,
                 'entry_dt': str(self.entry_dt),
                 'exit_dt': str(self.exit_dt),
                 'entry_price': float(self.entry_price),
