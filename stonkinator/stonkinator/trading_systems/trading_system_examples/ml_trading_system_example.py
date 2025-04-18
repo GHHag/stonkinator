@@ -125,7 +125,9 @@ class MLTradingSystemExample(MLTradingSystemBase):
         models_data_dict = cls.create_backtest_models(data_dict, features, target, model_class, params)
         inference_models_dict = cls.create_inference_models(data_dict, features, target, model_class, params)
         for (instrument_id, _), model in inference_models_dict.items():
-            trading_systems_persister.insert_trading_system_model(trading_system_id, instrument_id, model)
+            trading_systems_persister.insert_trading_system_model(
+                trading_system_id, model, optional_identifier=instrument_id
+            )
         return models_data_dict
 
     @classmethod
@@ -139,7 +141,7 @@ class MLTradingSystemExample(MLTradingSystemBase):
                 trading_system_id, instrument_id
             )
             if not model_pipeline:
-                raise ValueError('Failed to get model pipeline.')
+                raise ValueError('failed to get model pipeline')
 
             pred_data = data[features].to_numpy()
             latest_data_point = data.iloc[-1].copy()
@@ -279,8 +281,7 @@ if __name__ == '__main__':
 
     start_dt = dt.datetime(1999, 1, 1)
     end_dt = dt.datetime(2011, 1, 1)
-    create_inference_models = True
-    insert_into_db = True
+    create_models = True
     target = MLTradingSystemExample.target
 
     system_props: MLTradingSystemProperties = MLTradingSystemExample.get_properties(
@@ -302,29 +303,27 @@ if __name__ == '__main__':
     # TODO: How will the params for the inference models be determined?
     inference_params = {'max_depth': 9}
 
-    if create_inference_models == True:
+    trading_system_proto = None
+    end_dt = tsp.current_dt
+    if create_models == True:
         inference_models_dict = MLTradingSystemExample.create_inference_models(
             data_dict, features, target, system_props.model_class, inference_params
         )
-
-    trading_system_proto = None
-    end_dt = tsp.current_dt
-    if insert_into_db == True:
         trading_system_proto = trading_systems_grpc_service.get_or_insert_trading_system(
             MLTradingSystemExample.name, end_dt
         )
-        trading_systems_grpc_service.update_current_date_time(
-            trading_system_proto.id, tsp.current_dt
-        )
+        trading_system_id = trading_system_proto.id
+        trading_systems_grpc_service.remove_trading_system_relations(trading_system_id)
+        trading_systems_grpc_service.update_current_date_time(trading_system_id, end_dt)
         for (instrument_id, _), model in inference_models_dict.items():
             insert_res = trading_systems_grpc_service.insert_trading_system_model(
-               trading_system_proto.id, instrument_id, model
+               trading_system_id, model, optional_identifier=instrument_id
             )
-            if insert_res is None:
-                raise Exception('Failed to insert model.')
+            if not insert_res or insert_res.num_affected == 0:
+                raise Exception('failed to insert model')
 
     trading_system = TradingSystem(
-        '' if not trading_system_proto else trading_system_proto.id,
+        '' if not trading_system_proto else trading_system_id,
         MLTradingSystemExample.name,
         MLTradingSystemExample.entry_signal_logic,
         MLTradingSystemExample.exit_signal_logic,
@@ -339,5 +338,5 @@ if __name__ == '__main__':
         plot_performance_summary=False,
         save_summary_plot_to_path=None,
         print_data=True,
-        insert_data_to_db_bool=insert_into_db,
+        insert_data_to_db_bool=create_models,
     )

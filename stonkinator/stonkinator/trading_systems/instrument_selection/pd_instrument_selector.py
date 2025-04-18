@@ -13,7 +13,7 @@ class PdInstrumentSelector(IInstrumentSelector):
         if not isinstance(instruments_data, pd.DataFrame) or \
             not selection_metric in instruments_data.columns:
             raise Exception(
-                f'The provided pd.DataFrame is missing the given selection'  \
+                f'the provided pd.DataFrame is missing the given selection'  \
                 f'metric column {selection_metric}'
             )
 

@@ -175,7 +175,7 @@ class TradingSystemsGRPCService(TradingSystemsPersisterBase):
     def get_position(self, instrument_id: str, trading_system_id: str):
         req = GetBy(str_identifier=instrument_id, alt_str_identifier=trading_system_id)
         res = self.__client.GetPosition(req)
-        if res.serialized_position:
+        if res.id and res.serialized_position:
             return res.id, pickle.loads(res.serialized_position)
         else:
             return None, None
@@ -204,11 +204,11 @@ class TradingSystemsGRPCService(TradingSystemsPersisterBase):
 
     @grpc_error_handler(logger, default_return=None)
     def insert_trading_system_model(
-        self, trading_system_id: str, instrument_id: str, model: SKModel
+        self, trading_system_id: str, model: SKModel, optional_identifier: str=''
     ) -> CUD:
         req = TradingSystemModel(
-            trading_system_id=trading_system_id, instrument_id=instrument_id,
-            serialized_model=pickle.dumps(model)
+            trading_system_id=trading_system_id, serialized_model=pickle.dumps(model),
+            optional_identifier=optional_identifier
         )
         res = self.__client.InsertTradingSystemModel(req)
         return res

@@ -305,7 +305,7 @@ class Position:
 
         if self.__current_dt >= exit_dt:
             raise ValueError(
-                f'Date mismatch.\n'
+                f'date mismatch.\n'
                 f'self.__current_dt >= exit_dt: {self.__current_dt >= exit_dt}, '
                 'should be False'
             )

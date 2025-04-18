@@ -201,6 +201,7 @@ CREATE TABLE IF NOT EXISTS positions
 
 ---------------------------------------------------------------------------
 
+
 CREATE TABLE IF NOT EXISTS market_states
 (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
@@ -224,5 +225,9 @@ CREATE TABLE IF NOT EXISTS trading_system_models (
     instrument_id UUID REFERENCES instruments(id),
     serialized_model BYTEA NOT NULL,
     CONSTRAINT trading_system_id_fk FOREIGN KEY(trading_system_id) REFERENCES trading_systems(id),
-    UNIQUE(trading_system_id, instrument_id) --will this work with models objects that are used for multiple instruments?
+    UNIQUE(trading_system_id, instrument_id)
 );
+
+CREATE UNIQUE INDEX unique_ts_model_with_null_instrument_id
+ON trading_system_models(trading_system_id)
+WHERE instrument_id IS NULL;

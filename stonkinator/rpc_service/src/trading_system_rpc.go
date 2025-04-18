@@ -511,7 +511,10 @@ func (s *server) GetPosition(ctx context.Context, req *pb.GetBy) (*pb.Position, 
 
 	var dateTime time.Time
 	res := &pb.Position{}
-	if err := query.Scan(&res.Id, &res.InstrumentId, &res.TradingSystemId, &dateTime, &res.PositionData, &res.SerializedPosition); err != nil {
+	if err := query.Scan(&res.Id, &res.InstrumentId, &res.TradingSystemId, &dateTime, &res.PositionData, &res.SerializedPosition); err == pgx.ErrNoRows {
+		s.errorLog.Println(err)
+		return &pb.Position{}, nil
+	} else if err != nil {
 		s.errorLog.Println(err)
 		return nil, err
 	}
@@ -627,16 +630,31 @@ func (s *server) InsertTradingSystemModel(ctx context.Context, req *pb.TradingSy
 	ctx, cancel := context.WithTimeout(ctx, DB_TIMEOUT)
 	defer cancel()
 
-	result, err := s.pgPool.Exec(
-		ctx,
-		`
-			INSERT INTO trading_system_models(trading_system_id, instrument_id, serialized_model)
-			VALUES($1, $2, $3)
-			ON CONFLICT(trading_system_id, instrument_id) DO UPDATE
-			SET serialized_model = EXCLUDED.serialized_model
-		`,
-		req.TradingSystemId, req.InstrumentId, req.SerializedModel,
-	)
+	var result pgconn.CommandTag
+	var err error
+	if len(req.OptionalIdentifier) > 0 {
+		result, err = s.pgPool.Exec(
+			ctx,
+			`
+				INSERT INTO trading_system_models(trading_system_id, instrument_id, serialized_model)
+				VALUES($1, $2, $3)
+				ON CONFLICT(trading_system_id, instrument_id) DO UPDATE
+				SET serialized_model = EXCLUDED.serialized_model
+			`,
+			req.TradingSystemId, req.OptionalIdentifier, req.SerializedModel,
+		)
+	} else {
+		result, err = s.pgPool.Exec(
+			ctx,
+			`
+				INSERT INTO trading_system_models(trading_system_id, serialized_model)
+				VALUES($1, $2)
+				ON CONFLICT (trading_system_id) WHERE instrument_id IS NULL DO UPDATE
+				SET serialized_model = EXCLUDED.serialized_model
+			`,
+			req.TradingSystemId, req.SerializedModel,
+		)
+	}
 	if err != nil {
 		s.errorLog.Println(err)
 		return nil, err
@@ -655,6 +673,7 @@ func (s *server) GetTradingSystemModel(ctx context.Context, req *pb.GetBy) (*pb.
 
 	var query pgx.Row
 	altStrIdentifier := req.GetAltStrIdentifier()
+	res := &pb.TradingSystemModel{}
 	if len(altStrIdentifier) > 0 {
 		query = s.pgPool.QueryRow(
 			ctx,
@@ -666,22 +685,24 @@ func (s *server) GetTradingSystemModel(ctx context.Context, req *pb.GetBy) (*pb.
 			`,
 			req.GetStrIdentifier(), req.GetAltStrIdentifier(),
 		)
+		if err := query.Scan(&res.TradingSystemId, &res.OptionalIdentifier, &res.SerializedModel); err != nil {
+			s.errorLog.Println(err)
+			return nil, err
+		}
 	} else {
 		query = s.pgPool.QueryRow(
 			ctx,
 			`
-				SELECT trading_system_id, instrument_id, serialized_model
+				SELECT trading_system_id, serialized_model
 				FROM trading_system_models
 				WHERE trading_system_id = $1
 			`,
 			req.GetStrIdentifier(),
 		)
-	}
-
-	res := &pb.TradingSystemModel{}
-	if err := query.Scan(&res.TradingSystemId, &res.InstrumentId, &res.SerializedModel); err != nil {
-		s.errorLog.Println(err)
-		return nil, err
+		if err := query.Scan(&res.TradingSystemId, &res.SerializedModel); err != nil {
+			s.errorLog.Println(err)
+			return nil, err
+		}
 	}
 
 	return res, nil
