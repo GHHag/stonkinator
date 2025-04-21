@@ -46,12 +46,11 @@ logger.addHandler(handler)
 class TradingSystemsGRPCService(TradingSystemsPersisterBase):
 
     def __init__(self, channel_address: str):
-        # TODO: Pass file paths into the constructor, read the files here with their paths as env variables?
-        with open("/etc/ssl/private/stonkinator.key", "rb") as file:
+        with open(os.environ.get("RPC_SERVICE_KEY_PATH"), "rb") as file:
             key = file.read()
-        with open("/etc/ssl/stonkinator.pem", "rb") as file:
+        with open(os.environ.get("RPC_SERVICE_CERT_PATH"), "rb") as file:
             cert = file.read()
-        with open("/etc/ssl/ca.pem", "rb") as file:
+        with open(os.environ.get("RPC_SERVICE_CA_CERT_PATH"), "rb") as file:
             ca_cert = file.read()
 
         creds = grpc.ssl_channel_credentials(ca_cert, key, cert)

@@ -12,20 +12,6 @@ PG_DB_PORT_EXP = 5433
 PG_DB_PASSWORD = 'postgrespw'
 PG_DB_NAME = 'stonkinator'
 
-# mongo db
-MDB_USER = 'root'
-MDB_PASSWORD = 'rootpassword'
-MDB_PORT = 27017
-MDB_PORT_EXP = 27018
-ATLAS_MONGO_DB_URL = 'mongodb+srv://. . .:. . .@. . ..rfnsm.mongodb.net/?retryWrites=true&w=majority'
-#LOCALHOST_MONGO_DB_URL = 'mongodb://root:rootpassword@mongodb:27017/'
-LOCALHOST_MONGO_DB_URL = f'{MDB_SERVICE}://{MDB_USER}:{MDB_PASSWORD}@{MDB_SERVICE}:{MDB_PORT}/'
-LOCALHOST_MONGO_DB_URL_EXP = f'{MDB_SERVICE}://{MDB_USER}:{MDB_PASSWORD}@{"0.0.0.0"}:{MDB_PORT_EXP}/'
-SYSTEMS_DB = 'systems_db'
-INSTRUMENTS_DB = 'instruments_db'
-TIME_SERIES_DB = 'time_series_db'
-CLIENT_DB = 'client_db'
-
 # api
 API_URL = '/api'
 STONKINATOR_API_PORT = 4001
@@ -33,13 +19,16 @@ STONKINATOR_API_PORT_EXP = 5800
 
 # rpc service
 RPC_SERVICE_PORT = 5001
+RPC_SERVICE_PORT_EXP = 5002
+RPC_SERVICE_KEY_PATH = '/etc/ssl/private/stonkinator.key'
+RPC_SERVER_KEY_PATH = '/etc/ssl/private/rpc_service.key'
+RPC_SERVICE_CERT_PATH = '/etc/ssl/stonkinator.pem'
+RPC_SERVER_CERT_PATH = '/etc/ssl/rpc_service.pem'
+RPC_SERVICE_CA_CERT_PATH = '/etc/ssl/ca.pem'
 
 # securities db py dal
 API_HOST = STONKINATOR_API_SERVICE
 API_PORT = STONKINATOR_API_PORT
 LOG_DIR_PATH = '/var/log/stonkinator/'
-
-# frontend
-FRONTEND_PORT = 3000
 
 TS_HANDLER_DIR_TARGET = '/app/trading_systems'

@@ -7,26 +7,19 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgconn"
 )
 
 func (s *server) GetOrInsertTradingSystem(ctx context.Context, req *pb.TradingSystem) (*pb.TradingSystem, error) {
 	ctx, cancel := context.WithTimeout(ctx, DB_TIMEOUT)
 	defer cancel()
 
-	// TODO: Parse date time or not?
-	// currentDateTime, err := time.Parse(DATE_TIME_FORMAT, req.CurrentDateTime.DateTime)
-	// if err != nil {
-	// 	s.errorLog.Println(err)
-	// 	return nil, err
-	// }
-
 	query := s.pgPool.QueryRow(
 		ctx,
 		`
 			INSERT INTO trading_systems(trading_system_name, current_date_time)
 			VALUES($1, $2)
-			ON CONFLICT DO NOTHING
+			ON CONFLICT (trading_system_name) DO UPDATE
+			SET trading_system_name = EXCLUDED.trading_system_name
 			RETURNING id, trading_system_name, current_date_time
 		`,
 		req.Name, req.CurrentDateTime.DateTime,
@@ -34,26 +27,10 @@ func (s *server) GetOrInsertTradingSystem(ctx context.Context, req *pb.TradingSy
 
 	var dateTime time.Time
 	res := &pb.TradingSystem{}
-	if err := query.Scan(&res.Id, &res.Name, &dateTime); err == pgx.ErrNoRows {
-		query = s.pgPool.QueryRow(
-			ctx,
-			`
-				SELECT id, trading_system_name, current_date_time
-				FROM trading_systems
-				WHERE trading_system_name = $1
-			`,
-			req.Name,
-		)
-
-		if err := query.Scan(&res.Id, &res.Name, &dateTime); err != nil {
-			s.errorLog.Println(err)
-			return nil, err
-		}
-	} else if err != nil {
+	if err := query.Scan(&res.Id, &res.Name, &dateTime); err != nil {
 		s.errorLog.Println(err)
 		return nil, err
 	}
-
 	res.CurrentDateTime = &pb.DateTime{DateTime: dateTime.Format(DATE_TIME_FORMAT)}
 
 	return res, nil
@@ -148,13 +125,6 @@ func (s *server) UpsertMarketState(ctx context.Context, req *pb.MarketState) (*p
 	ctx, cancel := context.WithTimeout(ctx, DB_TIMEOUT)
 	defer cancel()
 
-	// TODO: Parse date time or not?
-	// signalDateTime, err := time.Parse(DATE_TIME_FORMAT, req.SignalDateTime.DateTime)
-	// if err != nil {
-	// 	s.errorLog.Println(err)
-	// 	return nil, err
-	// }
-
 	var err error
 	var metrics map[string]interface{}
 	if err = json.Unmarshal([]byte(req.Metrics), &metrics); err != nil {
@@ -162,40 +132,32 @@ func (s *server) UpsertMarketState(ctx context.Context, req *pb.MarketState) (*p
 		return nil, err
 	}
 
-	var result pgconn.CommandTag
+	var query string
+	var queryArgs []interface{}
 	if req.Action != "" {
-		result, err = s.pgPool.Exec(
-			ctx,
-			`
-				INSERT INTO market_states(instrument_id, trading_system_id, signal_date_time, metrics, market_action)
-				VALUES($1, $2, $3, $4, $5)
-				ON CONFLICT(instrument_id, trading_system_id) DO UPDATE 
-				SET signal_date_time = EXCLUDED.signal_date_time,
-					metrics = EXCLUDED.metrics,
-					market_action = EXCLUDED.market_action
-			`,
-			req.InstrumentId, req.TradingSystemId, req.SignalDateTime.DateTime, metrics, req.Action,
-			// req.InstrumentId, req.TradingSystemId, signalDateTime, metrics, req.Action,
-		)
-		if err != nil {
-			s.errorLog.Println(err)
-			return nil, err
-		}
+		query = `
+			INSERT INTO market_states(instrument_id, trading_system_id, signal_date_time, metrics, market_action)
+			VALUES($1, $2, $3, $4, $5)
+			ON CONFLICT(instrument_id, trading_system_id) DO UPDATE 
+			SET signal_date_time = EXCLUDED.signal_date_time,
+				metrics = EXCLUDED.metrics,
+				market_action = EXCLUDED.market_action
+		`
+		queryArgs = []interface{}{req.InstrumentId, req.TradingSystemId, req.SignalDateTime.DateTime, metrics, req.Action}
 	} else {
-		result, err = s.pgPool.Exec(
-			ctx,
-			`
-				UPDATE market_states
-				SET metrics = metrics || $1
-				WHERE instrument_id = $2
-				AND trading_system_id = $3
-			`,
-			metrics, req.InstrumentId, req.TradingSystemId,
-		)
-		if err != nil {
-			s.errorLog.Println(err)
-			return nil, err
-		}
+		query = `
+			UPDATE market_states
+			SET metrics = metrics || $1
+			WHERE instrument_id = $2
+			AND trading_system_id = $3
+		`
+		queryArgs = []interface{}{metrics, req.InstrumentId, req.TradingSystemId}
+	}
+
+	result, err := s.pgPool.Exec(ctx, query, queryArgs...)
+	if err != nil {
+		s.errorLog.Println(err)
+		return nil, err
 	}
 
 	res := &pb.CUD{
@@ -251,13 +213,6 @@ func (s *server) UpdateCurrentDateTime(ctx context.Context, req *pb.UpdateCurren
 	ctx, cancel := context.WithTimeout(ctx, DB_TIMEOUT)
 	defer cancel()
 
-	// TODO: Parse date time or not?
-	// dateTime, err := time.Parse(DATE_TIME_FORMAT, req.DateTime.DateTime)
-	// if err != nil {
-	// 	s.errorLog.Println(err)
-	// 	return nil, err
-	// }
-
 	result, err := s.pgPool.Exec(
 		ctx,
 		`
@@ -310,13 +265,6 @@ func (s *server) UpsertOrder(ctx context.Context, req *pb.Order) (*pb.CUD, error
 	ctx, cancel := context.WithTimeout(ctx, DB_TIMEOUT)
 	defer cancel()
 
-	// TODO: Parse date time or not?
-	// createdDateTime, err := time.Parse(DATE_FORMAT, req.CreatedDateTime.DateTime)
-	// if err != nil {
-	// 	s.errorLog.Println(err)
-	// 	return nil, err
-	// }
-
 	result, err := s.pgPool.Exec(
 		ctx,
 		`
@@ -335,7 +283,6 @@ func (s *server) UpsertOrder(ctx context.Context, req *pb.Order) (*pb.CUD, error
 				max_order_duration = EXCLUDED.max_order_duration,
 				duration = EXCLUDED.duration
 		`,
-		// req.InstrumentId, req.TradingSystemId, req.OrderType, req.Action, createdDateTime,
 		req.InstrumentId, req.TradingSystemId, req.OrderType, req.Action, req.CreatedDateTime.DateTime,
 		req.Active, req.DirectionLong, req.Price, req.MaxDuration, req.Duration,
 	)
@@ -397,43 +344,27 @@ func (s *server) UpsertPosition(ctx context.Context, req *pb.Position) (*pb.CUD,
 		return nil, err
 	}
 
-	// TODO: Parse date time or not?
-	// dateTime, err := time.Parse(DATE_FORMAT, req.DateTime.DateTime)
-	// if err != nil {
-	// 	s.errorLog.Println(err)
-	// 	return nil, err
-	// }
-
-	var result pgconn.CommandTag
+	var query string
+	var queryArgs []interface{}
 	if req.Id != "" {
-		result, err = s.pgPool.Exec(
-			ctx,
-			`
-				UPDATE positions
-				SET date_time = $1, position_data = $2, serialized_position = $3
-				WHERE id = $4
-			`,
-			// dateTime, positionData, req.SerializedPosition, req.Id,
-			req.DateTime.DateTime, positionData, req.SerializedPosition, req.Id,
-		)
-		if err != nil {
-			s.errorLog.Println(err)
-			return nil, err
-		}
+		query = `
+			UPDATE positions
+			SET date_time = $1, position_data = $2, serialized_position = $3
+			WHERE id = $4
+		`
+		queryArgs = []interface{}{req.DateTime.DateTime, positionData, req.SerializedPosition, req.Id}
 	} else {
-		result, err = s.pgPool.Exec(
-			ctx,
-			`
-				INSERT INTO positions(instrument_id, trading_system_id, date_time, position_data, serialized_position)
-				VALUES($1, $2, $3, $4, $5)
-			`,
-			// req.InstrumentId, req.TradingSystemId, dateTime, positionData, req.SerializedPosition,
-			req.InstrumentId, req.TradingSystemId, req.DateTime.DateTime, positionData, req.SerializedPosition,
-		)
-		if err != nil {
-			s.errorLog.Println(err)
-			return nil, err
-		}
+		query = `
+			INSERT INTO positions(instrument_id, trading_system_id, date_time, position_data, serialized_position)
+			VALUES($1, $2, $3, $4, $5)
+		`
+		queryArgs = []interface{}{req.InstrumentId, req.TradingSystemId, req.DateTime.DateTime, positionData, req.SerializedPosition}
+	}
+
+	result, err := s.pgPool.Exec(ctx, query, queryArgs...)
+	if err != nil {
+		s.errorLog.Println(err)
+		return nil, err
 	}
 
 	res := &pb.CUD{
@@ -451,12 +382,6 @@ func (s *server) InsertPositions(ctx context.Context, req *pb.Positions) (*pb.CU
 
 	var err error
 	for _, position := range req.Positions {
-		// TODO: Parse date time or not?
-		// dateTime, err := time.Parse(DATE_FORMAT, position.DateTime.DateTime)
-		// if err != nil {
-		// 	s.errorLog.Println(err)
-		// }
-
 		var positionData map[string]interface{}
 		if err = json.Unmarshal([]byte(position.PositionData), &positionData); err != nil {
 			s.errorLog.Println(err)
@@ -467,7 +392,6 @@ func (s *server) InsertPositions(ctx context.Context, req *pb.Positions) (*pb.CU
 				INSERT INTO positions(instrument_id, trading_system_id, date_time, position_data, serialized_position)
 				VALUES($1, $2, $3, $4, $5)
 			`,
-			// position.InstrumentId, position.TradingSystemId, dateTime, position.PositionData, position.SerializedPosition,
 			position.InstrumentId, position.TradingSystemId, position.DateTime.DateTime, positionData, position.SerializedPosition,
 		)
 	}
@@ -512,7 +436,6 @@ func (s *server) GetPosition(ctx context.Context, req *pb.GetBy) (*pb.Position, 
 	var dateTime time.Time
 	res := &pb.Position{}
 	if err := query.Scan(&res.Id, &res.InstrumentId, &res.TradingSystemId, &dateTime, &res.PositionData, &res.SerializedPosition); err == pgx.ErrNoRows {
-		s.errorLog.Println(err)
 		return &pb.Position{}, nil
 	} else if err != nil {
 		s.errorLog.Println(err)
@@ -630,31 +553,27 @@ func (s *server) InsertTradingSystemModel(ctx context.Context, req *pb.TradingSy
 	ctx, cancel := context.WithTimeout(ctx, DB_TIMEOUT)
 	defer cancel()
 
-	var result pgconn.CommandTag
-	var err error
+	var query string
+	var queryArgs []interface{}
 	if len(req.OptionalIdentifier) > 0 {
-		result, err = s.pgPool.Exec(
-			ctx,
-			`
-				INSERT INTO trading_system_models(trading_system_id, instrument_id, serialized_model)
-				VALUES($1, $2, $3)
-				ON CONFLICT(trading_system_id, instrument_id) DO UPDATE
-				SET serialized_model = EXCLUDED.serialized_model
-			`,
-			req.TradingSystemId, req.OptionalIdentifier, req.SerializedModel,
-		)
+		query = `
+			INSERT INTO trading_system_models(trading_system_id, instrument_id, serialized_model)
+			VALUES($1, $2, $3)
+			ON CONFLICT(trading_system_id, instrument_id) DO UPDATE
+			SET serialized_model = EXCLUDED.serialized_model
+		`
+		queryArgs = []interface{}{req.TradingSystemId, req.OptionalIdentifier, req.SerializedModel}
 	} else {
-		result, err = s.pgPool.Exec(
-			ctx,
-			`
-				INSERT INTO trading_system_models(trading_system_id, serialized_model)
-				VALUES($1, $2)
-				ON CONFLICT (trading_system_id) WHERE instrument_id IS NULL DO UPDATE
-				SET serialized_model = EXCLUDED.serialized_model
-			`,
-			req.TradingSystemId, req.SerializedModel,
-		)
+		query = `
+			INSERT INTO trading_system_models(trading_system_id, serialized_model)
+			VALUES($1, $2)
+			ON CONFLICT (trading_system_id) WHERE instrument_id IS NULL DO UPDATE
+			SET serialized_model = EXCLUDED.serialized_model
+		`
+		queryArgs = []interface{}{req.TradingSystemId, req.SerializedModel}
 	}
+
+	result, err := s.pgPool.Exec(ctx, query, queryArgs...)
 	if err != nil {
 		s.errorLog.Println(err)
 		return nil, err

@@ -42,9 +42,14 @@ services:
       PG_DB_NAME: ${PG_DB_NAME}
       PG_DB_SERVICE: ${PG_DB_SERVICE}
       RPC_SERVICE_PORT: ${RPC_SERVICE_PORT}
+      RPC_SERVER_KEY_PATH: ${RPC_SERVER_KEY_PATH}
+      RPC_SERVER_CERT_PATH: ${RPC_SERVER_CERT_PATH}
+      RPC_SERVICE_CA_CERT_PATH: ${RPC_SERVICE_CA_CERT_PATH}
     build:
       context: ./stonkinator
       dockerfile: Dockerfile.rpc_service
+    ports:
+      - ${RPC_SERVICE_PORT_EXP}:${RPC_SERVICE_PORT}
     develop:
       watch:
         - action: rebuild
@@ -60,6 +65,9 @@ services:
       RPC_SERVICE_HOST: ${STONKINATOR_RPC_SERVICE}
       API_PORT: ${STONKINATOR_API_PORT}
       RPC_SERVICE_PORT: ${RPC_SERVICE_PORT}
+      RPC_SERVICE_KEY_PATH: ${RPC_SERVICE_KEY_PATH}
+      RPC_SERVICE_CERT_PATH: ${RPC_SERVICE_CERT_PATH}
+      RPC_SERVICE_CA_CERT_PATH: ${RPC_SERVICE_CA_CERT_PATH}
       LOG_DIR_PATH: ${LOG_DIR_PATH}
       TS_HANDLER_DIR_TARGET: ${TS_HANDLER_DIR_TARGET}
     build:
@@ -67,15 +75,6 @@ services:
       dockerfile: Dockerfile.stonkinator
     volumes:
       - ./stonkinator/stonkinator:/app
-
-  # frontend:
-  #   depends_on:
-  #     - ${STONKINATOR_API_SERVICE}
-  #   build: ./stonkinator_frontend
-  #   ports:
-  #     - ${FRONTEND_PORT}:${FRONTEND_PORT}
-  #   volumes:
-  #     - ./stonkinator_frontend/src:/app/src
 
 volumes:
   securities_data:

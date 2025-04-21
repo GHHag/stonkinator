@@ -375,7 +375,7 @@ class MetaLabelingExample(MLTradingSystemBase):
         return list(set(composite_df.columns.to_list()) ^ set(columns_to_drop))
 
     @classmethod
-    def get_properties(cls, securities_service: SecuritiesGRPCService):
+    def get_properties(cls, securities_service: SecuritiesServiceBase):
         required_runs = 1
 
         omxs_large_caps_instruments_list = securities_service.get_market_list_instruments(
