@@ -460,7 +460,9 @@ func (s *server) GetPositions(ctx context.Context, req *pb.GetBy) (*pb.Positions
 			FROM positions
 			WHERE instrument_id = $1
 			AND trading_system_id = $2
-			AND position_data ? 'exit_price'
+			AND position_data ? 'active'
+			AND (position_data ->> 'active')::boolean = false
+			ORDER BY date_time DESC
 		`,
 		req.GetStrIdentifier(), req.GetAltStrIdentifier(),
 	)

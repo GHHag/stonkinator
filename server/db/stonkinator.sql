@@ -19,7 +19,8 @@ CREATE TABLE IF NOT EXISTS instruments
     CONSTRAINT exchange_id_fk FOREIGN KEY(exchange_id) REFERENCES exchanges(id)
 );
 
-CREATE INDEX idx_symbol ON instruments (UPPER(symbol));
+CREATE INDEX idx_symbol
+ON instruments (UPPER(symbol));
 
 
 ---------------------------------------------------------------------------
@@ -65,7 +66,8 @@ CREATE TABLE IF NOT EXISTS price_data
     UNIQUE(instrument_id, date_time)
 );
 
-CREATE INDEX idx_price_data ON price_data (instrument_id, date_time);
+CREATE INDEX idx_price_data
+ON price_data (instrument_id, date_time);
 
 
 ---------------------------------------------------------------------------
@@ -197,6 +199,17 @@ CREATE TABLE IF NOT EXISTS positions
     CONSTRAINT instrument_id_fk FOREIGN KEY(instrument_id) REFERENCES instruments(id),
     CONSTRAINT trading_system_id_fk FOREIGN KEY(trading_system_id) REFERENCES trading_systems(id)
 );
+
+CREATE INDEX idx_positions
+ON positions (instrument_id, trading_system_id, date_time DESC);
+
+CREATE INDEX idx_positions_active_false 
+ON positions (trading_system_id)
+WHERE (position_data ->> 'active')::boolean = false;
+
+-- CREATE INDEX idx_positions_active_false_entry_dt
+-- ON positions ((position_data->>'entry_dt') DESC)
+-- WHERE (position_data ->> 'active')::boolean = false;
 
 
 ---------------------------------------------------------------------------
