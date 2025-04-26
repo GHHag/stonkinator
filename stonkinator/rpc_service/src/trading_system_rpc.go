@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"io"
 	pb "stonkinator_rpc_service/stonkinator_rpc_service"
 	"time"
 
@@ -167,8 +168,8 @@ func (s *server) UpsertMarketState(ctx context.Context, req *pb.MarketState) (*p
 	return res, nil
 }
 
-func (s *server) GetMarketStates(ctx context.Context, req *pb.GetBy) (*pb.MarketStates, error) {
-	ctx, cancel := context.WithTimeout(ctx, DB_TIMEOUT)
+func (s *server) GetMarketStates(req *pb.GetBy, stream pb.TradingSystemsService_GetMarketStatesServer) error {
+	ctx, cancel := context.WithTimeout(stream.Context(), DB_TIMEOUT)
 	defer cancel()
 
 	query, err := s.pgPool.Query(
@@ -183,11 +184,10 @@ func (s *server) GetMarketStates(ctx context.Context, req *pb.GetBy) (*pb.Market
 	)
 	if err != nil {
 		s.errorLog.Println(err)
-		return nil, err
+		return err
 	}
 	defer query.Close()
 
-	marketStates := []*pb.MarketState{}
 	for query.Next() {
 		var marketState pb.MarketState
 		err := query.Scan(
@@ -196,17 +196,18 @@ func (s *server) GetMarketStates(ctx context.Context, req *pb.GetBy) (*pb.Market
 			&marketState.Metrics,
 			&marketState.Action,
 		)
+		if err != nil {
+			s.errorLog.Println(err)
+			continue
+		}
 
-		if err == nil {
-			marketStates = append(marketStates, &marketState)
+		if err := stream.Send(&marketState); err != nil {
+			s.errorLog.Println(err)
+			return err
 		}
 	}
 
-	res := &pb.MarketStates{
-		MarketStates: marketStates,
-	}
-
-	return res, nil
+	return nil
 }
 
 func (s *server) UpdateCurrentDateTime(ctx context.Context, req *pb.UpdateCurrentDateTimeRequest) (*pb.CUD, error) {
@@ -374,19 +375,39 @@ func (s *server) UpsertPosition(ctx context.Context, req *pb.Position) (*pb.CUD,
 	return res, nil
 }
 
-func (s *server) InsertPositions(ctx context.Context, req *pb.Positions) (*pb.CUD, error) {
-	ctx, cancel := context.WithTimeout(ctx, DB_TIMEOUT)
+func (s *server) InsertPositions(stream pb.TradingSystemsService_InsertPositionsServer) error {
+	ctx, cancel := context.WithTimeout(stream.Context(), DB_TIMEOUT)
 	defer cancel()
 
 	batch := &pgx.Batch{}
+	var count int
+	for {
+		position, err := stream.Recv()
+		if err == io.EOF {
+			batchQueryResult := s.pgPool.SendBatch(ctx, batch)
+			defer batchQueryResult.Close()
 
-	var err error
-	for _, position := range req.Positions {
+			var numAffected int64
+			for i := 0; i < count; i++ {
+				commandTag, err := batchQueryResult.Exec()
+				if err != nil {
+					s.errorLog.Println(err)
+				} else {
+					numAffected += commandTag.RowsAffected()
+				}
+			}
+
+			return stream.SendAndClose(&pb.CUD{NumAffected: int32(numAffected)})
+		}
+		if err != nil {
+			s.errorLog.Println(err)
+			return err
+		}
+
 		var positionData map[string]interface{}
 		if err = json.Unmarshal([]byte(position.PositionData), &positionData); err != nil {
 			s.errorLog.Println(err)
 		}
-
 		batch.Queue(
 			`
 				INSERT INTO positions(instrument_id, trading_system_id, date_time, position_data, serialized_position)
@@ -394,26 +415,9 @@ func (s *server) InsertPositions(ctx context.Context, req *pb.Positions) (*pb.CU
 			`,
 			position.InstrumentId, position.TradingSystemId, position.DateTime.DateTime, positionData, position.SerializedPosition,
 		)
+
+		count++
 	}
-
-	batchQueryResult := s.pgPool.SendBatch(ctx, batch)
-	defer batchQueryResult.Close()
-
-	numAffected := 0
-	for range req.Positions {
-		commandTag, err := batchQueryResult.Exec()
-		if err != nil {
-			s.errorLog.Println(err)
-		} else {
-			numAffected += int(commandTag.RowsAffected())
-		}
-	}
-
-	res := &pb.CUD{
-		NumAffected: int32(numAffected),
-	}
-
-	return res, err
 }
 
 func (s *server) GetPosition(ctx context.Context, req *pb.GetBy) (*pb.Position, error) {
@@ -449,8 +453,8 @@ func (s *server) GetPosition(ctx context.Context, req *pb.GetBy) (*pb.Position, 
 	return res, nil
 }
 
-func (s *server) GetPositions(ctx context.Context, req *pb.GetBy) (*pb.Positions, error) {
-	ctx, cancel := context.WithTimeout(ctx, DB_TIMEOUT)
+func (s *server) GetPositions(req *pb.GetBy, stream pb.TradingSystemsService_GetPositionsServer) error {
+	ctx, cancel := context.WithTimeout(stream.Context(), DB_TIMEOUT)
 	defer cancel()
 
 	query, err := s.pgPool.Query(
@@ -468,11 +472,10 @@ func (s *server) GetPositions(ctx context.Context, req *pb.GetBy) (*pb.Positions
 	)
 	if err != nil {
 		s.errorLog.Println(err)
-		return nil, err
+		return err
 	}
 	defer query.Close()
 
-	positions := []*pb.Position{}
 	for query.Next() {
 		var position pb.Position
 		var dateTime time.Time
@@ -484,24 +487,25 @@ func (s *server) GetPositions(ctx context.Context, req *pb.GetBy) (*pb.Positions
 			&position.PositionData,
 			&position.SerializedPosition,
 		)
+		if err != nil {
+			s.errorLog.Println(err)
+			continue
+		}
 
-		if err == nil {
-			position.DateTime = &pb.DateTime{
-				DateTime: dateTime.Format(DATE_TIME_FORMAT),
-			}
-			positions = append(positions, &position)
+		position.DateTime = &pb.DateTime{
+			DateTime: dateTime.Format(DATE_TIME_FORMAT),
+		}
+		if err := stream.Send(&position); err != nil {
+			s.errorLog.Println(err)
+			return err
 		}
 	}
 
-	res := &pb.Positions{
-		Positions: positions,
-	}
-
-	return res, nil
+	return nil
 }
 
-func (s *server) GetTradingSystemPositions(ctx context.Context, req *pb.GetBy) (*pb.Positions, error) {
-	ctx, cancel := context.WithTimeout(ctx, DB_TIMEOUT)
+func (s *server) GetTradingSystemPositions(req *pb.GetBy, stream pb.TradingSystemsService_GetTradingSystemPositionsServer) error {
+	ctx, cancel := context.WithTimeout(stream.Context(), DB_TIMEOUT)
 	defer cancel()
 
 	query, err := s.pgPool.Query(
@@ -519,11 +523,10 @@ func (s *server) GetTradingSystemPositions(ctx context.Context, req *pb.GetBy) (
 	)
 	if err != nil {
 		s.errorLog.Println(err)
-		return nil, err
+		return err
 	}
 	defer query.Close()
 
-	positions := []*pb.Position{}
 	for query.Next() {
 		var position pb.Position
 		var dateTime time.Time
@@ -535,20 +538,21 @@ func (s *server) GetTradingSystemPositions(ctx context.Context, req *pb.GetBy) (
 			&position.PositionData,
 			&position.SerializedPosition,
 		)
+		if err != nil {
+			s.errorLog.Println(err)
+			continue
+		}
 
-		if err == nil {
-			position.DateTime = &pb.DateTime{
-				DateTime: dateTime.Format(DATE_TIME_FORMAT),
-			}
-			positions = append(positions, &position)
+		position.DateTime = &pb.DateTime{
+			DateTime: dateTime.Format(DATE_TIME_FORMAT),
+		}
+		if err := stream.Send(&position); err != nil {
+			s.errorLog.Println(err)
+			return err
 		}
 	}
 
-	res := &pb.Positions{
-		Positions: positions,
-	}
-
-	return res, nil
+	return nil
 }
 
 func (s *server) InsertTradingSystemModel(ctx context.Context, req *pb.TradingSystemModel) (*pb.CUD, error) {

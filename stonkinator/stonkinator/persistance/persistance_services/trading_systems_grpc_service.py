@@ -18,10 +18,8 @@ from persistance.persistance_services.general_messages_pb2 import (
 )
 from persistance.persistance_services.trading_systems_service_pb2 import (
     MarketState,
-    MarketStates,
     Order,
     Position,
-    Positions,
     TradingSystem,
     TradingSystemModel,
     UpdateCurrentDateTimeRequest,
@@ -29,6 +27,7 @@ from persistance.persistance_services.trading_systems_service_pb2 import (
 from persistance.persistance_services.trading_systems_service_pb2_grpc import (
     TradingSystemsServiceStub
 )
+from trading.position.position import Position as PositionClass
 from trading_systems.model_creation.model_creation import SKModel
 
 
@@ -93,10 +92,12 @@ class TradingSystemsGRPCService(TradingSystemsPersisterBase):
         return res
 
     @grpc_error_handler(logger, default_return=None)
-    def get_market_states(self, instrument_id: str, action: str) -> MarketStates:
+    def get_market_states(self, instrument_id: str, action: str) -> list[MarketState]:
         req = GetBy(str_identifier=instrument_id, alt_str_identifier=action)
-        res = self.__client.GetMarketStates(req)
-        return res
+        market_states = [
+            market_state for market_state in self.__client.GetMarketStates(req)
+        ]
+        return market_states
 
     @grpc_error_handler(logger, default_return=None)
     def update_current_date_time(
@@ -154,10 +155,8 @@ class TradingSystemsGRPCService(TradingSystemsPersisterBase):
         return res
 
     @grpc_error_handler(logger, default_return=None)
-    def insert_positions(
-        self, instrument_id: str, trading_system_id: str, positions: list
-    ) -> CUD:
-        positions = [
+    def insert_positions(self, instrument_id: str, trading_system_id: str, positions: list) -> CUD:
+        res = self.__client.InsertPositions(
             Position(
                 instrument_id=instrument_id, trading_system_id=trading_system_id,
                 date_time=DateTime(date_time=str(position.current_dt)),
@@ -165,13 +164,13 @@ class TradingSystemsGRPCService(TradingSystemsPersisterBase):
                 serialized_position=pickle.dumps(position)
             )
             for position in positions
-        ]
-        req = Positions(positions=positions)
-        res = self.__client.InsertPositions(req)
+        )
         return res
 
     @grpc_error_handler(logger, default_return=None)
-    def get_position(self, instrument_id: str, trading_system_id: str):
+    def get_position(
+        self, instrument_id: str, trading_system_id: str
+    ) -> tuple[str, PositionClass] | tuple[None, None]:
         req = GetBy(str_identifier=instrument_id, alt_str_identifier=trading_system_id)
         res = self.__client.GetPosition(req)
         if res.id and res.serialized_position:
@@ -180,26 +179,24 @@ class TradingSystemsGRPCService(TradingSystemsPersisterBase):
             return None, None
 
     @grpc_error_handler(logger, default_return=None)
-    def get_positions(self, instrument_id: str, trading_system_id: str) -> Positions | None:
+    def get_positions(self, instrument_id: str, trading_system_id: str) -> list[PositionClass] | None:
         req = GetBy(str_identifier=instrument_id, alt_str_identifier=trading_system_id)
-        res = self.__client.GetPositions(req)
-        if res.positions:
-            positions = list(res.positions)
-            return [pickle.loads(position.serialized_position) for position in positions]
-        else:
-            return None
+        positions = [
+            pickle.loads(position.serialized_position)
+            for position in self.__client.GetPositions(req)
+        ]
+        return positions
 
     @grpc_error_handler(logger, default_return=None)
     def get_trading_system_positions(
         self, trading_system_id: str, num_of_positions: int
-    ) -> Positions | None:
+    ) -> list[PositionClass] | None:
         req = GetBy(str_identifier=trading_system_id, alt_int_identifier=num_of_positions)
-        res = self.__client.GetTradingSystemPositions(req)
-        if res.positions:
-            positions = list(res.positions)
-            return [pickle.loads(position.serialized_position) for position in positions]
-        else:
-            return None
+        positions = [
+            pickle.loads(position.serialized_position)
+            for position in self.__client.GetTradingSystemPositions(req)
+        ]
+        return positions
 
     @grpc_error_handler(logger, default_return=None)
     def insert_trading_system_model(

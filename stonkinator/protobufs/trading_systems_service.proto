@@ -11,16 +11,16 @@ service TradingSystemsService {
     rpc UpdateTradingSystemMetrics(TradingSystem) returns(CUD);
     rpc RemoveTradingSystemRelations(OperateOn) returns(CUD);
     rpc UpsertMarketState(MarketState) returns(CUD);
-    rpc GetMarketStates(GetBy) returns(MarketStates);
+    rpc GetMarketStates(GetBy) returns(stream MarketState);
     rpc UpdateCurrentDateTime(UpdateCurrentDateTimeRequest) returns(CUD);
     rpc GetCurrentDateTime(GetBy) returns(DateTime);
     rpc UpsertOrder(Order) returns(CUD);
     rpc GetOrder(GetBy) returns(Order);
     rpc UpsertPosition(Position) returns(CUD);
-    rpc InsertPositions(Positions) returns(CUD);
+    rpc InsertPositions(stream Position) returns(CUD);
     rpc GetPosition(GetBy) returns(Position);
-    rpc GetPositions(GetBy) returns(Positions);
-    rpc GetTradingSystemPositions(GetBy) returns(Positions);
+    rpc GetPositions(GetBy) returns(stream Position);
+    rpc GetTradingSystemPositions(GetBy) returns(stream Position);
     rpc InsertTradingSystemModel(TradingSystemModel) returns(CUD);
     rpc GetTradingSystemModel(GetBy) returns(TradingSystemModel);
 }
@@ -54,20 +54,12 @@ message Position {
     bytes serialized_position = 6;
 }
 
-message Positions {
-    repeated Position positions = 1;
-}
-
 message MarketState {
     string instrument_id = 1;
     string trading_system_id = 2;
     string metrics = 3;
     string action = 4;
     DateTime signal_date_time = 5;
-}
-
-message MarketStates {
-    repeated MarketState market_states = 1;
 }
 
 message TradingSystemModel {

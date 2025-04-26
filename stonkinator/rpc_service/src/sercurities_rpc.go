@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"io"
 	pb "stonkinator_rpc_service/stonkinator_rpc_service"
 	"strings"
 	"time"
@@ -268,19 +269,40 @@ func (s *server) InsertPrice(ctx context.Context, req *pb.Price) (*pb.CUD, error
 	return res, nil
 }
 
-func (s *server) InsertPriceData(ctx context.Context, req *pb.PriceData) (*pb.CUD, error) {
-	ctx, cancel := context.WithTimeout(ctx, DB_TIMEOUT)
+func (s *server) InsertPriceData(stream pb.SecuritiesService_InsertPriceDataServer) error {
+	ctx, cancel := context.WithTimeout(stream.Context(), DB_TIMEOUT)
 	defer cancel()
 
 	batch := &pgx.Batch{}
+	var count int
+	for {
+		price, err := stream.Recv()
+		if err == io.EOF {
+			batchQueryResult := s.pgPool.SendBatch(ctx, batch)
+			defer batchQueryResult.Close()
 
-	var err error
-	for _, price := range req.PriceData {
-		dateTime, err := time.Parse(DATE_FORMAT, price.DateTime.DateTime)
+			var numAffected int64
+			for i := 0; i < count; i++ {
+				commandTag, err := batchQueryResult.Exec()
+				if err != nil {
+					s.errorLog.Printf("%s, instrument id: %s", err, price.InstrumentId)
+				} else {
+					numAffected += commandTag.RowsAffected()
+				}
+			}
+
+			return stream.SendAndClose(&pb.CUD{NumAffected: int32(numAffected)})
+		}
 		if err != nil {
-			s.errorLog.Println(err)
+			s.errorLog.Printf("%s, instrument id: %s", err, price.InstrumentId)
+			return err
 		}
 
+		dateTime, err := time.Parse(DATE_FORMAT, price.DateTime.DateTime)
+		if err != nil {
+			s.errorLog.Printf("%s, instrument id: %s", err, price.InstrumentId)
+			continue
+		}
 		batch.Queue(
 			`
 				INSERT INTO price_data(
@@ -293,31 +315,13 @@ func (s *server) InsertPriceData(ctx context.Context, req *pb.PriceData) (*pb.CU
 			price.InstrumentId, price.OpenPrice, price.HighPrice, price.LowPrice, price.ClosePrice,
 			price.Volume, dateTime,
 		)
+
+		count++
 	}
-
-	batchQueryResult := s.pgPool.SendBatch(ctx, batch)
-	defer batchQueryResult.Close()
-
-	numAffected := 0
-
-	for range req.PriceData {
-		commandTag, err := batchQueryResult.Exec()
-		if err != nil {
-			s.errorLog.Println(err)
-		} else {
-			numAffected += int(commandTag.RowsAffected())
-		}
-	}
-
-	res := &pb.CUD{
-		NumAffected: int32(numAffected),
-	}
-
-	return res, err
 }
 
-func (s *server) GetPriceData(ctx context.Context, req *pb.GetPriceDataRequest) (*pb.PriceData, error) {
-	ctx, cancel := context.WithTimeout(ctx, DB_TIMEOUT)
+func (s *server) GetPriceData(req *pb.GetPriceDataRequest, stream pb.SecuritiesService_GetPriceDataServer) error {
+	ctx, cancel := context.WithTimeout(stream.Context(), DB_TIMEOUT)
 	defer cancel()
 
 	query, err := s.pgPool.Query(
@@ -338,11 +342,10 @@ func (s *server) GetPriceData(ctx context.Context, req *pb.GetPriceDataRequest) 
 	)
 	if err != nil {
 		s.errorLog.Println(err)
-		return nil, err
+		return err
 	}
 	defer query.Close()
 
-	priceData := []*pb.Price{}
 	for query.Next() {
 		var price pb.Price
 		var dateTime time.Time
@@ -355,20 +358,21 @@ func (s *server) GetPriceData(ctx context.Context, req *pb.GetPriceDataRequest) 
 			&price.Volume,
 			&dateTime,
 		)
+		if err != nil {
+			s.errorLog.Println(err)
+			continue
+		}
 
-		if err == nil {
-			price.DateTime = &pb.DateTime{
-				DateTime: dateTime.Format(DATE_TIME_FORMAT),
-			}
-			priceData = append(priceData, &price)
+		price.DateTime = &pb.DateTime{
+			DateTime: dateTime.Format(DATE_TIME_FORMAT),
+		}
+		if err := stream.Send(&price); err != nil {
+			s.errorLog.Println(err)
+			return err
 		}
 	}
 
-	res := &pb.PriceData{
-		PriceData: priceData,
-	}
-
-	return res, nil
+	return nil
 }
 
 func (s *server) GetExchangeInstruments(ctx context.Context, req *pb.GetBy) (*pb.Instruments, error) {

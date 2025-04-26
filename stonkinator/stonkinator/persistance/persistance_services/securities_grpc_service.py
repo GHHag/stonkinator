@@ -20,7 +20,6 @@ from persistance.persistance_services.securities_service_pb2 import (
     Instrument,
     Instruments,
     Price,
-    PriceData,
 )
 from persistance.persistance_services.securities_service_pb2_grpc import (
     SecuritiesServiceStub
@@ -134,21 +133,22 @@ class SecuritiesGRPCService(SecuritiesServiceBase):
 
     @grpc_error_handler(logger, default_return=None)
     def insert_price_data(self, price_data: list[Price]) -> CUD:
-        req = PriceData(price_data=price_data)
-        res = self.__client.InsertPriceData(req)
+        res = self.__client.InsertPriceData(price for price in price_data)
         return res
 
     @grpc_error_handler(logger, default_return=None)
     def get_price_data(
         self, instrument_id: str, start_date_time: dt.datetime, end_date_time: dt.datetime
-    ) -> PriceData:
+    ) -> list[Price]:
         req = GetPriceDataRequest(
             instrument_id=instrument_id,
             start_date_time=DateTime(date_time=str(start_date_time)),
             end_date_time=DateTime(date_time=str(end_date_time))
         )
-        res = self.__client.GetPriceData(req)
-        return res
+        price_data = [
+            price for price in self.__client.GetPriceData(req)
+        ]
+        return price_data
 
     def insert_market_list(self):
         # TODO: Implement

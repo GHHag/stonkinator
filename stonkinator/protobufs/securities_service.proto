@@ -18,8 +18,8 @@ service SecuritiesService {
     rpc GetDateTime (GetDateTimeRequest) returns (DateTime);
     rpc GetLastDate (GetLastDateRequest) returns (DateTime);
     rpc InsertPrice (Price) returns (CUD);
-    rpc InsertPriceData (PriceData) returns (CUD);
-    rpc GetPriceData (GetPriceDataRequest) returns (PriceData);
+    rpc InsertPriceData(stream Price) returns (CUD);
+    rpc GetPriceData(GetPriceDataRequest) returns (stream Price);
     // rpc InsertMarketList (MarketList) returns (CUD);
     // rpc UpdateMarketList (MarketList) returns (CUD);
     rpc GetExchangeInstruments (GetBy) returns (Instruments);
@@ -71,10 +71,6 @@ message Price {
     double close_price = 5;
     int64 volume = 6;
     DateTime date_time = 7;
-}
-
-message PriceData {
-    repeated Price price_data = 1;
 }
 
 message GetPriceDataRequest {
