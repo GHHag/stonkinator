@@ -37,6 +37,29 @@ func (s *server) GetOrInsertTradingSystem(ctx context.Context, req *pb.TradingSy
 	return res, nil
 }
 
+func (s *server) GetTradingSystemMetrics(ctx context.Context, req *pb.GetBy) (*pb.TradingSystem, error) {
+	ctx, cancel := context.WithTimeout(ctx, DB_TIMEOUT)
+	defer cancel()
+
+	query := s.pgPool.QueryRow(
+		ctx,
+		`
+			SELECT metrics
+			FROM trading_systems
+			WHERE id = $1
+		`,
+		req.GetStrIdentifier(),
+	)
+
+	res := &pb.TradingSystem{}
+	if err := query.Scan(&res.Metrics); err != nil {
+		s.errorLog.Println(err)
+		return nil, err
+	}
+
+	return res, nil
+}
+
 func (s *server) UpdateTradingSystemMetrics(ctx context.Context, req *pb.TradingSystem) (*pb.CUD, error) {
 	ctx, cancel := context.WithTimeout(ctx, DB_TIMEOUT)
 	defer cancel()
@@ -51,7 +74,7 @@ func (s *server) UpdateTradingSystemMetrics(ctx context.Context, req *pb.Trading
 		ctx,
 		`
 			UPDATE trading_systems
-			SET metrics = $1
+			SET metrics = metrics || $1
 			WHERE id = $2
 		`,
 		metrics, req.Id,

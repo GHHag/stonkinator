@@ -23,6 +23,7 @@ class TradingSystemAttributes:
     __SYSTEM_NAME = 'system_name'
     __METRICS = 'metrics'
     __NUMBER_OF_PERIODS = 'num_of_periods'
+    __NUMBER_OF_POSITIONS = 'num_of_positions'
     __POSITION_LIST = 'position_list'
     __ML_MODEL = 'model'
     __INSTRUMENT = 'instrument'
@@ -103,6 +104,10 @@ class TradingSystemAttributes:
     @classproperty
     def NUMBER_OF_PERIODS(cls):
         return cls.__NUMBER_OF_PERIODS
+
+    @classproperty
+    def NUMBER_OF_POSITIONS(cls):
+        return cls.__NUMBER_OF_POSITIONS
 
     @classproperty
     def POSITION_LIST(cls):

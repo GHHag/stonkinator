@@ -131,7 +131,7 @@ CREATE TABLE IF NOT EXISTS trading_systems
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     trading_system_name VARCHAR(100) UNIQUE NOT NULL,
     current_date_time TIMESTAMP,
-    metrics JSONB
+    metrics JSONB DEFAULT '{}'::jsonb
 );
 
 

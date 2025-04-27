@@ -9,14 +9,15 @@ from functools import lru_cache
 from yahooquery import Ticker
 import pandas as pd
 
-from persistance.persistance_services.securities_service_pb2 import (
+from persistance.persistance_services.general_messages_pb2 import (
     DateTime,
-    Exchanges,
     CUD,
+)
+from persistance.persistance_services.securities_service_pb2 import (
+    Exchanges,
     Instrument,
     Instruments,
     Price,
-    PriceData
 )
 from persistance.persistance_services.securities_grpc_service import SecuritiesGRPCService
 from trading.data.metadata.price import Price as Price_consts
@@ -64,14 +65,12 @@ def price_data_get(
     securities_grpc_service: SecuritiesGRPCService, instrument_id: str,
     start_date_time: dt.datetime, end_date_time: dt.datetime
 ) -> pd.DataFrame | None:
-    price_data_get_res: PriceData = securities_grpc_service.get_price_data(
-        instrument_id, str(start_date_time), str(end_date_time)
+    price_data: list[Price] = securities_grpc_service.get_price_data(
+        instrument_id, start_date_time, end_date_time
     )
 
     try:
-        if len(price_data_get_res.price_data) <= 2:
-            return None
-        else:
+        if price_data:
             return pd.DataFrame(
                 [
                     {
@@ -83,7 +82,7 @@ def price_data_get(
                         Price_consts.VOLUME: price.volume,
                         Price_consts.DT: price.date_time.date_time,
                     }
-                    for price in price_data_get_res.price_data
+                    for price in price_data
                 ]
             )
     except AttributeError as e:

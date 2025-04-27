@@ -8,6 +8,7 @@ option go_package = "./stonkinator_rpc_service";
 
 service TradingSystemsService {
     rpc GetOrInsertTradingSystem(TradingSystem) returns(TradingSystem);
+    rpc GetTradingSystemMetrics(GetBy) returns(TradingSystem);
     rpc UpdateTradingSystemMetrics(TradingSystem) returns(CUD);
     rpc RemoveTradingSystemRelations(OperateOn) returns(CUD);
     rpc UpsertMarketState(MarketState) returns(CUD);

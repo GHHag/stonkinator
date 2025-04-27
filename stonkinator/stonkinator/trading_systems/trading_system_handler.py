@@ -1,3 +1,4 @@
+import os
 import datetime as dt
 import json
 import argparse
@@ -13,69 +14,56 @@ from trading_systems.trading_system_base import TradingSystemBase, MLTradingSyst
 from trading_systems.trading_system_properties import TradingSystemProperties, MLTradingSystemProperties
 from trading_systems.position_sizer.ext_position_sizer import ExtPositionSizer
 
-from persistance.persistance_meta_classes.signals_persister import SignalsPersisterBase
+from persistance.persistance_meta_classes.securities_service import SecuritiesServiceBase
 from persistance.persistance_meta_classes.trading_systems_persister import TradingSystemsPersisterBase
-from persistance.persistance_meta_classes.time_series_persister import TimeSeriesPersisterBase
-from persistance.stonkinator_mongo_db.systems_mongo_db import TradingSystemsMongoDb
-from persistance.stonkinator_mongo_db.time_series_mongo_db import TimeSeriesMongoDb
-from persistance.stonkinator_mongo_db.instruments_mongo_db import InstrumentsMongoDb
-import trading_systems.env as env
-
-
-# INSTRUMENTS_DB = InstrumentsMongoDb(env.LOCALHOST_MONGO_DB_URL, env.INSTRUMENTS_DB)
-INSTRUMENTS_DB = InstrumentsMongoDb(env.LOCALHOST_MONGO_DB_URL, env.CLIENT_DB)
-TIME_SERIES_DB = TimeSeriesMongoDb(env.LOCALHOST_MONGO_DB_URL, env.TIME_SERIES_DB)
-SYSTEMS_DB = TradingSystemsMongoDb(env.LOCALHOST_MONGO_DB_URL, env.SYSTEMS_DB)
-CLIENT_DB = TradingSystemsMongoDb(env.LOCALHOST_MONGO_DB_URL, env.CLIENT_DB)
-# CLIENT_DB = TradingSystemsMongoDb(env.ATLAS_MONGO_DB_URL, env.CLIENT_DB)
-
-# INSTRUMENTS_DB = InstrumentsMongoDb(env.ATLAS_MONGO_DB_URL, env.CLIENT_DB)
-#TIME_SERIES_DB = TimeSeriesMongoDb(env.ATLAS_MONGO_DB_URL, env.CLIENT_DB)
-#SYSTEMS_DB = TradingSystemsMongoDb(env.ATLAS_MONGO_DB_URL, env.CLIENT_DB)
-#CLIENT_DB = TradingSystemsMongoDb(env.ATLAS_MONGO_DB_URL, env.CLIENT_DB)
+from persistance.persistance_services.securities_grpc_service import SecuritiesGRPCService
+from persistance.persistance_services.trading_systems_grpc_service import TradingSystemsGRPCService
 
 
 class TradingSystemProcessor:
 
     def __init__(
         self, ts_class: TradingSystemBase, 
-        systems_db: TradingSystemsPersisterBase, 
-        client_db: SignalsPersisterBase,
-        instruments_db: InstrumentsMongoDb,
+        securities_service: SecuritiesServiceBase,
+        trading_systems_persister: TradingSystemsPersisterBase,
         start_dt: dt.datetime, end_dt: dt.datetime,
         full_run=False
     ):
         self.__system_name = ts_class.name
-        self.__ts_properties: TradingSystemProperties = ts_class.get_properties(instruments_db)
-        self.__systems_db: TradingSystemsPersisterBase = systems_db
-        self.__client_db: SignalsPersisterBase = client_db
-        self.__trading_system = TradingSystem(
-            self.system_name,
-            ts_class.entry_signal_logic, 
-            ts_class.exit_signal_logic,
-            self.__systems_db, self.__client_db
-        )
+        self.__ts_properties: TradingSystemProperties = ts_class.get_properties(securities_service)
+        self.__trading_systems_persister = trading_systems_persister
         self.__data, features = ts_class.preprocess_data(
-            self.__ts_properties.instruments_list,
+            securities_service, self.__ts_properties.instruments_list,
             *self.__ts_properties.preprocess_data_args, start_dt, end_dt,
             ts_processor=self
+        )
+        trading_system_proto = self.__trading_systems_persister.get_or_insert_trading_system(
+            self.__system_name, self.__current_dt
+        )
+        self.__trading_system_id = trading_system_proto.id
+        self.__trading_system = TradingSystem(
+            self.__trading_system_id,
+            self.__system_name,
+            ts_class.entry_signal_logic, 
+            ts_class.exit_signal_logic,
+            self.__trading_systems_persister
         )
 
         if issubclass(ts_class, MLTradingSystemBase) == True:
             assert isinstance(self.__ts_properties, MLTradingSystemProperties) == True
             if full_run == True:
                 self.__data = ts_class.operate_models(
-                    self.__systems_db, self.__data, features,
+                    self.__trading_system_id, self.__trading_systems_persister, self.__data, features,
                     self.__ts_properties.model_class, self.__ts_properties.params
                 )
             else:
                 if isinstance(features, pd.DataFrame):
-                    end_dt = pd.Timestamp(end_dt, tz="UTC")
+                    end_dt = pd.to_datetime(self.__current_dt).normalize()
                     features = features[features.index == end_dt] 
 
                 # TODO: Skip making predictions if there is an active position for the instrument.
                 self.__data = ts_class.make_predictions(
-                    self.__systems_db, self.__data, features
+                    self.__trading_system_id, self.__trading_systems_persister, self.__data, features
                 )
 
     @property
@@ -104,7 +92,7 @@ class TradingSystemProcessor:
 
     def _run_trading_system(
         self, full_run, retain_history,
-        capital=10000, capital_fraction=1.0, avg_yearly_periods=251,  
+        capital=10000, capital_fraction=1.0, avg_yearly_periods=251,
         run_monte_carlo_sims=False, num_of_sims=2500,
         print_dataframe=False, plot_fig=False, plot_positions=False, write_to_file_path=None,
         save_summary_plot_to_path=False, system_analysis_to_csv_path=None,
@@ -160,18 +148,15 @@ class TradingSystemProcessor:
 
     def _handle_trading_system(
         self, full_run: bool, retain_history: bool,
-        time_series_db: TimeSeriesPersisterBase=None, insert_into_db=False, 
-        **kwargs
+        insert_into_db=False, **kwargs
     ):
         for i in range(self.__ts_properties.required_runs):
-            if full_run == True:
-                insert_data = i == self.__ts_properties.required_runs - 1 and insert_into_db
-            else:
-                insert_data = insert_into_db
+            if full_run == True and insert_into_db == True:
+                self.__trading_systems_persister.remove_trading_system_relations(self.__trading_system_id)
 
             self._run_trading_system(
                 full_run, retain_history,
-                insert_into_db=insert_data,
+                insert_into_db=insert_into_db,
                 **self.__ts_properties.position_sizer.position_sizer_data_dict,
                 **self.__ts_properties.ts_run_kwargs,
                 **kwargs
@@ -188,81 +173,73 @@ class TradingSystemProcessor:
         if insert_into_db == True:
             if isinstance(self.__ts_properties.position_sizer, ExtPositionSizer):
                 pos_sizer_data_dict = self.__ts_properties.position_sizer.get_position_sizer_data_dict()
-                self.__systems_db.insert_system_metrics(self.system_name, pos_sizer_data_dict)
-                self.__client_db.insert_system_metrics(self.system_name, pos_sizer_data_dict)
+                self.__trading_systems_persister.update_trading_system_metrics(
+                    self.__trading_system_id, pos_sizer_data_dict
+                )
             else:
                 pos_sizer_data_dict = self.__ts_properties.position_sizer.get_position_sizer_data_dict()
-                self.__client_db.update_market_state_data(
-                    self.system_name, json.dumps(pos_sizer_data_dict)
-                )
+                for data_dict in pos_sizer_data_dict.get(TradingSystemAttributes.DATA_KEY):
+                    self.__trading_systems_persister.upsert_market_state(
+                        data_dict.get(TradingSystemAttributes.INSTRUMENT_ID),
+                        self.__trading_system_id, data_dict
+                    )
 
     def _run_pos_sizer(self):
-        market_states_data: list[dict] = json.loads(
-            self.__client_db.get_market_state_data(self.system_name, MarketState.ENTRY.value)
+        market_states = self.__trading_systems_persister.get_market_states(
+            self.__trading_system_id, MarketState.ENTRY.value
         )
-        for data_dict in market_states_data:
-            try:
-                position_list, num_of_periods = self.__systems_db.get_single_symbol_position_list(
-                    self.system_name, data_dict.get(TradingSystemAttributes.SYMBOL),
-                    serialized_format=True, return_num_of_periods=True
+        for market_state in market_states:
+            instrument_id = market_state.instrument_id
+            positions = self.__trading_systems_persister.get_positions(
+                instrument_id, self.__trading_system_id
+            )
+            num_of_periods = json.loads(market_state.metrics).get(TradingSystemAttributes.NUMBER_OF_PERIODS)
+            if positions and num_of_periods:
+                self.__ts_properties.position_sizer(
+                    positions, num_of_periods, instrument_id,
+                    *self.__ts_properties.position_sizer_call_args,
+                    **self.__ts_properties.position_sizer_call_kwargs,
+                    **self.__ts_properties.position_sizer.position_sizer_data_dict
                 )
-            except ValueError as e:
-                print(e)
-                continue
 
+    def _run_ext_pos_sizer(self):
+        trading_system_metrics = self.__trading_systems_persister.get_trading_system_metrics(self.__trading_system_id)
+        if trading_system_metrics is None:
+            return
+        num_of_periods = trading_system_metrics.get(TradingSystemAttributes.NUMBER_OF_PERIODS)
+        num_of_positions = trading_system_metrics.get(TradingSystemAttributes.NUMBER_OF_POSITIONS)
+        positions = self.__trading_systems_persister.get_trading_system_positions(self.__trading_system_id, num_of_positions)
+        if positions:
             self.__ts_properties.position_sizer(
-                position_list, num_of_periods,
+                positions, num_of_periods,
                 *self.__ts_properties.position_sizer_call_args,
-                symbol=data_dict.get(TradingSystemAttributes.SYMBOL), 
                 **self.__ts_properties.position_sizer_call_kwargs,
                 **self.__ts_properties.position_sizer.position_sizer_data_dict
             )
 
-    def _run_ext_pos_sizer(self):
-        try:
-            position_list, num_of_periods = self.__systems_db.get_position_list(
-                self.system_name,
-                serialized_format=True, return_num_of_periods=True
-            )
-        except ValueError as e:
-            print(e)
-            return
-
-        self.__ts_properties.position_sizer(
-            position_list, num_of_periods,
-            *self.__ts_properties.position_sizer_call_args,
-            **self.__ts_properties.position_sizer_call_kwargs,
-            **self.__ts_properties.position_sizer.position_sizer_data_dict
-        )
-
     def _check_end_datetime(self, end_dt: dt.datetime):
-        end_dt = pd.to_datetime(end_dt).tz_localize('UTC')
+        end_dt = pd.to_datetime(end_dt)
         if self.__current_dt != end_dt:
             raise ValueError(
-                'Datetime mismatch between position and input data:\n'
+                'datetime mismatch between position and input data:\n'
                 f'current datetime found: {self.__current_dt}\n'
                 f'input datetime: {end_dt}'
             )
 
-        last_processed_dt = self.__systems_db.get_current_datetime(self.system_name)
-        if last_processed_dt is None:
-            return
-
-        last_processed_dt = pd.to_datetime(last_processed_dt).tz_localize('UTC')
+        last_processed_dt = self.__trading_systems_persister.get_current_date_time(self.__trading_system_id)
+        last_processed_dt = pd.to_datetime(last_processed_dt.date_time)
         if last_processed_dt != self.__penult_dt:
             raise ValueError(
-                'Datetime mismatch between position and input data:\n'
+                'datetime mismatch between position and input data:\n'
                 f'penultimate datetime found: {self.__penult_dt}\n'
                 f'last processed datetime: {last_processed_dt}'
             )
 
     def __call__(
         self, end_dt: dt.datetime, full_run: bool, retain_history: bool,
-        time_series_db=None, insert_into_db=False, **kwargs
+        insert_into_db=False, **kwargs
     ):
         # get new data here and append it to __data member
-
-        # make some date check on given date against last date of self.__data
 
         # call reprocess_data if new data is available
         # self.reprocess_data(date)
@@ -270,24 +247,20 @@ class TradingSystemProcessor:
         if full_run != True:
             self._check_end_datetime(end_dt)
 
-        self._handle_trading_system(
-            full_run, retain_history,
-            time_series_db=time_series_db, 
-            insert_into_db=insert_into_db,
-            **kwargs
-        )
+        self._handle_trading_system(full_run, retain_history, insert_into_db=insert_into_db, **kwargs)
 
         if full_run != True or full_run == True and retain_history == True:
-            self.__systems_db.update_current_datetime(self.system_name, self.__current_dt)
+            self.__trading_systems_persister.update_current_date_time(
+                self.__trading_system_id, self.__current_dt
+            )
 
 
 class TradingSystemHandler:
 
     def __init__(
         self, trading_system_classes: list[TradingSystemBase],
-        systems_db: TradingSystemsPersisterBase, 
-        client_db: SignalsPersisterBase,
-        instruments_db: InstrumentsMongoDb,
+        securities_service: SecuritiesServiceBase,
+        trading_systems_persister: TradingSystemsPersisterBase, 
         start_dt: dt.datetime, end_dt: dt.datetime, 
         full_run=False
     ):
@@ -295,21 +268,20 @@ class TradingSystemHandler:
         for ts_class in trading_system_classes:
             self.__trading_systems.append(
                 TradingSystemProcessor(
-                    ts_class, systems_db, client_db, instruments_db, start_dt, end_dt,
+                    ts_class, securities_service, trading_systems_persister, start_dt, end_dt,
                     full_run=full_run
                 )
             )
 
     def run_trading_systems(
         self, current_datetime: dt.datetime, full_run: bool, retain_history: bool,
-        time_series_db=None, print_data=False
+        print_data=False
     ):
         for trading_system_processor in self.__trading_systems:
             try:
                 trading_system_processor(
                     current_datetime, full_run, retain_history,
-                    time_series_db=time_series_db, insert_into_db=True,
-                    print_data=print_data
+                    insert_into_db=True, print_data=print_data
                 )
             except ValueError as e:
                 print(f'ValueError - trading system "{trading_system_processor.system_name}"\n{e}')
@@ -317,6 +289,13 @@ class TradingSystemHandler:
 
 
 if __name__ == '__main__':
+    SECURITIES_GRPC_SERVICE = SecuritiesGRPCService(
+        f"{os.environ.get('RPC_SERVICE_HOST')}:{os.environ.get('RPC_SERVICE_PORT')}"
+    )
+    TRADING_SYSTEMS_GRPC_SERVICE = TradingSystemsGRPCService(
+        f"{os.environ.get('RPC_SERVICE_HOST')}:{os.environ.get('RPC_SERVICE_PORT')}"
+    )
+
     arg_parser = argparse.ArgumentParser(description='trading_system_handler CLI argument parser')
     arg_parser.add_argument(
         '--full-run', action='store_true', dest='full_run',
@@ -341,10 +320,6 @@ if __name__ == '__main__':
     print_data = cli_args.print_data
     step_through = cli_args.step_through
 
-    if full_run == True:
-        SYSTEMS_DB.drop_collections()
-        CLIENT_DB.drop_collections()
-
     from trading_systems.trading_system_examples.trading_system_example import TradingSystemExample
     from trading_systems.trading_system_examples.ml_trading_system_example import MLTradingSystemExample
     from trading_systems.trading_system_examples.meta_labeling_example import MetaLabelingExample
@@ -367,18 +342,14 @@ if __name__ == '__main__':
         periods = (dt.datetime.now() - end_dt).days
         for _ in range(periods):
             ts_handler = TradingSystemHandler(
-                TRADING_SYSTEM_CLASSES,
-                SYSTEMS_DB, CLIENT_DB, INSTRUMENTS_DB,
-                start_dt, end_dt,
-                full_run=full_run
+                TRADING_SYSTEM_CLASSES, SECURITIES_GRPC_SERVICE, TRADING_SYSTEMS_GRPC_SERVICE,
+                start_dt, end_dt, full_run=full_run
             )
             ts_handler.run_trading_systems(end_dt, full_run, retain_history, print_data=print_data)
             end_dt += dt.timedelta(days=1)
     else:
         ts_handler = TradingSystemHandler(
-            TRADING_SYSTEM_CLASSES,
-            SYSTEMS_DB, CLIENT_DB, INSTRUMENTS_DB,
-            start_dt, end_dt,
-            full_run=full_run
+            TRADING_SYSTEM_CLASSES, SECURITIES_GRPC_SERVICE, TRADING_SYSTEMS_GRPC_SERVICE,
+            start_dt, end_dt, full_run=full_run
         )
         ts_handler.run_trading_systems(end_dt, full_run, retain_history, print_data=print_data)

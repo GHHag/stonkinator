@@ -67,6 +67,15 @@ class TradingSystemsGRPCService(TradingSystemsPersisterBase):
         return res
 
     @grpc_error_handler(logger, default_return=None)
+    def get_trading_system_metrics(self, trading_system_id: str) -> dict | None:
+        req = GetBy(str_identifier=trading_system_id)
+        res = self.__client.GetTradingSystemMetrics(req)
+        if res:
+            return json.loads(res.metrics)
+        else:
+            return None
+
+    @grpc_error_handler(logger, default_return=None)
     def update_trading_system_metrics(self, id: str, metrics: dict) -> CUD:
         req = TradingSystem(id=id, metrics=json.dumps(metrics))
         res = self.__client.UpdateTradingSystemMetrics(req)
