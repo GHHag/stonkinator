@@ -12,7 +12,7 @@ services:
     ports:
       - ${PG_DB_PORT_EXP}:${PG_DB_PORT}
 
-  http_api:
+  web_api:
     depends_on:
       - ${PG_DB_SERVICE}
     environment:
@@ -22,10 +22,12 @@ services:
       PG_DB_NAME: ${PG_DB_NAME}
       PG_DB_SERVICE: ${PG_DB_SERVICE}
       API_URL: ${API_URL}
-      STONKINATOR_API_PORT: ${STONKINATOR_API_PORT}
+      WEB_API_PORT: ${WEB_API_PORT}
+      WEB_API_KEY_PATH: ${WEB_API_KEY_PATH}
+      WEB_API_CERT_PATH: ${WEB_API_CERT_PATH}
     build: ./server
     ports:
-      - ${STONKINATOR_API_PORT_EXP}:${STONKINATOR_API_PORT}
+      - ${WEB_API_PORT_EXP}:${WEB_API_PORT}
     develop:
       watch:
         - action: rebuild
@@ -58,12 +60,9 @@ services:
 
   stonkinator:
     depends_on:
-      - ${STONKINATOR_API_SERVICE}
       - ${STONKINATOR_RPC_SERVICE} 
     environment:
-      API_HOST: ${STONKINATOR_API_SERVICE}
       RPC_SERVICE_HOST: ${STONKINATOR_RPC_SERVICE}
-      API_PORT: ${STONKINATOR_API_PORT}
       RPC_SERVICE_PORT: ${RPC_SERVICE_PORT}
       RPC_SERVICE_KEY_PATH: ${RPC_SERVICE_KEY_PATH}
       RPC_SERVICE_CERT_PATH: ${RPC_SERVICE_CERT_PATH}
@@ -73,8 +72,8 @@ services:
     build:
       context: ./stonkinator
       dockerfile: Dockerfile.stonkinator
-    volumes:
-      - ./stonkinator/stonkinator:/app
+    # volumes:
+    #   - ./stonkinator/stonkinator:/app
 
 volumes:
   securities_data:

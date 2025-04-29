@@ -3,10 +3,8 @@ package entities
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"strings"
-	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -17,11 +15,9 @@ type Exchange struct {
 	Currency     string `json:"currency"`
 }
 
-const dbTimeout = time.Second * 6
-
 func (e *Exchange) Get(pgPool *pgxpool.Pool) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		ctx, cancel := context.WithTimeout(context.Background(), dbTimeout)
+		ctx, cancel := context.WithTimeout(r.Context(), DB_TIMEOUT)
 		defer cancel()
 
 		exchangeName := r.PathValue("exchangeName")
@@ -52,42 +48,5 @@ func (e *Exchange) Get(pgPool *pgxpool.Pool) http.HandlerFunc {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		w.Write(jsonExchange)
-	}
-}
-
-func (e *Exchange) Insert(pgPool *pgxpool.Pool) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		ctx, cancel := context.WithTimeout(context.Background(), dbTimeout)
-		defer cancel()
-
-		var exchange Exchange
-		err := json.NewDecoder(r.Body).Decode(&exchange)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
-		}
-
-		result, err := pgPool.Exec(
-			ctx,
-			`
-				INSERT INTO exchanges(exchange_name, currency)
-				VALUES($1, $2)
-				ON CONFLICT DO NOTHING
-			`,
-			exchange.ExchangeName, exchange.Currency,
-		)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		rowsAffected := result.RowsAffected()
-		if rowsAffected == 0 {
-			http.Error(w, "Failed to insert exchange", http.StatusConflict)
-			return
-		}
-
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusCreated)
-		fmt.Fprint(w, rowsAffected)
 	}
 }

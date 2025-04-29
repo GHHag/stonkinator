@@ -2,11 +2,8 @@ package entities
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
-	"fmt"
 	"net/http"
-
 	"strings"
 
 	"github.com/jackc/pgx/v5"
@@ -14,11 +11,11 @@ import (
 )
 
 type Instrument struct {
-	Id         string         `json:"id,omitempty"`
-	ExchangeId string         `json:"exchange-id,omitempty"`
-	Name       sql.NullString `json:"name"`
-	Symbol     string         `json:"symbol"`
-	Sector     sql.NullString `json:"sector,omitempty"`
+	Id         string `json:"id,omitempty"`
+	ExchangeId string `json:"exchange-id,omitempty"`
+	Name       string `json:"name,omitempty"`
+	Symbol     string `json:"symbol"`
+	Sector     string `json:"sector,omitempty"`
 }
 
 type MarketList struct {
@@ -47,10 +44,13 @@ type WatchlistInstrument struct {
 
 func (i *Instrument) GetOne(pgPool *pgxpool.Pool) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(r.Context(), DB_TIMEOUT)
+		defer cancel()
+
 		symbol := r.PathValue("symbol")
 
 		query := pgPool.QueryRow(
-			context.Background(),
+			ctx,
 			`
 				SELECT id, exchange_id, instrument_name, symbol, sector
 				FROM instruments
@@ -78,60 +78,12 @@ func (i *Instrument) GetOne(pgPool *pgxpool.Pool) http.HandlerFunc {
 	}
 }
 
-func (i *Instrument) Insert(pgPool *pgxpool.Pool) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		var instrument Instrument
-		err := json.NewDecoder(r.Body).Decode(&instrument)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
-		}
+func queryInstrumentsByMarketListIdAndSector(pgPool *pgxpool.Pool, ctx context.Context, exchangeId string, marketListId string, sector string) (pgx.Rows, error) {
+	ctx, cancel := context.WithTimeout(ctx, DB_TIMEOUT)
+	defer cancel()
 
-		result, err := pgPool.Exec(
-			context.Background(),
-			`
-				INSERT INTO instruments(exchange_id, instrument_name, symbol, sector)
-				VALUES($1, $2, $3, $4)
-				ON CONFLICT DO NOTHING
-			`,
-			instrument.ExchangeId, instrument.Name, instrument.Symbol, instrument.Sector,
-		)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-
-		rowsAffected := result.RowsAffected()
-		if rowsAffected == 0 {
-			http.Error(w, "Failed to insert instrument", http.StatusConflict)
-			return
-		}
-
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusCreated)
-		fmt.Fprint(w, rowsAffected)
-	}
-}
-
-func (i *Instrument) Update(pgPool *pgxpool.Pool) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		id := r.PathValue("instrument-id")
-		fmt.Println("update instrument with id: ", id)
-
-		var instrument Instrument
-		err := json.NewDecoder(r.Body).Decode(&instrument)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
-		}
-
-		// TODO: Implement
-	}
-}
-
-func queryInstrumentsByMarketListIdAndSector(pgPool *pgxpool.Pool, exchangeId string, marketListId string, sector string) (pgx.Rows, error) {
 	query, err := pgPool.Query(
-		context.Background(),
+		ctx,
 		`
 			SELECT instruments.id, instruments.exchange_id, instruments.instrument_name,
 				instruments.symbol, instruments.sector
@@ -141,7 +93,7 @@ func queryInstrumentsByMarketListIdAndSector(pgPool *pgxpool.Pool, exchangeId st
 			AND instruments.id = market_list_instruments.instrument_id
 			AND market_lists.id = market_list_instruments.market_list_id
 			AND exchanges.id = $1
-			AND market_list_instruments.market_list_id = $2
+			AND market_lists.id = $2
 			AND UPPER(instruments.sector) = $3
 		`,
 		exchangeId, marketListId, strings.ToUpper(sector),
@@ -151,9 +103,12 @@ func queryInstrumentsByMarketListIdAndSector(pgPool *pgxpool.Pool, exchangeId st
 
 }
 
-func queryInstrumentsByMarketListId(pgPool *pgxpool.Pool, exchangeId string, marketListId string) (pgx.Rows, error) {
+func queryInstrumentsByMarketListId(pgPool *pgxpool.Pool, ctx context.Context, exchangeId string, marketListId string) (pgx.Rows, error) {
+	ctx, cancel := context.WithTimeout(ctx, DB_TIMEOUT)
+	defer cancel()
+
 	query, err := pgPool.Query(
-		context.Background(),
+		ctx,
 		`
 			SELECT instruments.id, instruments.exchange_id, instruments.instrument_name,
 				instruments.symbol, instruments.sector
@@ -163,7 +118,7 @@ func queryInstrumentsByMarketListId(pgPool *pgxpool.Pool, exchangeId string, mar
 			AND instruments.id = market_list_instruments.instrument_id
 			AND market_lists.id = market_list_instruments.market_list_id
 			AND exchanges.id = $1
-			AND market_list_instruments.market_list_id = $2
+			AND market_lists.id = $2
 		`,
 		exchangeId, marketListId,
 	)
@@ -171,9 +126,12 @@ func queryInstrumentsByMarketListId(pgPool *pgxpool.Pool, exchangeId string, mar
 	return query, err
 }
 
-func queryInstrumentsBySector(pgPool *pgxpool.Pool, exchangeId string, sector string) (pgx.Rows, error) {
+func queryInstrumentsBySector(pgPool *pgxpool.Pool, ctx context.Context, exchangeId string, sector string) (pgx.Rows, error) {
+	ctx, cancel := context.WithTimeout(ctx, DB_TIMEOUT)
+	defer cancel()
+
 	query, err := pgPool.Query(
-		context.Background(),
+		ctx,
 		`
 			SELECT instruments.id, instruments.exchange_id, instruments.instrument_name,
 				instruments.symbol, instruments.sector
@@ -197,14 +155,16 @@ func (i *Instrument) GetMany(pgPool *pgxpool.Pool) http.HandlerFunc {
 		var query pgx.Rows
 		var err error
 		if marketListId != "" && sector != "" {
-			query, err = queryInstrumentsByMarketListIdAndSector(pgPool, exchangeId, marketListId, sector)
+			query, err = queryInstrumentsByMarketListIdAndSector(pgPool, r.Context(), exchangeId, marketListId, sector)
 		} else if marketListId != "" {
-			query, err = queryInstrumentsByMarketListId(pgPool, exchangeId, marketListId)
+			query, err = queryInstrumentsByMarketListId(pgPool, r.Context(), exchangeId, marketListId)
 		} else if sector != "" {
-			query, err = queryInstrumentsBySector(pgPool, exchangeId, sector)
+			query, err = queryInstrumentsBySector(pgPool, r.Context(), exchangeId, sector)
 		} else {
+			ctx, cancel := context.WithTimeout(r.Context(), DB_TIMEOUT)
+			defer cancel()
 			query, err = pgPool.Query(
-				context.Background(),
+				ctx,
 				`
 					SELECT instruments.id, instruments.exchange_id, instruments.instrument_name,
 						instruments.symbol, instruments.sector
@@ -257,8 +217,11 @@ func (i *Instrument) GetMany(pgPool *pgxpool.Pool) http.HandlerFunc {
 
 func GetSectors(pgPool *pgxpool.Pool) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(r.Context(), DB_TIMEOUT)
+		defer cancel()
+
 		query, err := pgPool.Query(
-			context.Background(),
+			ctx,
 			`
 				SELECT DISTINCT(sector)
 				FROM instruments
@@ -293,77 +256,15 @@ func GetSectors(pgPool *pgxpool.Pool) http.HandlerFunc {
 	}
 }
 
-func (ml *MarketList) Insert(pgPool *pgxpool.Pool) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		var marketList MarketList
-		err := json.NewDecoder(r.Body).Decode(&marketList)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
-		}
-
-		query := pgPool.QueryRow(
-			context.Background(),
-			`
-				INSERT INTO market_lists(exchange_id, market_list)
-				VALUES($1, $2)
-				ON CONFLICT DO NOTHING
-				RETURNING id
-			`,
-			marketList.ExchangeId, marketList.MarketList,
-		)
-		var marketListId string
-		err = query.Scan(&marketListId)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusCreated)
-		w.Write([]byte(marketListId))
-	}
-}
-
-func (ml *MarketList) GetId(pgPool *pgxpool.Pool) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		marketList := r.PathValue("marketList")
-
-		query := pgPool.QueryRow(
-			context.Background(),
-			`
-				SELECT id
-				FROM market_lists
-				WHERE UPPER(market_list) = $1
-			`,
-			strings.ToUpper(marketList),
-		)
-
-		var marketListId string
-		err := query.Scan(&marketListId)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusNotFound)
-			return
-		}
-
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(marketListId))
-	}
-}
-
-func (ml *MarketList) Update(pgPool *pgxpool.Pool) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		// TODO: Implement
-	}
-}
-
 func (ml *MarketList) GetMany(pgPool *pgxpool.Pool) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(r.Context(), DB_TIMEOUT)
+		defer cancel()
+
 		exchangeId := r.PathValue("exchangeId")
 
 		query, err := pgPool.Query(
-			context.Background(),
+			ctx,
 			`
 				SELECT id, exchange_id, market_list
 				FROM market_lists
@@ -402,67 +303,11 @@ func (ml *MarketList) GetMany(pgPool *pgxpool.Pool) http.HandlerFunc {
 	}
 }
 
-func (ml *MarketList) AddInstrument(pgPool *pgxpool.Pool) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		var marketListInstrument MarketListInstrument
-		err := json.NewDecoder(r.Body).Decode(&marketListInstrument)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
-		}
-
-		result, err := pgPool.Exec(
-			context.Background(),
-			`
-				INSERT INTO market_list_instruments(instrument_id, market_list_id)
-				VALUES($1, $2)
-				ON CONFLICT(instrument_id, market_list_id) DO NOTHING
-			`,
-			marketListInstrument.InstrumentId, marketListInstrument.MarketListId,
-		)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-
-		if result.RowsAffected() == 0 {
-			http.Error(w, "No rows inserted", http.StatusConflict)
-			return
-		}
-
-		w.WriteHeader(http.StatusCreated)
-	}
-}
-
-func (ml *MarketList) RemoveInstrument(pgPool *pgxpool.Pool) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		marketListInstrumentId := r.PathValue("marketListInstrumentId")
-
-		result, err := pgPool.Exec(
-			context.Background(),
-			`
-				DELETE
-				FROM market_list_instruments
-				WHERE id = $1
-			`,
-			marketListInstrumentId,
-		)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-
-		if result.RowsAffected() == 0 {
-			http.Error(w, "No rows deleted", http.StatusNotFound)
-			return
-		}
-
-		w.WriteHeader(http.StatusNoContent)
-	}
-}
-
 func (w *Watchlist) Create(pgPool *pgxpool.Pool) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(r.Context(), DB_TIMEOUT)
+		defer cancel()
+
 		var watchlist Watchlist
 		err := json.NewDecoder(r.Body).Decode(&watchlist)
 		if err != nil {
@@ -471,7 +316,7 @@ func (w *Watchlist) Create(pgPool *pgxpool.Pool) http.HandlerFunc {
 		}
 
 		query := pgPool.QueryRow(
-			context.Background(),
+			ctx,
 			`
 				INSERT INTO watchlists(user_id, watchlist_name)
 				VALUES($1, $2)
@@ -494,6 +339,9 @@ func (w *Watchlist) Create(pgPool *pgxpool.Pool) http.HandlerFunc {
 
 func (w *Watchlist) AddInstrument(pgPool *pgxpool.Pool) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(r.Context(), DB_TIMEOUT)
+		defer cancel()
+
 		var watchlistInstrument WatchlistInstrument
 		err := json.NewDecoder(r.Body).Decode(&watchlistInstrument)
 		if err != nil {
@@ -502,7 +350,7 @@ func (w *Watchlist) AddInstrument(pgPool *pgxpool.Pool) http.HandlerFunc {
 		}
 
 		result, err := pgPool.Exec(
-			context.Background(),
+			ctx,
 			`
 				INSERT INTO watchlist_instruments(watchlist_id, instrument_id)
 				VALUES($1, $2)
@@ -526,10 +374,13 @@ func (w *Watchlist) AddInstrument(pgPool *pgxpool.Pool) http.HandlerFunc {
 
 func (w Watchlist) RemoveInstrument(pgPool *pgxpool.Pool) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(r.Context(), DB_TIMEOUT)
+		defer cancel()
+
 		watchlistInstrumentId := r.PathValue("watchlistInstrumentId")
 
 		result, err := pgPool.Exec(
-			context.Background(),
+			ctx,
 			`
 				DELETE
 				FROM watchlist_instruments
@@ -553,10 +404,13 @@ func (w Watchlist) RemoveInstrument(pgPool *pgxpool.Pool) http.HandlerFunc {
 
 func (w *Watchlist) GetInstruments(pgPool *pgxpool.Pool) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(r.Context(), DB_TIMEOUT)
+		defer cancel()
+
 		watchlistId := r.PathValue("watchlistId")
 
 		query, err := pgPool.Query(
-			context.Background(),
+			ctx,
 			`
 				SELECT instruments.id, instruments.instrument_name, instruments.symbol
 				FROM instruments, watchlists, watchlist_instruments
@@ -599,6 +453,9 @@ func (w *Watchlist) GetInstruments(pgPool *pgxpool.Pool) http.HandlerFunc {
 
 func (w *Watchlist) Update(pgPool *pgxpool.Pool) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(r.Context(), DB_TIMEOUT)
+		defer cancel()
+
 		var watchlist Watchlist
 		err := json.NewDecoder(r.Body).Decode(&watchlist)
 		if err != nil {
@@ -607,7 +464,7 @@ func (w *Watchlist) Update(pgPool *pgxpool.Pool) http.HandlerFunc {
 		}
 
 		query := pgPool.QueryRow(
-			context.Background(),
+			ctx,
 			`
 				UPDATE watchlists
 				SET watchlist_name = $1
@@ -637,10 +494,13 @@ func (w *Watchlist) Update(pgPool *pgxpool.Pool) http.HandlerFunc {
 
 func (w *Watchlist) Delete(pgPool *pgxpool.Pool) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(r.Context(), DB_TIMEOUT)
+		defer cancel()
+
 		watchlistId := r.PathValue("watchlistId")
 
 		result, err := pgPool.Exec(
-			context.Background(),
+			ctx,
 			`
 				DELETE
 				FROM watchlists
@@ -664,10 +524,13 @@ func (w *Watchlist) Delete(pgPool *pgxpool.Pool) http.HandlerFunc {
 
 func (w *Watchlist) GetMany(pgPool *pgxpool.Pool) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(r.Context(), DB_TIMEOUT)
+		defer cancel()
+
 		userId := r.PathValue("userId")
 
 		query, err := pgPool.Query(
-			context.Background(),
+			ctx,
 			`
 				SELECT watchlists.id, watchlists.watchlist_name
 				FROM watchlists

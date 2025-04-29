@@ -1,5 +1,9 @@
 package entities
 
+import "time"
+
+const DB_TIMEOUT = time.Second * 12
+
 type Entities struct {
 	Exchange      Exchange
 	Instrument    Instrument

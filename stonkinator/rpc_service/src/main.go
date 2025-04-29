@@ -18,7 +18,7 @@ func main() {
 
 	service := service{
 		infoLog:  log.New(os.Stdout, "INFO\t", log.Ldate|log.Ltime),
-		errorLog: log.New(os.Stderr, "Error\t", log.Ldate|log.Ltime),
+		errorLog: log.New(os.Stderr, "ERROR\t", log.Ldate|log.Ltime),
 	}
 	err = service.create(pgPool, certFile, keyFile, caFile)
 	if err != nil {

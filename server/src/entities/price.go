@@ -22,61 +22,17 @@ type Price struct {
 	Volume       float64   `json:"volume"`
 }
 
-type PriceInsertResponse struct {
-	Result            string   `json:"result"`
-	PrevExistingDates []string `json:"prevExistingDates"`
-}
-
-type PriceList []Price
-
-func (pl *PriceList) UnmarshalJSON(data []byte) error {
-	var auxSlice []struct {
-		InstrumentId string  `json:"instrument-id,omitempty"`
-		Index        int64   `json:"index,omitempty"`
-		Symbol       string  `json:"symbol"`
-		DateTime     string  `json:"date"`
-		Open         float64 `json:"open"`
-		High         float64 `json:"high"`
-		Low          float64 `json:"low"`
-		Close        float64 `json:"close"`
-		Volume       float64 `json:"volume"`
-	}
-
-	if err := json.Unmarshal(data, &auxSlice); err != nil {
-		return err
-	}
-
-	for _, aux := range auxSlice {
-		strippedDate := aux.DateTime[:10]
-		date, err := time.Parse(time.RFC3339, strippedDate)
-		if err != nil {
-			return err
-		}
-
-		*pl = append(*pl, Price{
-			InstrumentId: aux.InstrumentId,
-			Index:        aux.Index,
-			Symbol:       aux.Symbol,
-			Date:         date,
-			Open:         aux.Open,
-			High:         aux.High,
-			Low:          aux.Low,
-			Close:        aux.Close,
-			Volume:       aux.Volume,
-		})
-	}
-
-	return nil
-}
-
 func (p *Price) Get(pgPool *pgxpool.Pool) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(r.Context(), DB_TIMEOUT)
+		defer cancel()
+
 		symbol := r.PathValue("symbol")
 		start := r.URL.Query().Get("start")
 		end := r.URL.Query().Get("end")
 
 		query, err := pgPool.Query(
-			context.Background(),
+			ctx,
 			`
 				SELECT instruments.id, instruments.symbol,
 					price_data.open_price AS "open", price_data.high_price AS "high",

@@ -17,7 +17,7 @@ type User struct {
 
 func (u *User) Register(pgPool *pgxpool.Pool) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		ctx, cancel := context.WithTimeout(context.Background(), dbTimeout)
+		ctx, cancel := context.WithTimeout(r.Context(), DB_TIMEOUT)
 		defer cancel()
 
 		err := r.ParseForm()
@@ -70,7 +70,7 @@ func (u *User) Register(pgPool *pgxpool.Pool) http.HandlerFunc {
 
 func (u *User) Login(pgPool *pgxpool.Pool) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		ctx, cancel := context.WithTimeout(context.Background(), dbTimeout)
+		ctx, cancel := context.WithTimeout(r.Context(), DB_TIMEOUT)
 		defer cancel()
 
 		err := r.ParseForm()

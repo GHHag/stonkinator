@@ -321,15 +321,15 @@ if __name__ == '__main__':
     step_through = cli_args.step_through
 
     from trading_systems.trading_system_examples.trading_system_example import TradingSystemExample
-    from trading_systems.trading_system_examples.ml_trading_system_example import MLTradingSystemExample
-    from trading_systems.trading_system_examples.meta_labeling_example import MetaLabelingExample
-    from trading_systems.live_systems.stonkinator_flagship import StonkinatorFlagship
+    # from trading_systems.trading_system_examples.ml_trading_system_example import MLTradingSystemExample
+    # from trading_systems.trading_system_examples.meta_labeling_example import MetaLabelingExample
+    # from trading_systems.live_systems.stonkinator_flagship import StonkinatorFlagship
 
     TRADING_SYSTEM_CLASSES = [
         TradingSystemExample,
-        MLTradingSystemExample,
-        MetaLabelingExample,
-        StonkinatorFlagship,
+        # MLTradingSystemExample,
+        # MetaLabelingExample,
+        # StonkinatorFlagship,
     ]
 
     # start_dt = dt.datetime(1999, 1, 1)

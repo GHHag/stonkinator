@@ -17,7 +17,16 @@ done
 
 certificates_dir="stonkinator/.certs"
 if [ ! -d "$certificates_dir" ]; then
-	bash generate_certs.sh $certificates_dir
+	bash create_certs.sh $certificates_dir
+
+	openssl req \
+		-x509 \
+		-sha256 \
+		-nodes \
+		-newkey rsa:4096 \
+		-keyout server/stonkinator.key \
+		-out server/stonkinator.crt \
+		-subj /O=me
 fi
 
 if $watch; then
