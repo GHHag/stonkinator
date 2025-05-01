@@ -7,7 +7,7 @@ services:
       POSTGRES_PASSWORD: ${PG_DB_PASSWORD}
       POSTGRES_DB: ${PG_DB_NAME}
     volumes:
-      - ./server/db/db_dumps/stonkinator.sql:/docker-entrypoint-initdb.d/datadump.sql
+      - ./db/db_dumps/stonkinator.sql:/docker-entrypoint-initdb.d/datadump.sql
       - securities_data:/var/lib/postgresql/data
     ports:
       - ${PG_DB_PORT_EXP}:${PG_DB_PORT}
@@ -25,14 +25,14 @@ services:
       WEB_API_PORT: ${WEB_API_PORT}
       WEB_API_KEY_PATH: ${WEB_API_KEY_PATH}
       WEB_API_CERT_PATH: ${WEB_API_CERT_PATH}
-    build: ./server
+    build: ./web_api
     ports:
       - ${WEB_API_PORT_EXP}:${WEB_API_PORT}
     develop:
       watch:
         - action: rebuild
           path:
-            ./server/src
+            ./web_api/src
 
   rpc_service:
     depends_on:

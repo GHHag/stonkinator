@@ -32,7 +32,7 @@ done
 
 if [ "$run_dal" = true ]; then
     echo -e "\n--run-dal: $run_dal\nRunning dal"
-    /usr/local/bin/python /app/persistance/persistance_services/dal_grpc.py
+    /usr/local/bin/python /app/persistance/persistance_services/securities_dal.py
 fi
 
 if [ -n "$TS_HANDLER_DIR_TARGET" ]; then
