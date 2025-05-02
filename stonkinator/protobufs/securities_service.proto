@@ -10,13 +10,13 @@ service SecuritiesService {
     rpc InsertExchange (Exchange) returns (CUD);
     // rpc UpdateExchange () returns (CUD);
     rpc GetExchange (GetBy) returns (Exchange);
-    rpc GetExchanges (GetAllRequest) returns (Exchanges);
+    rpc GetExchanges (GetAll) returns (Exchanges);
     rpc InsertInstrument (Instrument) returns (CUD);
     // rpc UpdateInstrument (Instrument) returns (CUD);
     rpc GetInstrument (GetBy) returns (Instrument);
     // rpc RemoveInstrument () returns (CUD);
     rpc GetDateTime (GetDateTimeRequest) returns (DateTime);
-    rpc GetLastDate (GetLastDateRequest) returns (DateTime);
+    rpc GetLastDate (GetBy) returns (DateTime);
     rpc InsertPrice (Price) returns (CUD);
     rpc InsertPriceData(stream Price) returns (CUD);
     rpc GetPriceData(GetPriceDataRequest) returns (stream Price);
@@ -82,9 +82,4 @@ message GetPriceDataRequest {
 message GetDateTimeRequest {
     string instrument_id = 1;
     bool min = 2;
-}
-
-message GetLastDateRequest {
-    string symbol_1 = 1;
-    string symbol_2 = 2;
 }

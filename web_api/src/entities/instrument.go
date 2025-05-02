@@ -54,7 +54,7 @@ func (i *Instrument) GetOne(pgPool *pgxpool.Pool) http.HandlerFunc {
 			`
 				SELECT id, exchange_id, instrument_name, symbol, sector
 				FROM instruments
-				WHERE UPPER(symbol) = $1
+				WHERE symbol = $1
 			`,
 			strings.ToUpper(symbol),
 		)

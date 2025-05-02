@@ -34,4 +34,4 @@ message OperateOn {
     }
 }
 
-message GetAllRequest {}
+message GetAll {}

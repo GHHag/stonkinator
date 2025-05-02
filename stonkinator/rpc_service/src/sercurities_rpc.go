@@ -59,7 +59,7 @@ func (s *server) GetExchange(ctx context.Context, req *pb.GetBy) (*pb.Exchange, 
 	return res, nil
 }
 
-func (s *server) GetExchanges(ctx context.Context, req *pb.GetAllRequest) (*pb.Exchanges, error) {
+func (s *server) GetExchanges(ctx context.Context, req *pb.GetAll) (*pb.Exchanges, error) {
 	ctx, cancel := context.WithTimeout(ctx, DB_TIMEOUT)
 	defer cancel()
 
@@ -107,7 +107,7 @@ func (s *server) InsertInstrument(ctx context.Context, req *pb.Instrument) (*pb.
 			VALUES($1, $2, $3, $4)
 			ON CONFLICT DO NOTHING
 		`,
-		req.ExchangeId, req.Name, req.Symbol, req.Sector,
+		req.ExchangeId, req.Name, strings.ToUpper(req.Symbol), req.Sector,
 	)
 	if err != nil {
 		s.errorLog.Println(err)
@@ -130,7 +130,7 @@ func (s *server) GetInstrument(ctx context.Context, req *pb.GetBy) (*pb.Instrume
 		`
 			SELECT id, exchange_id, instrument_name, symbol, sector
 			FROM instruments
-			WHERE UPPER(symbol) = $1
+			WHERE symbol = $1
 		`,
 		strings.ToUpper(req.GetStrIdentifier()),
 	)
@@ -186,7 +186,7 @@ func (s *server) GetDateTime(ctx context.Context, req *pb.GetDateTimeRequest) (*
 	return res, nil
 }
 
-func (s *server) GetLastDate(ctx context.Context, req *pb.GetLastDateRequest) (*pb.DateTime, error) {
+func (s *server) GetLastDate(ctx context.Context, req *pb.GetBy) (*pb.DateTime, error) {
 	ctx, cancel := context.WithTimeout(ctx, DB_TIMEOUT)
 	defer cancel()
 
@@ -197,7 +197,7 @@ func (s *server) GetLastDate(ctx context.Context, req *pb.GetLastDateRequest) (*
 				SELECT date_time
 				FROM instruments, price_data
 				WHERE instruments.id = price_data.instrument_id
-				AND UPPER(instruments.symbol) = $1
+				AND instruments.symbol = $1
 				ORDER BY price_data.date_time DESC
 				LIMIT 20
 			),
@@ -205,7 +205,7 @@ func (s *server) GetLastDate(ctx context.Context, req *pb.GetLastDateRequest) (*
 				SELECT date_time
 				FROM instruments, price_data
 				WHERE instruments.id = price_data.instrument_id
-				AND UPPER(instruments.symbol) = $2
+				AND instruments.symbol = $2
 				ORDER BY price_data.date_time DESC
 				LIMIT 20
 			)
@@ -217,7 +217,7 @@ func (s *server) GetLastDate(ctx context.Context, req *pb.GetLastDateRequest) (*
 			ORDER BY date_time
 			LIMIT 1
 		`,
-		strings.ToUpper(req.Symbol_1), strings.ToUpper(req.Symbol_2),
+		strings.ToUpper(req.GetStrIdentifier()), strings.ToUpper(req.GetAltStrIdentifier()),
 	)
 
 	var dateTime time.Time
@@ -327,16 +327,15 @@ func (s *server) GetPriceData(req *pb.GetPriceDataRequest, stream pb.SecuritiesS
 	query, err := s.pgPool.Query(
 		ctx,
 		`
-			SELECT instruments.id,
-				price_data.open_price AS "open", price_data.high_price AS "high",
-				price_data.low_price AS "low", price_data.close_price AS "close",
-				price_data.volume AS "volume", price_data.date_time AS "date"
-			FROM instruments, price_data
-			WHERE instruments.id = price_data.instrument_id
-			AND instruments.id = $1
-			AND price_data.date_time >= $2
-			AND price_data.date_time <= $3
-			ORDER BY price_data.date_time
+			SELECT instrument_id,
+				open_price AS "open", high_price AS "high",
+				low_price AS "low", close_price AS "close",
+				volume AS "volume", date_time AS "date"
+			FROM price_data
+			WHERE instrument_id = $1
+			AND date_time >= $2
+			AND date_time <= $3
+			ORDER BY date_time
 		`,
 		req.InstrumentId, req.StartDateTime.DateTime, req.EndDateTime.DateTime,
 	)

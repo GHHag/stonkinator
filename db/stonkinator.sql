@@ -19,9 +19,6 @@ CREATE TABLE IF NOT EXISTS instruments
     CONSTRAINT exchange_id_fk FOREIGN KEY(exchange_id) REFERENCES exchanges(id)
 );
 
-CREATE INDEX idx_symbol
-ON instruments (UPPER(symbol));
-
 
 ---------------------------------------------------------------------------
 
@@ -184,6 +181,9 @@ CREATE TABLE IF NOT EXISTS orders
     UNIQUE(instrument_id, trading_system_id)
 );
 
+CREATE INDEX idx_orders
+ON orders (instrument_id, trading_system_id);
+
 
 ---------------------------------------------------------------------------
 
@@ -203,13 +203,13 @@ CREATE TABLE IF NOT EXISTS positions
 CREATE INDEX idx_positions
 ON positions (instrument_id, trading_system_id, date_time DESC);
 
-CREATE INDEX idx_positions_active_false 
-ON positions (trading_system_id)
+CREATE INDEX idx_positions_active_false
+ON positions (instrument_id, trading_system_id, date_time DESC)
 WHERE (position_data ->> 'active')::boolean = false;
 
--- CREATE INDEX idx_positions_active_false_entry_dt
--- ON positions ((position_data->>'entry_dt') DESC)
--- WHERE (position_data ->> 'active')::boolean = false;
+CREATE INDEX idx_positions_by_ts_active_false
+ON positions (trading_system_id)
+WHERE (position_data ->> 'active')::boolean = false;
 
 
 ---------------------------------------------------------------------------
@@ -228,6 +228,9 @@ CREATE TABLE IF NOT EXISTS market_states
     UNIQUE(instrument_id, trading_system_id)
 );
 
+CREATE INDEX idx_market_states
+ON market_states (trading_system_id, market_action);
+
 
 ---------------------------------------------------------------------------
 
@@ -242,5 +245,5 @@ CREATE TABLE IF NOT EXISTS trading_system_models (
 );
 
 CREATE UNIQUE INDEX unique_ts_model_with_null_instrument_id
-ON trading_system_models(trading_system_id)
+ON trading_system_models (trading_system_id)
 WHERE instrument_id IS NULL;

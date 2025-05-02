@@ -8,14 +8,13 @@ import grpc
 from persistance.persistance_services.general_messages_pb2 import (
     CUD,
     DateTime,
-    GetAllRequest,
+    GetAll,
     GetBy,
 )
 from persistance.persistance_services.securities_service_pb2 import (
     Exchange,
     Exchanges,
     GetDateTimeRequest,
-    GetLastDateRequest,
     GetPriceDataRequest,
     Instrument,
     Instruments,
@@ -82,7 +81,7 @@ class SecuritiesGRPCService(SecuritiesServiceBase):
         
     @grpc_error_handler(logger, default_return=None)
     def get_exchanges(self) -> Exchanges:
-        req = GetAllRequest()
+        req = GetAll()
         res = self.__client.GetExchanges(req)
         return res
         
@@ -114,7 +113,7 @@ class SecuritiesGRPCService(SecuritiesServiceBase):
 
     @grpc_error_handler(logger, default_return=None)
     def get_last_date(self, symbol_1: str, symbol_2: str) -> DateTime:
-        req = GetLastDateRequest(symbol_1=symbol_1, symbol_2=symbol_2)
+        req = GetBy(str_identifier=symbol_1, alt_str_identifier=symbol_2)
         res = self.__client.GetLastDate(req)
         return res
 
