@@ -11,6 +11,7 @@ class TradingSystemAttributes:
     __SIGNAL_INDEX = 'signal_index'
     __SIGNAL_DT = 'signal_dt'
     __SYMBOL = 'symbol'
+    __INSTRUMENT_ID = 'instrument_id'
     __DIRECTION = 'direction'
     __ORDER = 'order'
     __PERIODS_IN_POSITION = 'periods_in_position'
@@ -22,6 +23,7 @@ class TradingSystemAttributes:
     __SYSTEM_NAME = 'system_name'
     __METRICS = 'metrics'
     __NUMBER_OF_PERIODS = 'num_of_periods'
+    __NUMBER_OF_POSITIONS = 'num_of_positions'
     __POSITION_LIST = 'position_list'
     __ML_MODEL = 'model'
     __INSTRUMENT = 'instrument'
@@ -29,6 +31,7 @@ class TradingSystemAttributes:
     __EXIT_PERIOD_LOOKBACK = 'exit_period_lookback'
     __REQ_PERIOD_ITERS = 'req_period_iters'
     __PRED_COL = 'pred'
+    __DATA_KEY = 'data'
 
     @classproperty
     def LONG(cls):
@@ -53,6 +56,10 @@ class TradingSystemAttributes:
     @classproperty
     def SYMBOL(cls):
         return cls.__SYMBOL
+
+    @classproperty
+    def INSTRUMENT_ID(cls):
+        return cls.__INSTRUMENT_ID
 
     @classproperty
     def DIRECTION(cls):
@@ -99,6 +106,10 @@ class TradingSystemAttributes:
         return cls.__NUMBER_OF_PERIODS
 
     @classproperty
+    def NUMBER_OF_POSITIONS(cls):
+        return cls.__NUMBER_OF_POSITIONS
+
+    @classproperty
     def POSITION_LIST(cls):
         return cls.__POSITION_LIST
 
@@ -125,3 +136,7 @@ class TradingSystemAttributes:
     @classproperty
     def PRED_COL(cls):
         return cls.__PRED_COL
+
+    @classproperty
+    def DATA_KEY(cls):
+        return cls.__DATA_KEY

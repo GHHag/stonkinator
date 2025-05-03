@@ -8,8 +8,8 @@ class IInstrumentSelector(metaclass=ABCMeta):
     @property
     @abstractmethod
     def selected_instruments(self) -> list:
-        raise NotImplementedError("Should contain a 'selected_instruments' property")
+        raise NotImplementedError("should contain a 'selected_instruments' property")
 
     @abstractmethod
     def __call__(self):
-        raise NotImplementedError("Should implement '__call__()'")
+        raise NotImplementedError("should implement '__call__()'")

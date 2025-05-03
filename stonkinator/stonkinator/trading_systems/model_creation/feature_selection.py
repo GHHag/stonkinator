@@ -51,7 +51,7 @@ def feature_importances_selection(
         feature_importances = attr_target
     else:
         if hasattr(model, 'feature_importances_') == False:
-            raise AttributeError('model should have a feature_importances_ attribute.')
+            raise AttributeError('model should have a feature_importances_ attribute')
         feature_importances = model.feature_importances_
 
     split_at = int(len(X.columns) * fraction)
@@ -86,7 +86,7 @@ def feature_importances_by_threshold_selection(
         feature_importances = attr_target
     else:
         if hasattr(model, 'feature_importances_') == False:
-            raise AttributeError('model should have a feature_importances_ attribute.')
+            raise AttributeError('model should have a feature_importances_ attribute')
         feature_importances = model.feature_importances_
 
     threshold = determine_threshold_function(feature_importances)

@@ -5,6 +5,7 @@ import pandas as pd
 import numpy as np
 
 from trading.data.metadata.market_state_enum import MarketState
+from trading.data.metadata.trading_system_attributes import TradingSystemAttributes
 from trading.data.metadata.trading_system_metrics import TradingSystemMetrics
 from trading.data.metadata.price import Price
 from trading.position.order import Order
@@ -27,37 +28,34 @@ class TradingSystem:
 
     Parameters
     ----------
+    trading_system_id : 'str'
+        Identifier of a trading system.
     system_name : 'str'
-        The name of the system. Will be used to identify it.
+        The name of the system.
     entry_logic_function : 'function'
         The logic used for entering a position.
     exit_logic_function : 'function'
         The logic used to exit a position.
-    systems_db : 'TradingSystemsPersisterBase'
+    trading_systems_persister : 'TradingSystemsPersisterBase'
         Instance of a class that implements the TradingSystemsPersisterBase
-        meta class. Handles database connection and communication.
-    client_db : 'TradingSystemsPersisterBase'
-        Instance of a class that implements the TradingSystemsPersisterBase
-        meta class. Handles database connection and communication.
+        meta class. Client for service that handle data persistance.
     """
 
     def __init__(
-        self, system_name, 
+        self, trading_system_id, system_name,
         entry_logic_function: callable, exit_logic_function: callable,
-        systems_db: TradingSystemsPersisterBase, client_db: TradingSystemsPersisterBase
+        trading_systems_persister: TradingSystemsPersisterBase
     ):
+        self.__system_id = trading_system_id
         self.__system_name = system_name
-        assert isfunction(entry_logic_function), \
-            "Parameter 'entry_logic_function' must be a function."
+        assert isfunction(entry_logic_function), "Parameter 'entry_logic_function' must be a function."
         self.__entry_logic_function = entry_logic_function
-        assert isfunction(exit_logic_function), \
-            "Parameter 'exit_logic_function' must be a function."
+        assert isfunction(exit_logic_function), "Parameter 'exit_logic_function' must be a function."
         self.__exit_logic_function = exit_logic_function
-        self.__systems_db: TradingSystemsPersisterBase = systems_db
-        self.__client_db: TradingSystemsPersisterBase = client_db
+        self.__trading_systems_persister = trading_systems_persister
 
     def run_trading_system_backtest(
-        self, data_dict: dict[str, pd.DataFrame], *args, 
+        self, data_dict: dict[tuple[str, str], pd.DataFrame], *args, 
         capital=10000, capital_fraction=None, avg_yearly_periods=251,
         system_evaluation_fields=TradingSystemMetrics.system_evaluation_fields,
         market_state_null_default=False,
@@ -79,8 +77,8 @@ class TradingSystem:
         Parameters
         ----------
         :param data_dict:
-            'dict' : A dict with key: symbol, value: Pandas DataFrame with data
-            for the assets used in the system.
+            'dict' : A dict with key: (instrument_id, symbol), value: Pandas DataFrame 
+            with data for the assets used in the system.
         :param args:
             'tuple' : Args to pass along to PositionManager.generate_positions().
         :param capital:
@@ -165,29 +163,25 @@ class TradingSystem:
         metrics_df: pd.DataFrame = pd.DataFrame()
         monte_carlo_simulations_df: pd.DataFrame = pd.DataFrame()
 
-        for instrument, data in data_dict.items():
+        for (instrument_id, symbol), data in data_dict.items():
             try:
                 if Price.CLOSE in data:
                     asset_price_series = [float(close) for close in data[Price.CLOSE]]
-                elif f'{Price.CLOSE}_{instrument}' in data:
-                    asset_price_series = [
-                        float(close) for close in data[f'{Price.CLOSE}_{instrument}']
-                    ]
+                elif f'{Price.CLOSE}_{symbol}' in data:
+                    asset_price_series = [float(close) for close in data[f'{Price.CLOSE}_{symbol}']]
                 else:
-                    raise Exception(f'Column missing in DataFrame, instrument: {instrument}')
+                    raise Exception(f'column "{Price.CLOSE}" missing in DataFrame, symbol: {symbol}')
             except TypeError:
-                print('TypeError', instrument)
+                print('TypeError', symbol)
                 continue
 
             if not pd.api.types.is_datetime64_any_dtype(data.index):
-                raise ValueError(
-                    'Expected index of Pandas DataFrame to have a datetime-like dtype.'
-                )
+                raise ValueError('expected index of Pandas DataFrame to have a datetime-like dtype')
 
             # if capital_fraction is a dict containing a key with the current value of
-            # 'instrument', its value will be assigned to 'capital_f'
-            if isinstance(capital_fraction, dict) and instrument in capital_fraction:
-                capital_f = capital_fraction[instrument]
+            # 'instrument_id', its value will be assigned to 'capital_f'
+            if isinstance(capital_fraction, dict) and instrument_id in capital_fraction:
+                capital_f = capital_fraction[instrument_id]
             # if capital_fraction is a float its value will be assigned to 'capital_f'
             elif isinstance(capital_fraction, float):
                 capital_f = capital_fraction
@@ -195,12 +189,12 @@ class TradingSystem:
                 capital_f = 1.0
 
             pos_manager = PositionManager(
-                instrument, len(data), capital, capital_f, 
+                symbol, len(data), capital, capital_f,
                 asset_price_series=asset_price_series
             )
             trading_session = BacktestTradingSession(
                 self.__entry_logic_function, self.__exit_logic_function, data,
-                signal_handler, symbol=instrument
+                signal_handler, instrument_id, symbol=symbol
             )
             pos_manager.generate_positions(
                 trading_session, *args,
@@ -210,7 +204,7 @@ class TradingSystem:
 
             # summary output of the trading system
             if not len(pos_manager.position_list) > 0:
-                print(f'\nNo positions generated for {pos_manager.symbol}')
+                print(f'\nNo positions generated for {pos_manager.identifier}')
                 continue
             else:
                 try:
@@ -227,8 +221,11 @@ class TradingSystem:
 
             # add system evaluation data to the SignalHandler
             if signal_handler.entry_signal_given == True or market_state_null_default:
+                summary_data_dict = pos_manager.metrics.summary_data_dict
+                num_of_periods = len(data.loc[data.index <= pos_manager.position_list[-1].exit_dt])
+                summary_data_dict[TradingSystemAttributes.NUMBER_OF_PERIODS] = num_of_periods
                 signal_handler.add_system_evaluation_data(
-                    pos_manager.metrics.summary_data_dict, system_evaluation_fields
+                    summary_data_dict, (*system_evaluation_fields, TradingSystemAttributes.NUMBER_OF_PERIODS)
                 )
 
             if len(pos_manager.position_list) > 0:
@@ -243,7 +240,7 @@ class TradingSystem:
                 if run_monte_carlo_sims:
                     print('\nRunning Monte Carlo simulations...')
                     monte_carlo_sims_data_dicts_list = monte_carlo_simulate_returns(
-                        pos_manager.position_list, pos_manager.symbol, 
+                        pos_manager.position_list, pos_manager.identifier, 
                         pos_manager.metrics.num_testing_periods,
                         start_capital=capital, capital_fraction=capital_f,
                         num_of_sims=num_of_monte_carlo_sims, data_amount_used=monte_carlo_data_amount,
@@ -263,26 +260,25 @@ class TradingSystem:
                             )
 
                 if insert_data_to_db_bool:
-                    order, symbol = signal_handler.current_order
-                    if order and symbol == instrument:
-                        self.__systems_db.insert_current_order(
-                            self.__system_name, instrument, order
+                    order, order_instrument_id = signal_handler.current_order
+                    if order and order_instrument_id == instrument_id:
+                        order_direction = (
+                            order.direction == TradingSystemAttributes.LONG
+                            if order.action == MarketState.ENTRY
+                            else None
                         )
-                    position, symbol = signal_handler.current_position
-                    if position and position.active == True and symbol == instrument:
-                        self.__systems_db.insert_current_position(
-                            self.__system_name, instrument, position
+                        self.__trading_systems_persister.upsert_order(
+                            instrument_id, self.__system_id, order.order_type, order.action.value,
+                            order.created_dt, order.active, order_direction,
+                            **order.order_properties
                         )
-                    num_periods = len(data.loc[data.index <= pos_manager.position_list[-1].exit_dt])
-                    self.__systems_db.insert_single_symbol_position_list(
-                        self.__system_name, instrument, 
-                        pos_manager.position_list[:], num_periods,
-                        serialized_format=True
-                    )
-                    self.__client_db.insert_single_symbol_position_list(
-                        self.__system_name, instrument,
-                        pos_manager.position_list[:], num_periods,
-                        json_format=True
+                    position, position_instrument_id = signal_handler.current_position
+                    if position and position.active == True and position_instrument_id == instrument_id:
+                        self.__trading_systems_persister.upsert_position(
+                            instrument_id, self.__system_id, position.current_dt, position.as_dict, position
+                        )
+                    self.__trading_systems_persister.insert_positions(
+                        instrument_id, self.__system_id, pos_manager.position_list
                     )
 
                 full_pos_list += pos_manager.position_list[:]
@@ -329,7 +325,7 @@ class TradingSystem:
             signal_handler.write_to_csv(write_signals_to_file_path, self.__system_name)
 
         if insert_data_to_db_bool:
-            signal_handler.insert_into_db(self.__client_db, self.__system_name)
+            signal_handler.insert_into_db(self.__trading_systems_persister, self.__system_id)
 
         if len(data_dict) > 1:
             num_of_pos_insert_multiplier = pos_list_slice_years_est * 1.5
@@ -346,18 +342,14 @@ class TradingSystem:
                 * num_of_pos_insert_multiplier
             )
             full_pos_list_slice_param = int(avg_yearly_positions * (pos_list_slice_years_est * 1.5) + 0.5)
-            sorted_full_pos_list: list[Position] = sorted(full_pos_list, key=lambda x: x.entry_dt)
-            sliced_pos_list: list[Position] = sorted_full_pos_list[-full_pos_list_slice_param:]
             num_of_periods = avg_yearly_periods * pos_list_slice_years_est * num_of_pos_insert_multiplier
-
-        if insert_data_to_db_bool:
-            self.__systems_db.insert_position_list(
-                self.__system_name, sliced_pos_list, num_of_periods,
-                serialized_format=True
-            )
-            self.__client_db.insert_position_list(
-                self.__system_name, sliced_pos_list, num_of_periods, 
-                json_format=True
+            num_of_positons = full_pos_list_slice_param
+            self.__trading_systems_persister.update_trading_system_metrics(
+                self.__system_id,
+                {
+                    TradingSystemAttributes.NUMBER_OF_PERIODS: num_of_periods,
+                    TradingSystemAttributes.NUMBER_OF_POSITIONS: num_of_positons
+                }
             )
 
         returns_distribution_plot(
@@ -365,9 +357,8 @@ class TradingSystem:
             plot_fig=plot_returns_distribution, save_fig_to_path=save_returns_distribution_plot_to_path
         )
 
-
     def run_trading_system(
-        self, data_dict: dict[str, pd.DataFrame], *args,
+        self, data_dict: dict[tuple[str, str], pd.DataFrame], *args, 
         write_signals_to_file_path: str=None, print_data=False,
         insert_data_to_db_bool=False, **kwargs
     ):
@@ -378,8 +369,8 @@ class TradingSystem:
         Parameters
         ----------
         :param data_dict:
-            'dict' : A dict with key: symbol, value: Pandas DataFrame with data
-            for the assets used in the system.
+            'dict' : A dict with key: (instrument_id, symbol), value: Pandas DataFrame 
+            with data for the assets used in the system.
         :param args:
             'tuple' : A tuple of positional arguments not specified in the method
             signature.
@@ -400,87 +391,52 @@ class TradingSystem:
 
         signal_handler = SignalHandler()
 
-        for instrument, data in data_dict.items():
-            if not Price.CLOSE in data and not f'{Price.CLOSE}_{instrument}' in data:
-                raise ValueError(f'Column missing in DataFrame, instrument: {instrument}')
+        for (instrument_id, symbol), data in data_dict.items():
+            if not Price.CLOSE in data and not f'{Price.CLOSE}_{symbol}' in data:
+                raise ValueError(f'column missing in DataFrame, symbol: {symbol}')
 
             if not pd.api.types.is_datetime64_any_dtype(data.index):
-                raise ValueError(
-                    'Expected index of Pandas DataFrame to have a datetime dtype.'
-                )
+                raise ValueError('expected index of Pandas DataFrame to have a datetime dtype')
 
-            order: Order = self.__systems_db.get_current_order(
-                self.__system_name, instrument
-            )
+            order = self.__trading_systems_persister.get_order(instrument_id, self.__system_id)
+            order = Order.from_proto(order)
             if order and order.created_dt >= data.index[-1]:
                 continue
 
-            position: Position = self.__systems_db.get_current_position(
-                self.__system_name, instrument
+            position_id: str | None
+            position: Position | None
+            position_id, position = self.__trading_systems_persister.get_position(
+                instrument_id, self.__system_id
             )
             if position and position.current_dt >= data.index[-1]:
                 continue
 
             trading_session = TradingSession(
                 self.__entry_logic_function, self.__exit_logic_function,
-                signal_handler, symbol=instrument
+                signal_handler, instrument_id, symbol=symbol
             )
-            order, position = trading_session(
+            current_order, position = trading_session(
                 data, order, position, *args,
                 print_data=print_data, **kwargs
             )
+            order = current_order if current_order else order
 
-            if (
-                order and order.active == True and
-                order.action == MarketState.ENTRY and
-                order.created_dt == data.index[-1]
-            ):
-                latest_position: Position = self.__systems_db.get_single_symbol_latest_position(
-                    self.__system_name, instrument
+            if order and insert_data_to_db_bool:
+                order_direction = (
+                    order.direction == TradingSystemAttributes.LONG 
+                    if order.action == MarketState.ENTRY 
+                    else None
                 )
-                num_of_periods = (
-                    len(data.loc[data.index > latest_position.exit_dt]) 
-                    if latest_position != None else len(data)
-                )
-                self.__systems_db.increment_num_of_periods(
-                    self.__system_name, instrument, num_of_periods
-                )
-                self.__client_db.increment_num_of_periods(
-                    self.__system_name, instrument, num_of_periods
+                self.__trading_systems_persister.upsert_order(
+                    instrument_id, self.__system_id, order.order_type, order.action.value,
+                    order.created_dt, order.active, order_direction,
+                    **order.order_properties
                 )
 
-            if insert_data_to_db_bool == True:
-                self.__systems_db.insert_current_order(
-                    self.__system_name, instrument, order
-                )
-
-                self.__systems_db.insert_current_position(
-                    self.__system_name, instrument, position
-                )
-                # also insert position to client db?
-                # self.__client_db.insert_current_position(
-                #     self.__system_name, instrument, position
-                # )
-
-            if (
-                position and position.exit_dt == data.index[-1] and 
-                insert_data_to_db_bool == True
-            ):
-                self.__systems_db.insert_single_symbol_position(
-                    self.__system_name, instrument, position, position.periods_in_position,
-                    serialized_format=True
-                )
-                self.__client_db.insert_single_symbol_position(
-                    self.__system_name, instrument, position, position.periods_in_position,
-                    json_format=True
-                )
-                self.__systems_db.insert_position(
-                    self.__system_name, position,
-                    serialized_format=True
-                )
-                self.__client_db.insert_position(
-                    self.__system_name, position,
-                    json_format=True
+            if position and insert_data_to_db_bool:
+                self.__trading_systems_persister.upsert_position(
+                    instrument_id, self.__system_id, position.current_dt, position.as_dict, position, 
+                    id=None if position.active == False else position_id
                 )
 
         if print_data == True: 
@@ -491,4 +447,4 @@ class TradingSystem:
             signal_handler.write_to_csv(write_signals_to_file_path, self.__system_name)
 
         if insert_data_to_db_bool:
-            signal_handler.insert_into_db(self.__client_db, self.__system_name)
+            signal_handler.insert_into_db(self.__trading_systems_persister, self.__system_id)

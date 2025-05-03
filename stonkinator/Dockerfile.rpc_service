@@ -1,0 +1,29 @@
+FROM golang:1.23 AS build
+
+RUN apt-get update && apt-get install -y \
+    protobuf-compiler && \
+    go install google.golang.org/protobuf/cmd/protoc-gen-go@latest && \
+    go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
+
+WORKDIR /app
+COPY rpc_service/src/go.mod rpc_service/src/go.sum /app/
+RUN go mod download
+
+COPY rpc_service/src /app/
+
+COPY protobufs/ /app/protobufs/
+RUN protoc \
+    --proto_path=/app/protobufs \
+    --go_out=/app/ \
+    --go-grpc_out=/app/ \
+    /app/protobufs/general_messages.proto \
+    /app/protobufs/securities_service.proto \
+    /app/protobufs/trading_systems_service.proto
+
+COPY .certs/rpc_service.key /etc/ssl/private
+COPY .certs/rpc_service.pem .certs/ca.pem /etc/ssl/
+
+# RUN go build -o /bin/stonkinator_rpc_service
+RUN CGO_ENABLED=0 GOOS=linux go build -o /stonkinator_rpc_service
+
+CMD ["/stonkinator_rpc_service"]

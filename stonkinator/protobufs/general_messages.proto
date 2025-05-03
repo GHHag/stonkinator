@@ -1,0 +1,37 @@
+syntax = "proto3";
+
+package stonkinator;
+
+option go_package = "./stonkinator_rpc_service";
+
+message DateTime {
+    string date_time = 1;
+}
+
+message CUD {
+    int32 num_affected = 1;
+}
+
+message GetBy {
+    oneof identifier {
+        string str_identifier = 1;
+        int32 int_identifier = 2;
+    }
+    oneof alt_identifier {
+        string alt_str_identifier = 3;
+        int32 alt_int_identifier = 4;
+    }
+}
+
+message OperateOn {
+    oneof identifier {
+        string str_identifier = 1;
+        int32 int_identifier = 2;
+    }
+    oneof alt_identifier {
+        string alt_str_identifier = 3;
+        int32 alt_int_identifier = 4;
+    }
+}
+
+message GetAll {}

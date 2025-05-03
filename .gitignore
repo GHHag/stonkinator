@@ -301,4 +301,8 @@ dist-ssr
 stonkinator_trading_systems
 live_systems
 db_dumps
-env.py
+*_pb2*.py
+*.pb.go
+.certs
+*.crt
+*.key

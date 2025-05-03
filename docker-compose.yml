@@ -7,61 +7,73 @@ services:
       POSTGRES_PASSWORD: ${PG_DB_PASSWORD}
       POSTGRES_DB: ${PG_DB_NAME}
     volumes:
-      - ./stonkinator_api/db_dumps/stonkinator.sql:/docker-entrypoint-initdb.d/datadump.sql
+      - ./db/db_dumps/stonkinator.sql:/docker-entrypoint-initdb.d/datadump.sql
       - securities_data:/var/lib/postgresql/data
     ports:
       - ${PG_DB_PORT_EXP}:${PG_DB_PORT}
 
-  mongodb:
-    image: mongo
-    environment:
-      MONGO_INITDB_ROOT_USERNAME: ${MDB_USER}
-      MONGO_INITDB_ROOT_PASSWORD: ${MDB_PASSWORD}
-    volumes:
-      - stonkinator_data:/data/db
-    ports:
-      - ${MDB_PORT_EXP}:${MDB_PORT}
-
-  stonkinator_api:
+  web_api:
     depends_on:
-      - ${MDB_SERVICE}
-    build: ./stonkinator_api
+      - ${PG_DB_SERVICE}
+    environment:
+      PG_DB_USER: ${PG_DB_USER}
+      PG_DB_PORT: ${PG_DB_PORT}
+      PG_DB_PASSWORD: ${PG_DB_PASSWORD}
+      PG_DB_NAME: ${PG_DB_NAME}
+      PG_DB_SERVICE: ${PG_DB_SERVICE}
+      API_URL: ${API_URL}
+      WEB_API_PORT: ${WEB_API_PORT}
+      WEB_API_KEY_PATH: ${WEB_API_KEY_PATH}
+      WEB_API_CERT_PATH: ${WEB_API_CERT_PATH}
+    build: ./web_api
     ports:
-      - ${STONKINATOR_API_PORT_EXP}:${STONKINATOR_API_PORT}
+      - ${WEB_API_PORT_EXP}:${WEB_API_PORT}
     develop:
       watch:
         - action: rebuild
-          files:
-            - ./stonkinator_api/*.go
-            - ./go.mod
-            - ./go.sum
+          path:
+            ./web_api/src
+
+  rpc_service:
+    depends_on:
+      - ${PG_DB_SERVICE}
+    environment:
+      PG_DB_USER: ${PG_DB_USER}
+      PG_DB_PORT: ${PG_DB_PORT}
+      PG_DB_PASSWORD: ${PG_DB_PASSWORD}
+      PG_DB_NAME: ${PG_DB_NAME}
+      PG_DB_SERVICE: ${PG_DB_SERVICE}
+      RPC_SERVICE_PORT: ${RPC_SERVICE_PORT}
+      RPC_SERVER_KEY_PATH: ${RPC_SERVER_KEY_PATH}
+      RPC_SERVER_CERT_PATH: ${RPC_SERVER_CERT_PATH}
+      RPC_SERVICE_CA_CERT_PATH: ${RPC_SERVICE_CA_CERT_PATH}
+    build:
+      context: ./stonkinator
+      dockerfile: Dockerfile.rpc_service
+    ports:
+      - ${RPC_SERVICE_PORT_EXP}:${RPC_SERVICE_PORT}
+    develop:
+      watch:
+        - action: rebuild
+          path:
+            ./stonkinator/rpc_service/src
 
   stonkinator:
     depends_on:
-      - ${MDB_SERVICE}
-      - ${STONKINATOR_API_SERVICE}
-    build: ./stonkinator
-    ports:
-      - 8888:8888
-    volumes:
-      - ./stonkinator:/app
-
-  frontend:
-    depends_on:
-      - ${STONKINATOR_API_SERVICE}
-    build: ./stonkinator_frontend
-    ports:
-      - ${FRONTEND_PORT}:${FRONTEND_PORT}
-    volumes:
-      - ./stonkinator_frontend/src:/app/src
-
-  alphascrape:
-    depends_on:
-      - ${MDB_SERVICE}
-      - ${STONKINATOR_API_SERVICE}
-    build: ./alphascrape
-    volumes:
-      - ./alphascrape:/app
+      - ${STONKINATOR_RPC_SERVICE} 
+    environment:
+      RPC_SERVICE_HOST: ${STONKINATOR_RPC_SERVICE}
+      RPC_SERVICE_PORT: ${RPC_SERVICE_PORT}
+      RPC_SERVICE_KEY_PATH: ${RPC_SERVICE_KEY_PATH}
+      RPC_SERVICE_CERT_PATH: ${RPC_SERVICE_CERT_PATH}
+      RPC_SERVICE_CA_CERT_PATH: ${RPC_SERVICE_CA_CERT_PATH}
+      LOG_DIR_PATH: ${LOG_DIR_PATH}
+      TS_HANDLER_DIR_TARGET: ${TS_HANDLER_DIR_TARGET}
+    build:
+      context: ./stonkinator
+      dockerfile: Dockerfile.stonkinator
+    # volumes:
+    #   - ./stonkinator/stonkinator:/app
 
 volumes:
   securities_data:

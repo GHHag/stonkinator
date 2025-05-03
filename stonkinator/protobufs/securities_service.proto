@@ -1,0 +1,85 @@
+syntax = "proto3";
+
+package stonkinator;
+
+import "general_messages.proto";
+
+option go_package = "./stonkinator_rpc_service";
+
+service SecuritiesService {
+    rpc InsertExchange (Exchange) returns (CUD);
+    // rpc UpdateExchange () returns (CUD);
+    rpc GetExchange (GetBy) returns (Exchange);
+    rpc GetExchanges (GetAll) returns (Exchanges);
+    rpc InsertInstrument (Instrument) returns (CUD);
+    // rpc UpdateInstrument (Instrument) returns (CUD);
+    rpc GetInstrument (GetBy) returns (Instrument);
+    // rpc RemoveInstrument () returns (CUD);
+    rpc GetDateTime (GetDateTimeRequest) returns (DateTime);
+    rpc GetLastDate (GetBy) returns (DateTime);
+    rpc InsertPrice (Price) returns (CUD);
+    rpc InsertPriceData(stream Price) returns (CUD);
+    rpc GetPriceData(GetPriceDataRequest) returns (stream Price);
+    // rpc InsertMarketList (MarketList) returns (CUD);
+    // rpc UpdateMarketList (MarketList) returns (CUD);
+    rpc GetExchangeInstruments (GetBy) returns (Instruments);
+    // rpc InsertMarketListInstrument () returns (CUD);
+    // rpc RemoveMarketListInstrument() returns (CUD);
+    rpc GetMarketListInstruments (GetBy) returns (Instruments);
+    // rpc GetMarketListInstrumentsPriceData (MarketList) returns ();
+}
+
+message Exchange {
+    string id = 1;
+    string name = 2;
+    string currency = 3;
+}
+
+message Exchanges {
+    repeated Exchange exchanges = 1;
+}
+
+message Instrument {
+    string id = 1;
+    string exchange_id = 2;
+    string name = 3;
+    string symbol = 4;
+    string sector = 5;
+    // RepeatedPriceData price_data = 6;
+    // DateTime latest_date_time = 6;
+}
+
+message Instruments {
+    repeated Instrument instruments = 1;
+}
+
+// message MarketList {
+//     string exchange_id = 1;
+//     string market_list = 2;
+// }
+
+// message MarketListInstrument {
+//     string instrument_id = 1;
+//     string market_list_id = 2;
+// }
+
+message Price {
+    string instrument_id = 1;
+    double open_price = 2;
+    double high_price = 3;
+    double low_price = 4;
+    double close_price = 5;
+    int64 volume = 6;
+    DateTime date_time = 7;
+}
+
+message GetPriceDataRequest {
+    string instrument_id = 1;
+    DateTime start_date_time = 2;
+    DateTime end_date_time = 3;
+} 
+
+message GetDateTimeRequest {
+    string instrument_id = 1;
+    bool min = 2;
+}

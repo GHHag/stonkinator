@@ -1,10 +1,14 @@
 from abc import ABCMeta, abstractmethod
 from decimal import Decimal
 
+from pandas import Timestamp
+
 from trading.position.position import Position
 from trading.data.metadata.price import Price
 from trading.data.metadata.market_state_enum import MarketState
-from trading.data.metadata.trading_system_attributes import TradingSystemAttributes
+from trading.data.metadata.trading_system_attributes import (
+    TradingSystemAttributes, classproperty
+)
 
 
 class OrderBase(metaclass=ABCMeta):
@@ -33,38 +37,50 @@ class OrderBase(metaclass=ABCMeta):
 
     @property
     @abstractmethod
-    def as_dict(self):
+    def order_properties(self) -> dict:
+        ...
+
+    @property
+    @abstractmethod
+    def as_dict(self) -> dict:
         ...
 
     @abstractmethod
-    def execute_entry(self):
+    def execute_entry(self) -> Position | None:
         ...
 
     @abstractmethod
-    def execute_exit(self):
+    def execute_exit(self) -> Position | None:
         ...
 
 
 class Order(OrderBase):
 
-    def __init__(self, action: MarketState, dt, direction):
+    def __init__(self, action: MarketState, created_dt: Timestamp, direction, active):
         if action == MarketState.ENTRY and direction is None:
             raise ValueError(
-                'value of direction can not be None '
-                'if the given action is entry'
+                'value of direction can not be None if the given action is entry'
             )
         self.__action = action
-        self.__created_dt = dt
-        self.__active = True
+        self.__created_dt = created_dt
+        self.__active = active
         self.__direction = direction
 
+    @classproperty
+    def order_type(cls):
+        return cls.__name__
+
     @property
-    def action(self):
+    def action(self) -> MarketState:
         return self.__action
 
     @property
-    def created_dt(self):
+    def created_dt(self) -> Timestamp:
         return self.__created_dt
+
+    @property
+    def direction(self):
+        return self.__direction
 
     @property
     def active(self):
@@ -75,19 +91,19 @@ class Order(OrderBase):
         self.__active = value
 
     @property
-    def direction(self):
-        return self.__direction
+    def order_properties(self) -> dict:
+        return {}
 
     @property
-    def as_dict(self):
+    def as_dict(self) -> dict:
         order_dict = {
-            'type': type(self).__name__,
+            'type': self.order_type,
             'action': self.__action.value,
             'created_dt': self.__created_dt,
             'active': self.__active
         }
-        if self.direction:
-            order_dict['direction'] = self.direction
+        if self.__direction:
+            order_dict['direction'] = self.__direction
         return order_dict
 
     def execute_entry(
@@ -110,28 +126,75 @@ class Order(OrderBase):
         self.__active = False
         return capital
 
+    @staticmethod
+    def from_proto(order_proto):
+        if order_proto is None:
+            return
+
+        direction = None
+        match order_proto.action: 
+            case MarketState.ENTRY.value:
+                market_state_action = MarketState.ENTRY
+                direction =  (
+                    TradingSystemAttributes.LONG
+                    if order_proto.direction_long is True
+                    else TradingSystemAttributes.SHORT
+                )
+            case MarketState.ACTIVE.value:
+                market_state_action = MarketState.ACTIVE
+            case MarketState.EXIT.value:
+                market_state_action = MarketState.EXIT
+
+        if order_proto.order_type == MarketOrder.order_type:
+            return MarketOrder(
+                market_state_action,
+                Timestamp(order_proto.created_date_time.date_time),
+                direction=direction,
+                active=order_proto.active,
+            )
+        elif order_proto.order_type == LimitOrder.order_type:
+            return LimitOrder(
+                market_state_action,
+                Timestamp(order_proto.created_date_time.date_time),
+                order_proto.price,
+                order_proto.max_duration, 
+                direction=direction,
+                active=order_proto.active,
+                duration=order_proto.duration,
+            )
 
 class MarketOrder(Order):
 
-    def __init__(self, action: MarketState, dt, direction=None):
-        super().__init__(action, dt, direction)
+    def __init__(
+        self, action: MarketState, created_dt: Timestamp,
+        direction=None, active=True
+    ):
+        super().__init__(action, created_dt, direction, active)
 
 
 class LimitOrder(Order):
 
     def __init__(
-        self, action: MarketState, dt, price, max_duration,
-        direction=None
+        self, action: MarketState, created_dt: Timestamp, price, max_duration,
+        direction=None, active=True, duration=0
     ):
-        super().__init__(action, dt, direction)
+        super().__init__(action, created_dt, direction, active)
         self.__price = price
         self.__max_duration = max_duration
-        self.__duration = 0
+        self.__duration = duration
 
     @property
-    def as_dict(self):
+    def order_properties(self) -> dict:
+        return {
+            "price": self.__price,
+            "max_duration": self.__max_duration,
+            "duration": self.__duration
+        }
+
+    @property
+    def as_dict(self) -> dict:
         order_dict = {
-            'type': type(self).__name__,
+            'type': self.order_type,
             'action': self.action.value,
             'created_dt': self.created_dt,
             'active': self.active,

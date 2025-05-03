@@ -1,0 +1,33 @@
+FROM python:3.12-slim-bullseye
+
+RUN apt-get update && apt-get install -y cron git \
+    protobuf-compiler \
+    sed
+RUN pip3 install grpcio-tools
+
+WORKDIR /app
+COPY protobufs/ /app/protobufs/
+COPY stonkinator /app
+RUN cd /app && pip install -e .
+
+RUN python3 -m grpc_tools.protoc \
+    --proto_path=/app/protobufs \
+    --python_out=/app/persistance/persistance_services \
+    --grpc_python_out=/app/persistance/persistance_services \
+    /app/protobufs/general_messages.proto \
+    /app/protobufs/securities_service.proto \
+    /app/protobufs/trading_systems_service.proto
+RUN sed -i 's|import general_messages_pb2|from persistance.persistance_services import general_messages_pb2|' ./persistance/persistance_services/securities_service_pb2_grpc.py && \
+    sed -i 's|import general_messages_pb2|import persistance.persistance_services.general_messages_pb2|' ./persistance/persistance_services/securities_service_pb2.py && \
+    sed -i 's|import securities_service_pb2|from persistance.persistance_services import securities_service_pb2|' ./persistance/persistance_services/securities_service_pb2_grpc.py && \
+    sed -i 's|import general_messages_pb2|from persistance.persistance_services import general_messages_pb2|' ./persistance/persistance_services/trading_systems_service_pb2_grpc.py && \
+    sed -i 's|import general_messages_pb2|import persistance.persistance_services.general_messages_pb2|' ./persistance/persistance_services/trading_systems_service_pb2.py && \
+    sed -i 's|import trading_systems_service_pb2|from persistance.persistance_services import trading_systems_service_pb2|' ./persistance/persistance_services/trading_systems_service_pb2_grpc.py
+
+COPY stonkinator/crontab /etc/cron.d/crontab
+RUN crontab /etc/cron.d/crontab
+
+COPY .certs/stonkinator.key /etc/ssl/private
+COPY .certs/stonkinator.pem .certs/ca.pem /etc/ssl/
+
+CMD ["cron", "-f"]

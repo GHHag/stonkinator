@@ -27,4 +27,4 @@ done
 
 docker exec $(docker ps -aqf ancestor=$PG_DB_SERVICE) sh -c "pg_dump -U $PG_DB_USER $PG_DB_NAME >> /tmp/$PG_DB_NAME.sql"
 
-docker cp $(docker ps -aqf ancestor=$PG_DB_SERVICE):/tmp/$PG_DB_NAME.sql $DIR/stonkinator_api/db_dumps/
+docker cp $(docker ps -aqf ancestor=$PG_DB_SERVICE):/tmp/$PG_DB_NAME.sql $DIR/db/db_dumps/

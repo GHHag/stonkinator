@@ -231,20 +231,32 @@ class Position:
 
     @property
     def as_dict(self):
-        return {
-            'entry_dt': self.entry_dt,
-            'exit_dt': self.exit_dt,
-            'entry_price': float(self.entry_price),
-            'exit_price': float(self.__exit_price),
-            'returns_list': [float(x) for x in self.returns_list],
-            'mtm_returns_list': [float(x) for x in self.market_to_market_returns_list],
-            'position_return': float(self.position_return),
-            'net_result': float(self.net_result),
-            'gross_result': float(self.gross_result),
-            'profit_loss': float(self.profit_loss),
-            'mae': float(self.mae),
-            'mfe': float(self.mfe)
-       }
+        if self.__active == True:
+            return {
+                'active': self.active,
+                'entry_dt': str(self.entry_dt),
+                'entry_price': float(self.entry_price),
+                'returns_list': [float(x) for x in self.returns_list],
+                'mtm_returns_list': [float(x) for x in self.market_to_market_returns_list],
+                'mae': float(self.mae),
+                'mfe': float(self.mfe)
+            }
+        else:
+            return {
+                'active': self.active,
+                'entry_dt': str(self.entry_dt),
+                'exit_dt': str(self.exit_dt),
+                'entry_price': float(self.entry_price),
+                'exit_price': float(self.__exit_price),
+                'returns_list': [float(x) for x in self.returns_list],
+                'mtm_returns_list': [float(x) for x in self.market_to_market_returns_list],
+                'position_return': float(self.position_return),
+                'net_result': float(self.net_result),
+                'gross_result': float(self.gross_result),
+                'profit_loss': float(self.profit_loss),
+                'mae': float(self.mae),
+                'mfe': float(self.mfe)
+            }
 
     def enter_market(self, entry_price, entry_dt):
         """
@@ -293,7 +305,7 @@ class Position:
 
         if self.__current_dt >= exit_dt:
             raise ValueError(
-                f'Date mismatch.\n'
+                f'date mismatch.\n'
                 f'self.__current_dt >= exit_dt: {self.__current_dt >= exit_dt}, '
                 'should be False'
             )

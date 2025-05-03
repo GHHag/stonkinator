@@ -1,22 +1,28 @@
+import os
 import datetime as dt
-import json
 from typing import Callable
 
 import pandas as pd
 import numpy as np
 from sklearn.tree import DecisionTreeClassifier
 
-from trading.data.metadata.trading_system_attributes import TradingSystemAttributes, classproperty
+from trading.data.metadata.trading_system_attributes import (
+    TradingSystemAttributes, classproperty
+)
 from trading.data.metadata.market_state_enum import MarketState
 from trading.data.metadata.price import Price
 from trading.position.order import Order, LimitOrder, MarketOrder
 from trading.position.position import Position
 from trading.trading_system.trading_system import TradingSystem
 
-from persistance.securities_db_py_dal.dal import price_data_get_req
-from persistance.persistance_meta_classes.trading_systems_persister import TradingSystemsPersisterBase
-from persistance.stonkinator_mongo_db.systems_mongo_db import TradingSystemsMongoDb
-from persistance.stonkinator_mongo_db.instruments_mongo_db import InstrumentsMongoDb
+from persistance.persistance_services.securities_service_pb2 import Instrument
+from persistance.persistance_services.securities_dal import price_data_get
+from persistance.persistance_meta_classes.securities_service import SecuritiesServiceBase
+from persistance.persistance_services.securities_grpc_service import SecuritiesGRPCService
+from persistance.persistance_meta_classes.trading_systems_persister import (
+    TradingSystemsPersisterBase
+)
+from persistance.persistance_services.trading_systems_grpc_service import TradingSystemsGRPCService
 
 from trading_systems.trading_system_base import MLTradingSystemBase
 from trading_systems.trading_system_properties import MLTradingSystemProperties
@@ -25,7 +31,6 @@ from trading_systems.position_sizer.safe_f_position_sizer import SafeFPositionSi
 from trading_systems.model_creation.model_creation import (
     SKModel, create_backtest_models, create_inference_model
 )
-from trading_systems.ml_utils.ml_system_utils import serialize_models
 
 
 class MLTradingSystemExample(MLTradingSystemBase):
@@ -83,13 +88,13 @@ class MLTradingSystemExample(MLTradingSystemBase):
 
     @staticmethod
     def create_backtest_models(
-        data_dict: dict[str, pd.DataFrame], features: list[str], target: str,
+        data_dict: dict[tuple[str, str], pd.DataFrame], features: list[str], target: str,
         model_class: SKModel, param_grid: dict,
         verbose=False
-    ) -> dict[str, pd.DataFrame]:
+    ) -> dict[tuple[str, str], pd.DataFrame]:
         models_data_dict = {}
-        for symbol, data in data_dict.items():
-            models_data_dict[symbol], selected_params = create_backtest_models(
+        for instrument, data in data_dict.items():
+            models_data_dict[instrument], selected_params = create_backtest_models(
                 data, features, target, model_class, param_grid,
                 verbose=verbose
             )
@@ -100,41 +105,43 @@ class MLTradingSystemExample(MLTradingSystemBase):
 
     @staticmethod
     def create_inference_models(
-        data_dict: dict[str, pd.DataFrame], features: list[str], target: str,
+        data_dict: dict[tuple[str, str], pd.DataFrame], features: list[str], target: str,
         model_class: SKModel, params: dict
-    ) -> dict[str, SKModel]:
+    ) -> dict[tuple[str, str], SKModel]:
         models_dict = {}
-        for symbol, data in data_dict.items():
+        for instrument, data in data_dict.items():
             model = create_inference_model(data, features, target, model_class, params)
             if model:
-                models_dict[symbol] = model
+                models_dict[instrument] = model
         return models_dict
 
     @classmethod
     def operate_models(
-        cls, systems_db: TradingSystemsPersisterBase, 
-        data_dict: dict[str, pd.DataFrame], features: list[str], model_class: SKModel, params: dict
-    ) -> dict [str, pd.DataFrame]:
+        cls, trading_system_id: str, trading_systems_persister: TradingSystemsPersisterBase, 
+        data_dict: dict[tuple[str, str], pd.DataFrame], features: list[str],
+        model_class: SKModel, params: dict
+    ) -> dict [tuple[str, str], pd.DataFrame]:
         target = cls.target
         models_data_dict = cls.create_backtest_models(data_dict, features, target, model_class, params)
         inference_models_dict = cls.create_inference_models(data_dict, features, target, model_class, params)
-
-        serialized_models = serialize_models(inference_models_dict)
-        for symbol, model in serialized_models.items():
-            insert_successful = systems_db.insert_ml_model(cls.name, symbol, model)
-            if insert_successful == False:
-                raise Exception('Failed to insert data.')
+        for (instrument_id, _), model in inference_models_dict.items():
+            trading_systems_persister.insert_trading_system_model(
+                trading_system_id, model, optional_identifier=instrument_id
+            )
         return models_data_dict
 
     @classmethod
     def make_predictions(
-        cls, systems_db: TradingSystemsPersisterBase, 
-        data_dict: dict[str, pd.DataFrame], features: list[str]
-    ) -> dict[str, pd.DataFrame]:
-        for symbol, data in data_dict.items():
-            model_pipeline: SKModel = systems_db.get_ml_model(cls.name, symbol)
+        cls, trading_system_id: str, trading_systems_persister: TradingSystemsPersisterBase, 
+        data_dict: dict[tuple [str, str], pd.DataFrame], features: list[str]
+    ) -> dict[tuple[str, str], pd.DataFrame]:
+        for instrument, data in data_dict.items():
+            instrument_id, _ = instrument
+            model_pipeline: SKModel = trading_systems_persister.get_trading_system_model(
+                trading_system_id, instrument_id
+            )
             if not model_pipeline:
-                raise ValueError('Failed to get model pipeline.')
+                raise ValueError('failed to get model pipeline')
 
             pred_data = data[features].to_numpy()
             latest_data_point = data.iloc[-1].copy()
@@ -142,37 +149,35 @@ class MLTradingSystemExample(MLTradingSystemBase):
                 model_pipeline.predict(pred_data[-1].reshape(1, -1))[0]
             )
             latest_data_point_df = pd.DataFrame(latest_data_point).transpose()
-            data_dict[symbol] = pd.concat(
+            data_dict[instrument] = pd.concat(
                 [data.iloc[:-1], latest_data_point_df]
             )
         return data_dict
 
     @staticmethod
     def preprocess_data(
-        symbols_list, benchmark_symbol, 
-        get_data_function: Callable[[str, dt.datetime, dt.datetime], tuple[bytes, int]],
-        entry_args: dict, exit_args: dict, start_dt: dt.datetime, end_dt: dt.datetime,
-        ts_processor: TradingSystemProcessor=None
-    ):
+        securities_service: SecuritiesServiceBase,
+        instruments_list: list[Instrument],
+        benchmark_instrument: Instrument,
+        get_data_function: Callable[[str, dt.datetime, dt.datetime], pd.DataFrame | None],
+        entry_args: dict, exit_args: dict,
+        start_dt: dt.datetime, end_dt: dt.datetime,
+        ts_processor: TradingSystemProcessor | None=None
+    ) -> tuple[dict[tuple[str, str], pd.DataFrame], list[str]]:
         target = entry_args.get('target')
         target_period = entry_args.get('target_period')
 
-        data_dict: dict[str, pd.DataFrame] = {}
-        for symbol in symbols_list:
-            try:
-                response_data, response_status = get_data_function(symbol, start_dt, end_dt)
-            except ValueError:
+        data_dict: dict[tuple[str, str], pd.DataFrame] = {}
+        for instrument in instruments_list:
+            df = get_data_function(securities_service, instrument.id, start_dt, end_dt)
+            if df is None:
                 continue
-            if response_status == 200:
-                data_dict[symbol] = pd.json_normalize(json.loads(response_data))
-                if 'instrument_id' in data_dict[symbol].columns:
-                    data_dict[symbol] = data_dict[symbol].drop('instrument_id', axis=1)
+            data_dict[(instrument.id, instrument.symbol)] = df
         
         benchmark_col_suffix = '_benchmark'
-        response_data, response_status = get_data_function(benchmark_symbol, start_dt, end_dt)
-        if response_status == 200:
-            df_benchmark = pd.json_normalize(json.loads(response_data))
-            df_benchmark = df_benchmark.drop('instrument_id', axis=1)
+        df_benchmark = get_data_function(securities_service, benchmark_instrument.id, start_dt, end_dt)
+        if df_benchmark is not None:
+            df_benchmark = df_benchmark.drop(TradingSystemAttributes.INSTRUMENT_ID, axis=1)
             df_benchmark = df_benchmark.rename(
                 columns={
                     Price.OPEN: f'{Price.OPEN}{benchmark_col_suffix}', 
@@ -187,10 +192,10 @@ class MLTradingSystemExample(MLTradingSystemBase):
                 ts_processor.penult_dt = pd.to_datetime(df_benchmark[Price.DT].iloc[-2])
                 ts_processor.current_dt = pd.to_datetime(df_benchmark[Price.DT].iloc[-1])
 
-        for symbol, data in data_dict.items():
+        instruments_to_remove = []
+        for instrument, data in data_dict.items():
             if data.empty or len(data) < entry_args.get(TradingSystemAttributes.REQ_PERIOD_ITERS):
-                print(symbol, 'DataFrame empty')
-                del data_dict[symbol]
+                instruments_to_remove.append(instrument)
             else:
                 df_benchmark[Price.DT] = pd.to_datetime(df_benchmark[Price.DT])
                 data[Price.DT] = pd.to_datetime(data[Price.DT])
@@ -217,25 +222,26 @@ class MLTradingSystemExample(MLTradingSystemBase):
                 data = data.drop(['return_shifted'], axis=1)
                 data = data.dropna()
 
-                data_dict[symbol] = data.dropna()
-
+                data_dict[instrument] = data.dropna()
+        for instrument in instruments_to_remove:
+            data_dict.pop(instrument)
         pred_features = ['Lag1', 'Lag2', 'Lag5', Price.VOLUME]
         return data_dict, pred_features
 
     @classmethod
-    def get_properties(
-        cls, instruments_db: InstrumentsMongoDb,
-        import_instruments=False, path=None
-    ):
+    def get_properties(cls, securities_service: SecuritiesServiceBase):
         required_runs = 1
-        benchmark_symbol = '^OMX'
 
-        symbols_list = ['SKF_B', 'VOLV_B', 'NDA_SE', 'SCA_B']
-        """ symbols_list = json.loads(
-            instruments_db.get_market_list_instrument_symbols(
-                instruments_db.get_market_list_id('omxs30')
-            )
-        ) """
+        omxs_large_caps_instruments_list = securities_service.get_market_list_instruments(
+            "omxs_large_caps"
+        )
+        omxs_large_caps_instruments_list = (
+            list(omxs_large_caps_instruments_list.instruments)
+            if omxs_large_caps_instruments_list
+            else None
+        )
+
+        benchmark_instrument = securities_service.get_instrument("^OMX")
 
         model_class, params = (
             DecisionTreeClassifier, 
@@ -247,9 +253,9 @@ class MLTradingSystemExample(MLTradingSystemBase):
         entry_args = cls.entry_args
         exit_args = cls.exit_args
         return MLTradingSystemProperties( 
-            required_runs, symbols_list,
+            required_runs, omxs_large_caps_instruments_list,
             (
-                benchmark_symbol, price_data_get_req,
+                benchmark_instrument, price_data_get,
                 entry_args, exit_args
             ),
             entry_args, exit_args,
@@ -266,22 +272,27 @@ class MLTradingSystemExample(MLTradingSystemBase):
 
 
 if __name__ == '__main__':
-    import trading_systems.env as env
-    SYSTEMS_DB = TradingSystemsMongoDb(env.LOCALHOST_MONGO_DB_URL, env.SYSTEMS_DB)
-    CLIENT_DB = TradingSystemsMongoDb(env.LOCALHOST_MONGO_DB_URL, env.CLIENT_DB)
-    INSTRUMENTS_DB = InstrumentsMongoDb(env.LOCALHOST_MONGO_DB_URL, env.CLIENT_DB)
+    securities_grpc_service = SecuritiesGRPCService(
+        f"{os.environ.get('RPC_SERVICE_HOST')}:{os.environ.get('RPC_SERVICE_PORT')}"
+    )
+    trading_systems_grpc_service = TradingSystemsGRPCService(
+        f"{os.environ.get('RPC_SERVICE_HOST')}:{os.environ.get('RPC_SERVICE_PORT')}"
+    )
 
     start_dt = dt.datetime(1999, 1, 1)
     end_dt = dt.datetime(2011, 1, 1)
-    create_inference_models = True
-    insert_into_db = True
+    create_models = True
     target = MLTradingSystemExample.target
 
-    system_props: MLTradingSystemProperties = MLTradingSystemExample.get_properties(INSTRUMENTS_DB)
+    system_props: MLTradingSystemProperties = MLTradingSystemExample.get_properties(
+        securities_grpc_service
+    )
 
+    tsp = lambda: None
     data_dict, features = MLTradingSystemExample.preprocess_data(
-        system_props.instruments_list,
-        *system_props.preprocess_data_args, start_dt, end_dt
+        securities_grpc_service, system_props.instruments_list,
+        *system_props.preprocess_data_args, start_dt, end_dt,
+        ts_processor=tsp
     )
 
     models_data_dict = MLTradingSystemExample.create_backtest_models(
@@ -292,25 +303,31 @@ if __name__ == '__main__':
     # TODO: How will the params for the inference models be determined?
     inference_params = {'max_depth': 9}
 
-    if create_inference_models == True:
+    trading_system_proto = None
+    end_dt = tsp.current_dt
+    if create_models == True:
         inference_models_dict = MLTradingSystemExample.create_inference_models(
             data_dict, features, target, system_props.model_class, inference_params
         )
-
-    if insert_into_db == True:
-        serialized_models = serialize_models(inference_models_dict)
-        for symbol, model in serialized_models.items():
-            insert_successful = SYSTEMS_DB.insert_ml_model(
-                MLTradingSystemExample.name, symbol, model
+        trading_system_proto = trading_systems_grpc_service.get_or_insert_trading_system(
+            MLTradingSystemExample.name, end_dt
+        )
+        trading_system_id = trading_system_proto.id
+        trading_systems_grpc_service.remove_trading_system_relations(trading_system_id)
+        trading_systems_grpc_service.update_current_date_time(trading_system_id, end_dt)
+        for (instrument_id, _), model in inference_models_dict.items():
+            insert_res = trading_systems_grpc_service.insert_trading_system_model(
+               trading_system_id, model, optional_identifier=instrument_id
             )
-            if insert_successful == False:
-                raise Exception('failed to insert data')
+            if not insert_res or insert_res.num_affected == 0:
+                raise Exception('failed to insert model')
 
     trading_system = TradingSystem(
+        '' if not trading_system_proto else trading_system_id,
         MLTradingSystemExample.name,
         MLTradingSystemExample.entry_signal_logic,
         MLTradingSystemExample.exit_signal_logic,
-        SYSTEMS_DB, CLIENT_DB
+        trading_systems_grpc_service
     )
 
     trading_system.run_trading_system_backtest(
@@ -321,5 +338,5 @@ if __name__ == '__main__':
         plot_performance_summary=False,
         save_summary_plot_to_path=None,
         print_data=True,
-        insert_data_to_db_bool=insert_into_db,
+        insert_data_to_db_bool=create_models,
     )
