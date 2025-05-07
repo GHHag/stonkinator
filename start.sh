@@ -24,8 +24,8 @@ if [ ! -d "$certificates_dir" ]; then
 		-sha256 \
 		-nodes \
 		-newkey rsa:4096 \
-		-keyout server/stonkinator.key \
-		-out server/stonkinator.crt \
+		-keyout web_api/stonkinator.key \
+		-out web_api/stonkinator.crt \
 		-subj /O=me
 fi
 
