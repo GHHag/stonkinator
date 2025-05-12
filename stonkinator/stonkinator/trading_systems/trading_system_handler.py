@@ -4,7 +4,6 @@ import json
 import argparse
 
 import pandas as pd
-from sterunets.data_handler import FeatureBlueprint, TimeSeriesDataHandler
 
 from trading.data.metadata.trading_system_attributes import TradingSystemAttributes
 from trading.data.metadata.market_state_enum import MarketState

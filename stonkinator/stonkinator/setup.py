@@ -19,9 +19,7 @@ setup(
         'matplotlib==3.8.2',
         'mplfinance==0.12.10b0',
         'scikit-learn==1.4.0',
-        'sterunets @ git+https://github.com/GHHag/sterunets.git',
         'yahooquery==2.3.7',
-        'requests==2.31.0',
         'grpcio-tools==1.70.0'
     ]
 )
