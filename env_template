@@ -1,6 +1,5 @@
 # docker services
 PG_DB_SERVICE = 'postgres'
-MDB_SERVICE = 'mongodb'
 STONKINATOR_API_SERVICE = 'web_api'
 STONKINATOR_RPC_SERVICE = 'rpc_service'
 STONKINATOR_SERVICE = 'stonkinator'

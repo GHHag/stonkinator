@@ -1,3 +1,4 @@
+import os
 from decimal import Decimal
 
 import pandas as pd
@@ -306,11 +307,13 @@ class BacktestTradingSession:
                         )
                     if plot_positions:
                         if save_position_figs_path is not None:
-                            position_figs_path = save_position_figs_path + (
-                                fr'\{self.__dataframe.iloc[(idx - position.periods_in_position)].Date.strftime("%Y-%m-%d")}.jpg'
+                            position_figs_path = (
+                                fr'{save_position_figs_path}/{self.__instrument_id}_{self.__dataframe.index[idx]}.png'
                             )
                         else:
                             position_figs_path = save_position_figs_path
+                        if not os.path.exists(save_position_figs_path):
+                            os.makedirs(save_position_figs_path)
                         candlestick_plot(
                             self.__dataframe.iloc[(idx-position.periods_in_position-20):(idx+15)],
                             position.entry_dt, position.entry_price, 
