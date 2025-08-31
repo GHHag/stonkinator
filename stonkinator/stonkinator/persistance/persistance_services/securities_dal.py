@@ -12,6 +12,7 @@ import pandas as pd
 from persistance.persistance_services.general_messages_pb2 import (
     DateTime,
     CUD,
+    Timestamp,
 )
 from persistance.persistance_services.securities_service_pb2 import (
     Exchanges,
@@ -75,12 +76,12 @@ def price_data_get(
                 [
                     {
                         "instrument_id": price.instrument_id,
-                        Price_consts.OPEN: price.open_price, 
-                        Price_consts.HIGH: price.high_price, 
-                        Price_consts.LOW: price.low_price,
-                        Price_consts.CLOSE: price.close_price,
+                        Price_consts.OPEN: price.open, 
+                        Price_consts.HIGH: price.high, 
+                        Price_consts.LOW: price.low,
+                        Price_consts.CLOSE: price.close,
                         Price_consts.VOLUME: price.volume,
-                        Price_consts.DT: price.date_time.date_time,
+                        Price_consts.DT: pd.to_datetime(price.timestamp.unix_timestamp_seconds, unit="s"),
                     }
                     for price in price_data
                 ]
@@ -108,22 +109,34 @@ def insert_daily_data(
 
         price_data = []
         for i, _ in enumerate(df.itertuples()):
+            try:
+                unix_timestamp_seconds = int(
+                    dt.datetime.combine(df[Price_consts.DT].iloc[i], dt.datetime.min.time()).timestamp()
+                )
+            except Exception as e:
+                critical_logger.error(
+                    "\n"
+                    f"\tERROR trying to parse date and time. Symbol: {symbol}"
+                    f"\tData: {df.iloc[i].to_string()}"
+                    "\n"
+                    f"\t{e}"
+                )
+                continue
+
             price_data.append(
                 Price(
                     instrument_id=instrument_id,
-                    open_price=df[Price_consts.OPEN].iloc[i], 
-                    high_price=df[Price_consts.HIGH].iloc[i],
-                    low_price=df[Price_consts.LOW].iloc[i], 
-                    close_price=df[Price_consts.CLOSE].iloc[i],
+                    open=df[Price_consts.OPEN].iloc[i], 
+                    high=df[Price_consts.HIGH].iloc[i],
+                    low=df[Price_consts.LOW].iloc[i], 
+                    close=df[Price_consts.CLOSE].iloc[i],
                     volume=int(df[Price_consts.VOLUME].iloc[i]), 
-                    date_time=DateTime(date_time=str(df[Price_consts.DT].iloc[i]))
+                    timestamp=Timestamp(unix_timestamp_seconds=unix_timestamp_seconds)
                 )
             )
         try:
-            price_data_insert_res: CUD = securities_grpc_service.insert_price_data(
-                price_data
-            )
-            if (price_data_insert_res):
+            price_data_insert_res: CUD = securities_grpc_service.insert_price_data(price_data)
+            if price_data_insert_res:
                 base_logger.info(
                     "\n"
                     f"\tPrice data insert. Symbol: {symbol}\n"

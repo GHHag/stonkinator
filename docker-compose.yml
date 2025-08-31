@@ -50,8 +50,6 @@ services:
     build:
       context: ./stonkinator
       dockerfile: Dockerfile.rpc_service
-    ports:
-      - ${RPC_SERVICE_PORT_EXP}:${RPC_SERVICE_PORT}
     develop:
       watch:
         - action: rebuild

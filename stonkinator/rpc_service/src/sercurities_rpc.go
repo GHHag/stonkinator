@@ -238,11 +238,7 @@ func (s *server) InsertPrice(ctx context.Context, req *pb.Price) (*pb.CUD, error
 	ctx, cancel := context.WithTimeout(ctx, DB_TIMEOUT)
 	defer cancel()
 
-	dateTime, err := time.Parse(DATE_FORMAT, req.DateTime.DateTime)
-	if err != nil {
-		s.errorLog.Println(err)
-		return nil, err
-	}
+	dateTime := time.Unix(int64(req.Timestamp.UnixTimestampSeconds), 0).UTC().Truncate(time.Minute).Format(DATE_FORMAT)
 
 	result, err := s.pgPool.Exec(
 		ctx,
@@ -254,7 +250,7 @@ func (s *server) InsertPrice(ctx context.Context, req *pb.Price) (*pb.CUD, error
 			VALUES($1, $2, $3, $4, $5, $6, $7)
 			ON CONFLICT DO NOTHING
 		`,
-		req.InstrumentId, req.OpenPrice, req.HighPrice, req.LowPrice, req.ClosePrice,
+		req.InstrumentId, req.Open, req.High, req.Low, req.Close,
 		req.Volume, dateTime,
 	)
 	if err != nil {
@@ -298,11 +294,7 @@ func (s *server) InsertPriceData(stream pb.SecuritiesService_InsertPriceDataServ
 			return err
 		}
 
-		dateTime, err := time.Parse(DATE_FORMAT, price.DateTime.DateTime)
-		if err != nil {
-			s.errorLog.Printf("%s, instrument id: %s", err, price.InstrumentId)
-			continue
-		}
+		dateTime := time.Unix(int64(price.Timestamp.UnixTimestampSeconds), 0).UTC().Truncate(time.Minute).Format(DATE_FORMAT)
 		batch.Queue(
 			`
 				INSERT INTO price_data(
@@ -312,7 +304,7 @@ func (s *server) InsertPriceData(stream pb.SecuritiesService_InsertPriceDataServ
 				VALUES($1, $2, $3, $4, $5, $6, $7)
 				ON CONFLICT DO NOTHING
 			`,
-			price.InstrumentId, price.OpenPrice, price.HighPrice, price.LowPrice, price.ClosePrice,
+			price.InstrumentId, price.Open, price.High, price.Low, price.Close,
 			price.Volume, dateTime,
 		)
 
@@ -350,10 +342,10 @@ func (s *server) GetPriceData(req *pb.GetPriceDataRequest, stream pb.SecuritiesS
 		var dateTime time.Time
 		err = query.Scan(
 			&price.InstrumentId,
-			&price.OpenPrice,
-			&price.HighPrice,
-			&price.LowPrice,
-			&price.ClosePrice,
+			&price.Open,
+			&price.High,
+			&price.Low,
+			&price.Close,
 			&price.Volume,
 			&dateTime,
 		)
@@ -362,8 +354,8 @@ func (s *server) GetPriceData(req *pb.GetPriceDataRequest, stream pb.SecuritiesS
 			continue
 		}
 
-		price.DateTime = &pb.DateTime{
-			DateTime: dateTime.Format(DATE_TIME_FORMAT),
+		price.Timestamp = &pb.Timestamp{
+			UnixTimestampSeconds: uint64(dateTime.Truncate(time.Minute).Unix()),
 		}
 		if err := stream.Send(&price); err != nil {
 			s.errorLog.Println(err)

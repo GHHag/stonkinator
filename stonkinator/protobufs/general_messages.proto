@@ -4,6 +4,10 @@ package stonkinator;
 
 option go_package = "./stonkinator_rpc_service";
 
+message Timestamp {
+    uint64 unix_timestamp_seconds = 1;
+}
+
 message DateTime {
     string date_time = 1;
 }

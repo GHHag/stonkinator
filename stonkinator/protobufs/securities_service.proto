@@ -65,12 +65,12 @@ message Instruments {
 
 message Price {
     string instrument_id = 1;
-    double open_price = 2;
-    double high_price = 3;
-    double low_price = 4;
-    double close_price = 5;
-    int64 volume = 6;
-    DateTime date_time = 7;
+    double open = 2;
+    double high = 3;
+    double low = 4;
+    double close = 5;
+    uint64 volume = 6;
+    Timestamp timestamp = 7;
 }
 
 message GetPriceDataRequest {

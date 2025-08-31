@@ -10,6 +10,7 @@ from persistance.persistance_services.general_messages_pb2 import (
     DateTime,
     GetAll,
     GetBy,
+    Timestamp
 )
 from persistance.persistance_services.securities_service_pb2 import (
     Exchange,
@@ -120,12 +121,12 @@ class SecuritiesGRPCService(SecuritiesServiceBase):
     @grpc_error_handler(logger, default_return=None)
     def insert_price(
         self, instrument_id: str, open_price: float, high_price: float,
-        low_price: float, close_price: float, volume: int, date_time: dt.datetime
+        low_price: float, close_price: float, volume: int, timestamp: int
     ) -> CUD:
         req = Price(
             instrument_id=instrument_id, open_price=open_price, high_price=high_price,
             low_price=low_price, close_price=close_price, volume=volume,
-            date_time=DateTime(date_time=str(date_time))
+            timestamp=Timestamp(unix_timestamp_seconds=timestamp)
         )
         res = self.__client.InsertPrice(req)
         return res
