@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"io"
 	pb "stonkinator_rpc_service/stonkinator_rpc_service"
 	"strings"
@@ -260,6 +261,19 @@ func (s *server) InsertPrice(ctx context.Context, req *pb.Price) (*pb.CUD, error
 
 	res := &pb.CUD{
 		NumAffected: int32(result.RowsAffected()),
+	}
+	if result.RowsAffected() > 0 {
+		pushPriceRes, err := s.dfServiceClient.PushPrice(context.Background(), req)
+		if err != nil {
+			s.errorLog.Println(err)
+			return res, nil
+		} else if res.NumAffected != pushPriceRes.NumAffected {
+			err = errors.New("values of CUD.NumAffected does not match - securities_rpc.go (InsertPrice)")
+			s.errorLog.Println(err)
+			return res, nil
+		} else {
+			return pushPriceRes, nil
+		}
 	}
 
 	return res, nil

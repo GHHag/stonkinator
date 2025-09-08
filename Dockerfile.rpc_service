@@ -18,7 +18,8 @@ RUN protoc \
     --go-grpc_out=/app/ \
     /app/protobufs/general_messages.proto \
     /app/protobufs/securities_service.proto \
-    /app/protobufs/trading_systems_service.proto
+    /app/protobufs/trading_systems_service.proto \
+    /app/protobufs/data_frame_service.proto
 
 COPY .certs/rpc_service.key /etc/ssl/private
 COPY .certs/rpc_service.pem .certs/ca.pem /etc/ssl/

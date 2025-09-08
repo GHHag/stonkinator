@@ -48,27 +48,39 @@ services:
       RPC_SERVER_CERT_PATH: ${RPC_SERVER_CERT_PATH}
       RPC_SERVICE_CA_CERT_PATH: ${RPC_SERVICE_CA_CERT_PATH}
     build:
-      context: ./stonkinator
       dockerfile: Dockerfile.rpc_service
     develop:
       watch:
         - action: rebuild
           path:
-            ./stonkinator/rpc_service/src
+            ./rpc_service/src
+
+  data_frame_service:
+    build:
+      dockerfile: Dockerfile.data_frame_service
+      args:
+        PROTOBUF_DIR: ${PROTOBUF_DIR}
+        PROTOBUF_PACKAGE: ${PROTOBUF_PACKAGE}
+        DF_SERVICE_HOST: ${DF_SERVICE_HOST}
+        DF_SERVICE_PORT: ${DF_SERVICE_PORT}
+    ports:
+      - ${DF_SERVICE_PORT}:${DF_SERVICE_PORT}
 
   stonkinator:
     depends_on:
       - ${STONKINATOR_RPC_SERVICE} 
+      - ${STONKINATOR_DF_SERVICE} 
     environment:
       RPC_SERVICE_HOST: ${STONKINATOR_RPC_SERVICE}
       RPC_SERVICE_PORT: ${RPC_SERVICE_PORT}
       RPC_SERVICE_KEY_PATH: ${RPC_SERVICE_KEY_PATH}
       RPC_SERVICE_CERT_PATH: ${RPC_SERVICE_CERT_PATH}
       RPC_SERVICE_CA_CERT_PATH: ${RPC_SERVICE_CA_CERT_PATH}
+      DF_SERVICE_HOST: ${STONKINATOR_DF_SERVICE}
+      DF_SERVICE_PORT: ${DF_SERVICE_PORT}
       LOG_DIR_PATH: ${LOG_DIR_PATH}
       TS_HANDLER_DIR_TARGET: ${TS_HANDLER_DIR_TARGET}
     build:
-      context: ./stonkinator
       dockerfile: Dockerfile.stonkinator
     # volumes:
     #   - ./stonkinator/stonkinator:/app

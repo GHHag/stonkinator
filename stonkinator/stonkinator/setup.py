@@ -15,6 +15,7 @@ setup(
     include_package_data=True,
     install_requires=[
         'pandas==2.2.0',
+        'pyarrow==20.0.0',
         'numpy==1.26.4',
         'matplotlib==3.8.2',
         'mplfinance==0.12.10b0',

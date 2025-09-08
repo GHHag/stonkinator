@@ -38,7 +38,7 @@ handler = logging.FileHandler(f"{LOG_DIR_PATH}{logger_name}.log")
 logger.addHandler(handler)
 
 
-def grpc_error_handler(logger, default_return=None):
+def grpc_error_handler(logger: logging.Logger, default_return=None):
     def decorator(func):
         def wrapper(*args, **kwargs):
             try:
@@ -124,8 +124,8 @@ class SecuritiesGRPCService(SecuritiesServiceBase):
         low_price: float, close_price: float, volume: int, timestamp: int
     ) -> CUD:
         req = Price(
-            instrument_id=instrument_id, open_price=open_price, high_price=high_price,
-            low_price=low_price, close_price=close_price, volume=volume,
+            instrument_id=instrument_id, open=open_price, high=high_price,
+            low=low_price, close=close_price, volume=volume,
             timestamp=Timestamp(unix_timestamp_seconds=timestamp)
         )
         res = self.__client.InsertPrice(req)
@@ -225,6 +225,13 @@ if __name__ == '__main__':
     # print(get_last_date_res.date_time)
     # print(type(get_last_date_res))
 
+    price_dt = int(dt.datetime.now().replace(hour=0, minute=0, second=0, microsecond=0).timestamp())
+    insert_price_data_res = securities_grpc_service.insert_price(
+        get_instrument_res.id, 5, 15, 2.5, 10, 100000, price_dt
+    )
+    print(insert_price_data_res)
+    print(type(insert_price_data_res))
+
     # insert_price_data_res = securities_grpc_service.insert_price_data(
     #     get_instrument_res.id, 5, 15, 2.5, 10, 9999213, dt.datetime.now().date()
     # )
@@ -237,7 +244,7 @@ if __name__ == '__main__':
         get_last_date_time_res.date_time
     )
     try:
-        print(list(get_price_data_res.price_data))
+        print(list(get_price_data_res))
     except AttributeError as e:
         print(e)
 

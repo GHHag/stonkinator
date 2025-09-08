@@ -2,7 +2,12 @@
 PG_DB_SERVICE = 'postgres'
 STONKINATOR_API_SERVICE = 'web_api'
 STONKINATOR_RPC_SERVICE = 'rpc_service'
+STONKINATOR_DF_SERVICE = 'data_frame_service'
 STONKINATOR_SERVICE = 'stonkinator'
+
+# protobufs
+PROTOBUF_DIR = 'protobufs'
+PROTOBUF_PACKAGE = '.stonkinator'
 
 # postgres
 PG_DB_USER = 'postgres'
@@ -26,6 +31,10 @@ RPC_SERVER_KEY_PATH = '/etc/ssl/private/rpc_service.key'
 RPC_SERVICE_CERT_PATH = '/etc/ssl/stonkinator.pem'
 RPC_SERVER_CERT_PATH = '/etc/ssl/rpc_service.pem'
 RPC_SERVICE_CA_CERT_PATH = '/etc/ssl/ca.pem'
+
+# data frame service
+DF_SERVICE_PORT = 50051
+DF_SERVICE_HOST = '0.0.0.0'
 
 # securities dal
 LOG_DIR_PATH = '/var/log/stonkinator/'

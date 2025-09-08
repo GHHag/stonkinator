@@ -1,0 +1,312 @@
+use polars::datatypes::AnyValue;
+use polars::prelude::PlSmallStr;
+use polars::prelude::*;
+use std::collections::HashMap;
+use std::sync::Arc;
+use tokio_stream::StreamExt;
+use tonic::{Request, Response, Status};
+
+use proto::data_frame_service_server::DataFrameService;
+use proto::operate_on::{AltIdentifier, Identifier};
+use proto::{Cud, OperateOn, Price};
+use sterunets::{DataFrameCollection, RawData};
+
+pub mod proto {
+    // TODO: How to get env variable for the protobuf package into scope here?
+    tonic::include_proto!("stonkinator");
+}
+
+impl RawData for Price {
+    fn validate(&self, df: &DataFrame) -> PolarsResult<bool> {
+        if df.height() == 0 {
+            return Ok(true);
+        }
+
+        let timestamp = match self.timestamp {
+            Some(ts) => ts.unix_timestamp_seconds,
+            None => {
+                return Err(PolarsError::NoData(
+                    String::from("failed to parse timestamp").into(),
+                ));
+            }
+        };
+
+        let last_row_index = df.height() - 1;
+        let latest_timestamp = match df.column(&Price::TIMESTAMP)?.get(last_row_index)? {
+            AnyValue::UInt64(timestamp) => timestamp,
+            _ => {
+                return Err(PolarsError::NoData(
+                    String::from("failed to parse timestamp").into(),
+                ));
+            }
+        };
+
+        Ok(timestamp > latest_timestamp)
+    }
+
+    fn validate_series(
+        &self,
+        _series_data: &HashMap<PlSmallStr, Series>,
+        df: &DataFrame,
+    ) -> PolarsResult<bool> {
+        self.validate(df)
+    }
+
+    fn format(&self) -> PolarsResult<Vec<(PlSmallStr, AnyValue)>> {
+        let timestamp = match self.timestamp {
+            Some(ts) => ts.unix_timestamp_seconds,
+            None => {
+                return Err(PolarsError::NoData(
+                    String::from("failed to parse timestamp").into(),
+                ));
+            }
+        };
+
+        let data_point: Vec<(PlSmallStr, AnyValue)> = vec![
+            (Price::INSTRUMENT_ID, AnyValue::String(&self.instrument_id)),
+            (Price::OPEN, AnyValue::Float64(self.open)),
+            (Price::HIGH, AnyValue::Float64(self.high)),
+            (Price::LOW, AnyValue::Float64(self.low)),
+            (Price::CLOSE, AnyValue::Float64(self.close)),
+            (Price::VOLUME, AnyValue::UInt64(self.volume)),
+            (Price::TIMESTAMP, AnyValue::UInt64(timestamp)),
+        ];
+
+        Ok(data_point)
+    }
+}
+
+impl Price {
+    pub const INSTRUMENT_ID: PlSmallStr = PlSmallStr::from_static("instrument_id");
+    pub const OPEN: PlSmallStr = PlSmallStr::from_static("open");
+    pub const HIGH: PlSmallStr = PlSmallStr::from_static("high");
+    pub const LOW: PlSmallStr = PlSmallStr::from_static("low");
+    pub const CLOSE: PlSmallStr = PlSmallStr::from_static("close");
+    pub const VOLUME: PlSmallStr = PlSmallStr::from_static("volume");
+    pub const TIMESTAMP: PlSmallStr = PlSmallStr::from_static("timestamp");
+
+    pub fn schema_fields() -> Vec<Field> {
+        vec![
+            Field::new(Price::INSTRUMENT_ID, DataType::String),
+            Field::new(Price::OPEN, DataType::Float64),
+            Field::new(Price::HIGH, DataType::Float64),
+            Field::new(Price::LOW, DataType::Float64),
+            Field::new(Price::CLOSE, DataType::Float64),
+            Field::new(Price::VOLUME, DataType::UInt64),
+            Field::new(Price::TIMESTAMP, DataType::UInt64),
+        ]
+    }
+
+    #[allow(unused)]
+    fn pl_map_format(&self) -> Result<HashMap<PlSmallStr, Series>, &'static str> {
+        let timestamp = match self.timestamp {
+            Some(ts) => ts.unix_timestamp_seconds,
+            None => return Err("failed to parse timestamp"),
+        };
+
+        let mut data_point: HashMap<PlSmallStr, Series> = HashMap::new();
+
+        data_point.insert(
+            Price::INSTRUMENT_ID,
+            Series::new(
+                Price::INSTRUMENT_ID,
+                [AnyValue::String(&self.instrument_id)],
+            ),
+        );
+        data_point.insert(
+            Price::OPEN,
+            Series::new(Price::OPEN, [AnyValue::Float64(self.open)]),
+        );
+        data_point.insert(
+            Price::HIGH,
+            Series::new(Price::HIGH, [AnyValue::Float64(self.high)]),
+        );
+        data_point.insert(
+            Price::LOW,
+            Series::new(Price::LOW, [AnyValue::Float64(self.low)]),
+        );
+        data_point.insert(
+            Price::CLOSE,
+            Series::new(Price::CLOSE, [AnyValue::Float64(self.close)]),
+        );
+        data_point.insert(
+            Price::VOLUME,
+            Series::new(Price::VOLUME, [AnyValue::UInt64(self.volume)]),
+        );
+        data_point.insert(
+            Price::TIMESTAMP,
+            Series::new(Price::TIMESTAMP, [AnyValue::UInt64(timestamp)]),
+        );
+
+        Ok(data_point)
+    }
+
+    // TODO: Try creating a similar method that creates a RecordBatch/RecordBatchT instead
+    fn pl_series_format(
+        price_data: Vec<Price>,
+    ) -> Result<HashMap<PlSmallStr, Series>, &'static str> {
+        let price_data_len = price_data.len();
+        let mut instrument_id_data: Vec<String> = Vec::with_capacity(price_data_len);
+        let mut open_price_data: Vec<f64> = Vec::with_capacity(price_data_len);
+        let mut high_price_data: Vec<f64> = Vec::with_capacity(price_data_len);
+        let mut low_price_data: Vec<f64> = Vec::with_capacity(price_data_len);
+        let mut close_price_data: Vec<f64> = Vec::with_capacity(price_data_len);
+        let mut volume_data: Vec<u64> = Vec::with_capacity(price_data_len);
+        let mut timestamp_data: Vec<u64> = Vec::with_capacity(price_data_len);
+
+        for price in price_data {
+            instrument_id_data.push(price.instrument_id);
+            open_price_data.push(price.open);
+            high_price_data.push(price.high);
+            low_price_data.push(price.low);
+            close_price_data.push(price.close);
+            volume_data.push(price.volume);
+
+            let timestamp = match price.timestamp {
+                Some(ts) => ts.unix_timestamp_seconds,
+                None => return Err("failed to parse timestamp"),
+            };
+            timestamp_data.push(timestamp);
+        }
+
+        let mut price_data_series_map: HashMap<PlSmallStr, Series> = HashMap::new();
+        price_data_series_map.insert(
+            Price::INSTRUMENT_ID,
+            Series::new(Price::INSTRUMENT_ID, instrument_id_data),
+        );
+        price_data_series_map.insert(Price::OPEN, Series::new(Price::OPEN, open_price_data));
+        price_data_series_map.insert(Price::HIGH, Series::new(Price::HIGH, high_price_data));
+        price_data_series_map.insert(Price::LOW, Series::new(Price::LOW, low_price_data));
+        price_data_series_map.insert(Price::CLOSE, Series::new(Price::CLOSE, close_price_data));
+        price_data_series_map.insert(Price::VOLUME, Series::new(Price::VOLUME, volume_data));
+        price_data_series_map.insert(
+            Price::TIMESTAMP,
+            Series::new(Price::TIMESTAMP, timestamp_data),
+        );
+
+        Ok(price_data_series_map)
+    }
+}
+
+#[derive(Debug)]
+pub struct DataFrameServiceImpl {
+    pub df_collection: Arc<DataFrameCollection>,
+}
+
+impl DataFrameServiceImpl {
+    async fn map_trading_system(&self, identifiers: OperateOn) -> Result<(), &'static str> {
+        let str_id = match identifiers.identifier {
+            Some(Identifier::StrIdentifier(id)) => id,
+            Some(Identifier::IntIdentifier(_)) => {
+                return Err("integer id is not supported");
+            }
+            None => return Err("failed to parse identifiers"),
+        };
+
+        let alt_str_id = match identifiers.alt_identifier {
+            Some(AltIdentifier::AltStrIdentifier(id)) => id,
+            Some(AltIdentifier::AltIntIdentifier(_)) => {
+                return Err("integer id is not supported");
+            }
+            None => return Err("failed to parse identifiers"),
+        };
+
+        self.df_collection
+            .insert_inner_map(str_id, alt_str_id)
+            .await;
+
+        Ok(())
+    }
+
+    async fn handle_price(&self, price: Price) -> Result<i32, String> {
+        self.df_collection
+            .append_data_point(&price.instrument_id, &price)
+            .await
+            .map_err(|e| {
+                format!(
+                    "failed to append data point for instrument with id: {}, error: {e}",
+                    &price.instrument_id
+                )
+            })?;
+
+        Ok(1)
+    }
+
+    async fn handle_price_data(&self, price_data: Vec<Price>) -> Result<usize, String> {
+        let price_data_len = price_data.len();
+        if price_data_len == 0 {
+            return Err(String::from("length of price_data was 0"));
+        }
+        let price = price_data[0].clone();
+        let instrument_id = &price.instrument_id;
+        let pl_series = Price::pl_series_format(price_data)?;
+
+        self.df_collection
+            .append_series(instrument_id, pl_series, price_data_len, &price)
+            .await
+            .map_err(|e| {
+                format!(
+                    "failed to process series data for instrument with id: {instrument_id}, error: {e}"
+                )
+            })?;
+
+        Ok(price_data_len)
+    }
+}
+
+#[tonic::async_trait]
+impl DataFrameService for DataFrameServiceImpl {
+    async fn add_trading_system(
+        &self,
+        request: Request<OperateOn>,
+    ) -> Result<Response<Cud>, Status> {
+        let input = request.into_inner();
+        let add_trading_system_result = self.map_trading_system(input).await;
+        if let Err(err) = add_trading_system_result {
+            return Err(Status::internal(err));
+        }
+
+        let response = Cud { num_affected: 1 };
+
+        Ok(Response::new(response))
+    }
+
+    async fn push_price(&self, request: Request<Price>) -> Result<Response<Cud>, Status> {
+        let input = request.into_inner();
+        let mut cud = Cud { num_affected: 0 };
+
+        let handle_price_data_result = self.handle_price(input).await;
+        match handle_price_data_result {
+            Ok(result) => cud.num_affected = result,
+            Err(err) => {
+                return Err(Status::internal(err));
+            }
+        }
+
+        Ok(Response::new(cud))
+    }
+
+    async fn push_price_stream(
+        &self,
+        request: Request<tonic::Streaming<Price>>,
+    ) -> Result<Response<Cud>, Status> {
+        let mut stream = request.into_inner();
+        let mut cud = Cud { num_affected: 0 };
+        let mut price_data: Vec<Price> = Vec::new();
+
+        while let Some(price) = stream.next().await {
+            let price = price?;
+            price_data.push(price);
+        }
+
+        let handle_price_data_result = self.handle_price_data(price_data).await;
+        match handle_price_data_result {
+            Ok(result) => cud.num_affected = result as i32,
+            Err(err) => {
+                return Err(Status::internal(err));
+            }
+        }
+
+        Ok(Response::new(cud))
+    }
+}

@@ -15,6 +15,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/keepalive"
 )
 
@@ -24,9 +25,10 @@ const DATE_TIME_FORMAT = "2006-01-02 15:04:05"
 const MAX_MESSAGE_SIZE = 4 * 1024 * 1024
 
 type server struct {
-	infoLog  *log.Logger
-	errorLog *log.Logger
-	pgPool   *pgxpool.Pool
+	infoLog         *log.Logger
+	errorLog        *log.Logger
+	pgPool          *pgxpool.Pool
+	dfServiceClient pb.DataFrameServiceClient
 	pb.UnimplementedSecuritiesServiceServer
 	pb.UnimplementedTradingSystemsServiceServer
 }
@@ -68,6 +70,21 @@ func (service *service) create(pgPool *pgxpool.Pool, certFile string, keyFile st
 		Timeout:           20 * time.Second,
 	}
 
+	dfClientConn, err := grpc.NewClient("data_frame_service:50051", grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if err != nil {
+		service.errorLog.Println(err)
+		return err
+	}
+
+	go func() {
+		signalChan := make(chan os.Signal, 1)
+		signal.Notify(signalChan, os.Interrupt, syscall.SIGTERM)
+		<-signalChan
+		defer dfClientConn.Close()
+	}()
+
+	dfServiceClient := pb.NewDataFrameServiceClient(dfClientConn)
+
 	// If all services are inside the same network, you can use local credentials for lightweight security.
 	// creds := grpc.LocalCredentials(grpc.LocalConnectionType.UDS)
 
@@ -78,9 +95,10 @@ func (service *service) create(pgPool *pgxpool.Pool, certFile string, keyFile st
 		grpc.MaxSendMsgSize(MAX_MESSAGE_SIZE),
 	)
 	service.server = &server{
-		infoLog:  service.infoLog,
-		errorLog: service.errorLog,
-		pgPool:   pgPool,
+		infoLog:         service.infoLog,
+		errorLog:        service.errorLog,
+		pgPool:          pgPool,
+		dfServiceClient: dfServiceClient,
 	}
 	pb.RegisterSecuritiesServiceServer(service.grpcServer, service.server)
 	pb.RegisterTradingSystemsServiceServer(service.grpcServer, service.server)

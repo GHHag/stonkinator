@@ -1,0 +1,14 @@
+syntax = "proto3";
+
+package stonkinator;
+
+import "general_messages.proto";
+import "securities_service.proto";
+
+option go_package = "./stonkinator_rpc_service";
+
+service DataFrameService {
+    rpc AddTradingSystem (OperateOn) returns (CUD);
+    rpc PushPrice (Price) returns (CUD);
+    rpc PushPriceStream (stream Price) returns (CUD);
+}

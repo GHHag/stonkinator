@@ -15,7 +15,7 @@ do
 	esac
 done
 
-certificates_dir="stonkinator/.certs"
+certificates_dir=".certs"
 if [ ! -d "$certificates_dir" ]; then
 	bash create_certs.sh $certificates_dir
 

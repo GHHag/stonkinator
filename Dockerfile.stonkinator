@@ -7,7 +7,7 @@ RUN pip3 install grpcio-tools
 
 WORKDIR /app
 COPY protobufs/ /app/protobufs/
-COPY stonkinator /app
+COPY stonkinator/stonkinator /app
 RUN cd /app && pip install -e .
 
 RUN python3 -m grpc_tools.protoc \
@@ -17,6 +17,7 @@ RUN python3 -m grpc_tools.protoc \
     /app/protobufs/general_messages.proto \
     /app/protobufs/securities_service.proto \
     /app/protobufs/trading_systems_service.proto
+
 RUN sed -i 's|import general_messages_pb2|from persistance.persistance_services import general_messages_pb2|' ./persistance/persistance_services/securities_service_pb2_grpc.py && \
     sed -i 's|import general_messages_pb2|import persistance.persistance_services.general_messages_pb2|' ./persistance/persistance_services/securities_service_pb2.py && \
     sed -i 's|import securities_service_pb2|from persistance.persistance_services import securities_service_pb2|' ./persistance/persistance_services/securities_service_pb2_grpc.py && \
@@ -24,7 +25,18 @@ RUN sed -i 's|import general_messages_pb2|from persistance.persistance_services 
     sed -i 's|import general_messages_pb2|import persistance.persistance_services.general_messages_pb2|' ./persistance/persistance_services/trading_systems_service_pb2.py && \
     sed -i 's|import trading_systems_service_pb2|from persistance.persistance_services import trading_systems_service_pb2|' ./persistance/persistance_services/trading_systems_service_pb2_grpc.py
 
-COPY stonkinator/crontab /etc/cron.d/crontab
+RUN python3 -m grpc_tools.protoc \
+    --proto_path=/app/protobufs \
+    --python_out=/app/data_frame \
+    --grpc_python_out=/app/data_frame \
+    /app/protobufs/data_frame_service.proto
+
+RUN sed -i 's|import general_messages_pb2|from persistance.persistance_services import general_messages_pb2|' ./data_frame/data_frame_service_pb2_grpc.py && \
+    sed -i 's|import general_messages_pb2|import persistance.persistance_services.general_messages_pb2|' ./data_frame/data_frame_service_pb2.py && \
+    sed -i 's|import securities_service_pb2|from persistance.persistance_services import securities_service_pb2|' ./data_frame/data_frame_service_pb2_grpc.py && \
+    sed -i 's|import securities_service_pb2|import persistance.persistance_services.securities_service_pb2|' ./data_frame/data_frame_service_pb2.py
+
+COPY stonkinator/stonkinator/crontab /etc/cron.d/crontab
 RUN crontab /etc/cron.d/crontab
 
 COPY .certs/stonkinator.key /etc/ssl/private

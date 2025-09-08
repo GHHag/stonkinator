@@ -1,0 +1,33 @@
+FROM rust:1.89-bullseye AS builder
+
+RUN apt-get update && \
+    apt-get install -y protobuf-compiler && \
+    rm -rf /var/lib/apt/lists/*
+
+WORKDIR /usr/src/data_frame_service
+
+COPY data_frame_service/ .
+COPY protobufs/ ./protobufs/
+
+ARG PROTOBUF_DIR
+ARG PROTOBUF_PACKAGE
+ARG DF_SERVICE_HOST
+ARG DF_SERVICE_PORT
+
+ENV PROTOBUF_DIR=$PROTOBUF_DIR
+ENV PROTOBUF_PACKAGE=$PROTOBUF_PACKAGE
+ENV DF_SERVICE_HOST=$DF_SERVICE_HOST
+ENV DF_SERVICE_PORT=$DF_SERVICE_PORT
+
+RUN cargo build --release
+
+RUN cargo install --path .
+
+FROM debian:bullseye-slim
+
+RUN apt-get update && \
+    rm -rf /var/lib/apt/lists/*
+
+COPY --from=builder /usr/local/cargo/bin/data_frame_service /usr/local/bin/data_frame_service
+
+CMD ["data_frame_service"]
