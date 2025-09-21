@@ -1,5 +1,7 @@
 from dataclasses import dataclass
 
+from persistance.persistance_services.securities_service_pb2 import Instrument
+
 from trading_systems.position_sizer.position_sizer import PositionSizer
 from trading_systems.model_creation.model_creation import SKModel
 
@@ -7,7 +9,7 @@ from trading_systems.model_creation.model_creation import SKModel
 @dataclass(frozen=True)
 class TradingSystemProperties:
     required_runs: int
-    instruments_list: list[str]
+    instruments_list: list[Instrument]
     
     preprocess_data_args: tuple
     

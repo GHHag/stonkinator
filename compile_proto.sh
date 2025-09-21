@@ -39,3 +39,4 @@ sed -i 's|import general_messages_pb2|from persistance.persistance_services impo
 sed -i 's|import general_messages_pb2|import persistance.persistance_services.general_messages_pb2|' "${OUT_DIR}/data_frame_service_pb2.py"
 sed -i 's|import securities_service_pb2|from persistance.persistance_services import securities_service_pb2|' "${OUT_DIR}/data_frame_service_pb2_grpc.py"
 sed -i 's|import securities_service_pb2|import persistance.persistance_services.securities_service_pb2|' "${OUT_DIR}/data_frame_service_pb2.py"
+sed -i 's|import data_frame_service_pb2|from data_frame import data_frame_service_pb2|' "${OUT_DIR}/data_frame_service_pb2_grpc.py"

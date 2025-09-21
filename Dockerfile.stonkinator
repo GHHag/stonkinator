@@ -34,7 +34,8 @@ RUN python3 -m grpc_tools.protoc \
 RUN sed -i 's|import general_messages_pb2|from persistance.persistance_services import general_messages_pb2|' ./data_frame/data_frame_service_pb2_grpc.py && \
     sed -i 's|import general_messages_pb2|import persistance.persistance_services.general_messages_pb2|' ./data_frame/data_frame_service_pb2.py && \
     sed -i 's|import securities_service_pb2|from persistance.persistance_services import securities_service_pb2|' ./data_frame/data_frame_service_pb2_grpc.py && \
-    sed -i 's|import securities_service_pb2|import persistance.persistance_services.securities_service_pb2|' ./data_frame/data_frame_service_pb2.py
+    sed -i 's|import securities_service_pb2|import persistance.persistance_services.securities_service_pb2|' ./data_frame/data_frame_service_pb2.py && \
+    sed -i 's|import data_frame_service_pb2|from data_frame import data_frame_service_pb2|' ./data_frame/data_frame_service_pb2_grpc.py
 
 COPY stonkinator/stonkinator/crontab /etc/cron.d/crontab
 RUN crontab /etc/cron.d/crontab

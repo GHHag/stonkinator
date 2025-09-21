@@ -67,14 +67,14 @@ impl FlightServiceImpl {
     async fn hit_endpoint(
         &self,
         flight_command: TicketCommand,
-        n_rows: Option<&MetadataValue<Ascii>>,
+        num_rows: Option<&MetadataValue<Ascii>>,
         exclude_columns: Option<&MetadataValue<Ascii>>,
     ) -> Result<(Arc<Schema>, Vec<RecordBatch>), ArrowError> {
         let df_collection = Arc::clone(&self.df_collection);
 
-        let n_rows = match n_rows {
-            Some(n_rows) => match n_rows.to_str() {
-                Ok(n_rows) => n_rows.parse::<usize>().ok(),
+        let num_rows = match num_rows {
+            Some(num_rows) => match num_rows.to_str() {
+                Ok(num_rows) => num_rows.parse::<u32>().ok(),
                 Err(_) => None,
             },
             None => None,
@@ -92,7 +92,7 @@ impl FlightServiceImpl {
 
         tokio::spawn(async move {
             flight_command
-                .dispatch(&df_collection, n_rows, exclude_columns)
+                .dispatch(&df_collection, num_rows, exclude_columns)
                 .await
         })
         .await
@@ -261,7 +261,7 @@ impl FlightService for FlightServiceImpl {
     ) -> Result<Response<Self::DoGetStream>, Status> {
         let (metadata, _extensions, ticket) = request.into_parts();
 
-        let n_rows = metadata.get("n-rows");
+        let num_rows = metadata.get("n-rows");
         let exclude_columns = metadata.get("exclude");
 
         let ticket_command = match str::from_utf8(&ticket.ticket) {
@@ -274,7 +274,7 @@ impl FlightService for FlightServiceImpl {
         };
 
         match self
-            .hit_endpoint(ticket_command, n_rows, exclude_columns)
+            .hit_endpoint(ticket_command, num_rows, exclude_columns)
             .await
         {
             Ok((schema, batches)) => {

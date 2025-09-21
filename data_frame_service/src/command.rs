@@ -30,27 +30,30 @@ impl InfoCommand {
         match self {
             InfoCommand::TradingSystems => {
                 let mut tickets: Vec<String> = Vec::new();
-                for trading_system_id in df_collection.df_schematic_keys() {
+                for trading_system_id in df_collection.df_schematic_keys().await {
                     tickets.push(format!("{TRADING_SYSTEM}{DELIMITER}{trading_system_id}"));
                 }
+
                 tickets
             }
             InfoCommand::TradingSystem(trading_system_id) => {
                 let mut tickets: Vec<String> = Vec::new();
-                for instrument_id in df_collection.inner_keys_of_outer(trading_system_id).await {
-                    tickets.push(format!(
-                        "{TRADING_SYSTEM}{DELIMITER}{trading_system_id}{DELIMITER}{INSTRUMENT}{DELIMITER}{instrument_id}",
-                    ));
+
+                if let Ok(outer_keys) = df_collection.outer_keys_of_inner(trading_system_id).await {
+                    for instrument_id in outer_keys {
+                        tickets.push(format!(
+                            "{TRADING_SYSTEM}{DELIMITER}{trading_system_id}{DELIMITER}{INSTRUMENT}{DELIMITER}{instrument_id}",
+                        ));
+                    }
                 }
+
                 tickets
             }
             InfoCommand::Instrument(instrument_id) => {
-                let tickets: Vec<String> = Vec::new();
-
-                #[cfg(debug_assertions)]
-                dbg!("create flight info for data of instrument:", instrument_id);
-
-                tickets
+                match df_collection.inner_keys_of_outer(instrument_id).await {
+                    Some(inner_keys) => return inner_keys,
+                    None => return vec![],
+                }
             }
             InfoCommand::Unknown => {
                 let tickets: Vec<String> = Vec::new();
@@ -133,7 +136,7 @@ impl TicketCommand {
     pub async fn dispatch(
         &self,
         df_collection: &DataFrameCollection,
-        n_rows: Option<usize>,
+        num_rows: Option<u32>,
         exclude_columns: Option<Vec<String>>,
     ) -> Result<(Arc<Schema>, Vec<RecordBatch>), ArrowError> {
         match self {
@@ -142,7 +145,7 @@ impl TicketCommand {
                 instrument_id,
             } => {
                 return df_collection
-                    .df_to_arrow(instrument_id, trading_system_id, n_rows, exclude_columns)
+                    .df_to_arrow(instrument_id, trading_system_id, num_rows, exclude_columns)
                     .await
                     .map_err(|e| ArrowError::IpcError(format!("IPC write failed, {e}")));
             }

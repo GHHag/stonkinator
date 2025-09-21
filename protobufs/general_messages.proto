@@ -13,7 +13,7 @@ message DateTime {
 }
 
 message CUD {
-    int32 num_affected = 1;
+    uint32 num_affected = 1;
 }
 
 message GetBy {

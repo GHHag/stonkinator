@@ -8,7 +8,19 @@ import "securities_service.proto";
 option go_package = "./stonkinator_rpc_service";
 
 service DataFrameService {
-    rpc AddTradingSystem (OperateOn) returns (CUD);
+    rpc MapTradingSystemInstrument (OperateOn) returns (CUD);
     rpc PushPrice (Price) returns (CUD);
     rpc PushPriceStream (stream Price) returns (CUD);
+    rpc SetMinimumRows (MinimumRows) returns (CUD);
+    rpc CheckPresence (GetBy) returns (Presence);
+    rpc Evict (OperateOn) returns (CUD);
+}
+
+message MinimumRows {
+    OperateOn operate_on  = 1;
+    uint32 num_rows = 2;
+}
+
+message Presence {
+    bool is_present = 1;
 }

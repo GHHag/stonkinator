@@ -85,7 +85,7 @@ func (s *server) UpdateTradingSystemMetrics(ctx context.Context, req *pb.Trading
 	}
 
 	res := &pb.CUD{
-		NumAffected: int32(result.RowsAffected()),
+		NumAffected: uint32(result.RowsAffected()),
 	}
 
 	return res, nil
@@ -139,7 +139,7 @@ func (s *server) RemoveTradingSystemRelations(ctx context.Context, req *pb.Opera
 	numAffected += result.RowsAffected()
 
 	res := &pb.CUD{
-		NumAffected: int32(numAffected),
+		NumAffected: uint32(numAffected),
 	}
 
 	return res, nil
@@ -185,7 +185,7 @@ func (s *server) UpsertMarketState(ctx context.Context, req *pb.MarketState) (*p
 	}
 
 	res := &pb.CUD{
-		NumAffected: int32(result.RowsAffected()),
+		NumAffected: uint32(result.RowsAffected()),
 	}
 
 	return res, nil
@@ -252,7 +252,7 @@ func (s *server) UpdateCurrentDateTime(ctx context.Context, req *pb.UpdateCurren
 	}
 
 	res := &pb.CUD{
-		NumAffected: int32(result.RowsAffected()),
+		NumAffected: uint32(result.RowsAffected()),
 	}
 
 	return res, nil
@@ -316,7 +316,7 @@ func (s *server) UpsertOrder(ctx context.Context, req *pb.Order) (*pb.CUD, error
 	}
 
 	res := &pb.CUD{
-		NumAffected: int32(result.RowsAffected()),
+		NumAffected: uint32(result.RowsAffected()),
 	}
 
 	return res, nil
@@ -392,7 +392,7 @@ func (s *server) UpsertPosition(ctx context.Context, req *pb.Position) (*pb.CUD,
 	}
 
 	res := &pb.CUD{
-		NumAffected: int32(result.RowsAffected()),
+		NumAffected: uint32(result.RowsAffected()),
 	}
 
 	return res, nil
@@ -420,7 +420,7 @@ func (s *server) InsertPositions(stream pb.TradingSystemsService_InsertPositions
 				}
 			}
 
-			return stream.SendAndClose(&pb.CUD{NumAffected: int32(numAffected)})
+			return stream.SendAndClose(&pb.CUD{NumAffected: uint32(numAffected)})
 		}
 		if err != nil {
 			s.errorLog.Println(err)
@@ -609,7 +609,7 @@ func (s *server) InsertTradingSystemModel(ctx context.Context, req *pb.TradingSy
 	}
 
 	res := &pb.CUD{
-		NumAffected: int32(result.RowsAffected()),
+		NumAffected: uint32(result.RowsAffected()),
 	}
 
 	return res, nil

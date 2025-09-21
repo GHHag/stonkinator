@@ -31,7 +31,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let trading_system_data_blueprint_tuples = get_trading_system_data_blueprints();
     let mut df_schematics: HashMap<String, DataFrameSchematic> = HashMap::new();
-    for (id, df_schematic) in trading_system_data_blueprint_tuples {
+    for (id, df_schematic, _minimum_rows) in trading_system_data_blueprint_tuples {
         df_schematics
             .entry(String::from(id))
             .or_insert(df_schematic);

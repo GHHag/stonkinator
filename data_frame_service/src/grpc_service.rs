@@ -7,8 +7,9 @@ use tokio_stream::StreamExt;
 use tonic::{Request, Response, Status};
 
 use proto::data_frame_service_server::DataFrameService;
-use proto::operate_on::{AltIdentifier, Identifier};
-use proto::{Cud, OperateOn, Price};
+use proto::get_by::{AltIdentifier as GetByAltId, Identifier as GetById};
+use proto::operate_on::{AltIdentifier as OperateOnAltId, Identifier as OperateOnId};
+use proto::{Cud, GetBy, MinimumRows, OperateOn, Presence, Price};
 use sterunets::{DataFrameCollection, RawData};
 
 pub mod proto {
@@ -52,7 +53,7 @@ impl RawData for Price {
         self.validate(df)
     }
 
-    fn format(&self) -> PolarsResult<Vec<(PlSmallStr, AnyValue)>> {
+    fn format(&self) -> PolarsResult<Vec<(PlSmallStr, AnyValue<'_>)>> {
         let timestamp = match self.timestamp {
             Some(ts) => ts.unix_timestamp_seconds,
             None => {
@@ -188,38 +189,74 @@ impl Price {
     }
 }
 
+impl OperateOn {
+    pub fn parse(&self) -> Result<(Option<String>, Option<String>), &'static str> {
+        let str_id = match &self.identifier {
+            Some(OperateOnId::StrIdentifier(str_id)) => Some(String::from(str_id)),
+            Some(OperateOnId::IntIdentifier(_)) => {
+                return Err("integer id is not supported");
+            }
+            None => None,
+        };
+
+        let alt_str_id = match &self.alt_identifier {
+            Some(OperateOnAltId::AltStrIdentifier(alt_str_id)) => Some(String::from(alt_str_id)),
+            Some(OperateOnAltId::AltIntIdentifier(_)) => {
+                return Err("integer id is not supported");
+            }
+            None => None,
+        };
+
+        Ok((str_id, alt_str_id))
+    }
+}
+
+impl GetBy {
+    pub fn parse(&self) -> Result<(Option<String>, Option<String>), &'static str> {
+        let str_id = match &self.identifier {
+            Some(GetById::StrIdentifier(str_id)) => Some(String::from(str_id)),
+            Some(GetById::IntIdentifier(_)) => {
+                return Err("integer id is not supported");
+            }
+            None => None,
+        };
+
+        let alt_str_id = match &self.alt_identifier {
+            Some(GetByAltId::AltStrIdentifier(alt_str_id)) => Some(String::from(alt_str_id)),
+            Some(GetByAltId::AltIntIdentifier(_)) => {
+                return Err("integer id is not supported");
+            }
+            None => None,
+        };
+
+        Ok((str_id, alt_str_id))
+    }
+}
+
 #[derive(Debug)]
 pub struct DataFrameServiceImpl {
     pub df_collection: Arc<DataFrameCollection>,
 }
 
 impl DataFrameServiceImpl {
-    async fn map_trading_system(&self, identifiers: OperateOn) -> Result<(), &'static str> {
-        let str_id = match identifiers.identifier {
-            Some(Identifier::StrIdentifier(id)) => id,
-            Some(Identifier::IntIdentifier(_)) => {
-                return Err("integer id is not supported");
+    async fn map_trading_system(&self, identifiers: OperateOn) -> Result<bool, &'static str> {
+        let ids = identifiers.parse()?;
+
+        match ids {
+            (Some(trading_system_id), Some(instrument_id)) => {
+                let successful = self
+                    .df_collection
+                    .insert_inner_map(instrument_id, trading_system_id)
+                    .await;
+                Ok(successful)
             }
-            None => return Err("failed to parse identifiers"),
-        };
-
-        let alt_str_id = match identifiers.alt_identifier {
-            Some(AltIdentifier::AltStrIdentifier(id)) => id,
-            Some(AltIdentifier::AltIntIdentifier(_)) => {
-                return Err("integer id is not supported");
-            }
-            None => return Err("failed to parse identifiers"),
-        };
-
-        self.df_collection
-            .insert_inner_map(str_id, alt_str_id)
-            .await;
-
-        Ok(())
+            _ => return Err("failed to parse identifiers"),
+        }
     }
 
-    async fn handle_price(&self, price: Price) -> Result<i32, String> {
-        self.df_collection
+    async fn handle_price(&self, price: Price) -> Result<u32, String> {
+        let num_appended = self
+            .df_collection
             .append_data_point(&price.instrument_id, &price)
             .await
             .map_err(|e| {
@@ -229,10 +266,10 @@ impl DataFrameServiceImpl {
                 )
             })?;
 
-        Ok(1)
+        Ok(num_appended)
     }
 
-    async fn handle_price_data(&self, price_data: Vec<Price>) -> Result<usize, String> {
+    async fn handle_price_data(&self, price_data: Vec<Price>) -> Result<u32, String> {
         let price_data_len = price_data.len();
         if price_data_len == 0 {
             return Err(String::from("length of price_data was 0"));
@@ -241,7 +278,7 @@ impl DataFrameServiceImpl {
         let instrument_id = &price.instrument_id;
         let pl_series = Price::pl_series_format(price_data)?;
 
-        self.df_collection
+        let num_appended = self.df_collection
             .append_series(instrument_id, pl_series, price_data_len, &price)
             .await
             .map_err(|e| {
@@ -250,38 +287,117 @@ impl DataFrameServiceImpl {
                 )
             })?;
 
-        Ok(price_data_len)
+        Ok(num_appended)
+    }
+
+    async fn set_minimum_rows_required(
+        &self,
+        minimum_rows: MinimumRows,
+    ) -> Result<bool, &'static str> {
+        if let Some(identifiers) = minimum_rows.operate_on {
+            let schematic_key = match identifiers.identifier {
+                Some(OperateOnId::StrIdentifier(trading_system_id)) => trading_system_id,
+                _ => return Err("failed to parse trading_system_id"),
+            };
+
+            let successful = self
+                .df_collection
+                .set_minimum_rows(&schematic_key, minimum_rows.num_rows)
+                .await;
+
+            Ok(successful)
+        } else {
+            Ok(false)
+        }
+    }
+
+    async fn check_df_collection_presence(&self, identifiers: GetBy) -> Result<bool, &'static str> {
+        let ids = identifiers.parse()?;
+
+        match ids {
+            (Some(trading_system_id), Some(instrument_id)) => {
+                let trading_system_ids =
+                    self.df_collection.inner_keys_of_outer(&instrument_id).await;
+                match trading_system_ids {
+                    Some(trading_system_ids) => Ok(trading_system_ids.contains(&trading_system_id)),
+                    None => Ok(false),
+                }
+            }
+            (Some(trading_system_id), None) => {
+                let trading_system_ids = self.df_collection.df_schematic_keys().await;
+                Ok(trading_system_ids.contains(&trading_system_id))
+            }
+            _ => return Err("no valid id pattern in input parameters"),
+        }
+    }
+
+    async fn evict_df_on(&self, identifiers: OperateOn) -> Result<u32, String> {
+        let ids = identifiers.parse()?;
+        let mut evicted_count = 0_u32;
+
+        match ids {
+            (Some(trading_system_id), Some(instrument_id)) => {
+                let successful = self.df_collection.evict_df(&instrument_id, &trading_system_id).await.map_err(|e| {
+                    format!(
+                        "failed to evict data frame with trading_system_id: {trading_system_id}, instrument_id: {instrument_id}, error: {e}"
+                    )
+                })?;
+                if successful == true {
+                    evicted_count = 1;
+                }
+            }
+            (Some(trading_system_id), None) => {
+                evicted_count += self.df_collection.evict_inner(&trading_system_id).await.map_err(|e| {
+                    format!("failed to evict data frames with trading_system_id: {trading_system_id}, error: {e}")
+                })?;
+            }
+            (None, Some(instrument_id)) => {
+                let successful = self.df_collection.evict_outer(&instrument_id).await.map_err(|e| {
+                    format!("failed to evict data frames with instrument_id: {instrument_id}, error: {e}")
+                })?;
+                if successful == true {
+                    evicted_count = 1;
+                }
+            }
+            _ => return Err(String::from("no valid id pattern in input parameters")),
+        }
+
+        Ok(evicted_count)
     }
 }
 
 #[tonic::async_trait]
 impl DataFrameService for DataFrameServiceImpl {
-    async fn add_trading_system(
+    async fn map_trading_system_instrument(
         &self,
         request: Request<OperateOn>,
     ) -> Result<Response<Cud>, Status> {
         let input = request.into_inner();
-        let add_trading_system_result = self.map_trading_system(input).await;
-        if let Err(err) = add_trading_system_result {
-            return Err(Status::internal(err));
+        let mut cud = Cud { num_affected: 0 };
+
+        let map_trading_system_result = self.map_trading_system(input).await;
+        match map_trading_system_result {
+            Ok(successful) => {
+                if successful == true {
+                    cud.num_affected = 1;
+                }
+            }
+            Err(err) => return Err(Status::internal(err)),
         }
 
-        let response = Cud { num_affected: 1 };
-
-        Ok(Response::new(response))
+        Ok(Response::new(cud))
     }
 
     async fn push_price(&self, request: Request<Price>) -> Result<Response<Cud>, Status> {
         let input = request.into_inner();
-        let mut cud = Cud { num_affected: 0 };
 
-        let handle_price_data_result = self.handle_price(input).await;
-        match handle_price_data_result {
-            Ok(result) => cud.num_affected = result,
-            Err(err) => {
-                return Err(Status::internal(err));
-            }
-        }
+        let handle_price_result = self.handle_price(input).await;
+        let cud = match handle_price_result {
+            Ok(result) => Cud {
+                num_affected: result,
+            },
+            Err(err) => return Err(Status::internal(err)),
+        };
 
         Ok(Response::new(cud))
     }
@@ -291,7 +407,6 @@ impl DataFrameService for DataFrameServiceImpl {
         request: Request<tonic::Streaming<Price>>,
     ) -> Result<Response<Cud>, Status> {
         let mut stream = request.into_inner();
-        let mut cud = Cud { num_affected: 0 };
         let mut price_data: Vec<Price> = Vec::new();
 
         while let Some(price) = stream.next().await {
@@ -300,12 +415,60 @@ impl DataFrameService for DataFrameServiceImpl {
         }
 
         let handle_price_data_result = self.handle_price_data(price_data).await;
-        match handle_price_data_result {
-            Ok(result) => cud.num_affected = result as i32,
-            Err(err) => {
-                return Err(Status::internal(err));
+        let cud = match handle_price_data_result {
+            Ok(result) => Cud {
+                num_affected: result,
+            },
+            Err(err) => return Err(Status::internal(err)),
+        };
+
+        Ok(Response::new(cud))
+    }
+
+    async fn set_minimum_rows(
+        &self,
+        request: Request<MinimumRows>,
+    ) -> Result<Response<Cud>, Status> {
+        let input = request.into_inner();
+        let mut cud = Cud { num_affected: 0 };
+
+        let set_minimum_rows_result = self.set_minimum_rows_required(input).await;
+        match set_minimum_rows_result {
+            Ok(successful) => {
+                if successful == true {
+                    cud.num_affected = 1;
+                }
             }
+            Err(err) => return Err(Status::internal(err)),
         }
+
+        Ok(Response::new(cud))
+    }
+
+    async fn check_presence(&self, request: Request<GetBy>) -> Result<Response<Presence>, Status> {
+        let input = request.into_inner();
+
+        let check_df_collection_presence_result = self.check_df_collection_presence(input).await;
+        let presence = match check_df_collection_presence_result {
+            Ok(presence_check) => Presence {
+                is_present: presence_check,
+            },
+            Err(err) => return Err(Status::internal(err)),
+        };
+
+        Ok(Response::new(presence))
+    }
+
+    async fn evict(&self, request: Request<OperateOn>) -> Result<Response<Cud>, Status> {
+        let input = request.into_inner();
+
+        let eviction_result = self.evict_df_on(input).await;
+        let cud = match eviction_result {
+            Ok(n_evicted) => Cud {
+                num_affected: n_evicted,
+            },
+            Err(err) => return Err(Status::internal(err)),
+        };
 
         Ok(Response::new(cud))
     }
