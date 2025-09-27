@@ -24,6 +24,21 @@ pub fn apply_ewm_mean(options: EWMOptions, apply_to: &str, name: &str) -> Expr {
     col(apply_to).ewm_mean(options).alias(name)
 }
 
+pub fn apply_n_period_high(compare: &str, compare_to: &str, name: &str) -> Expr {
+    col(compare).gt_eq(col(compare_to)).alias(name)
+}
+
+pub fn apply_shift(apply_to: &str, periods: u32, name: &str) -> Expr {
+    col(apply_to).shift(lit(periods)).alias(name)
+}
+
+pub fn apply_pct_change(apply_to: &str, periods: i32, shifted_periods: i32, name: &str) -> Expr {
+    col(apply_to)
+        .pct_change(lit(periods))
+        .shift(lit(shifted_periods))
+        .alias(name)
+}
+
 pub fn apply_atr(
     periods: f64,
     high_col_name: &str,
@@ -300,6 +315,13 @@ mod tests {
             min_periods: 10,
             ..Default::default()
         };
+        // let options = RollingOptionsFixedWindow {
+        //     window_size: 5,
+        //     min_periods: 5,
+        //     weights: None,
+        //     center: false,
+        //     fn_params: Default::default(),
+        // };
 
         let rolling_mean_expr = apply_rolling_mean(options, "close", "ma_10");
 
@@ -321,6 +343,87 @@ mod tests {
         let ewm_mean_expr = apply_ewm_mean(options, "close", "ewm_20");
 
         let df = df.lazy().with_column(ewm_mean_expr).collect().unwrap();
+
+        dbg!(df);
+    }
+
+    #[test]
+    fn test_apply_rolling_max() {
+        let df = create_df();
+
+        let options = RollingOptionsFixedWindow {
+            window_size: 5,
+            min_periods: 5,
+            ..Default::default()
+        };
+
+        let rolling_max_expr = apply_rolling_max("close", options, "rolling_max_5_close");
+
+        let df = df.lazy().with_column(rolling_max_expr).collect().unwrap();
+
+        dbg!(df);
+    }
+
+    #[test]
+    fn test_apply_n_period_high() {
+        let df = create_df();
+
+        let options = RollingOptionsFixedWindow {
+            window_size: 5,
+            min_periods: 5,
+            ..Default::default()
+        };
+
+        let rolling_max_expr = apply_rolling_max("close", options, "rolling_max_5_close");
+
+        let n_period_high_expr =
+            apply_n_period_high("close", "rolling_max_5_close", "5_period_high_close");
+
+        let df = df
+            .lazy()
+            .with_column(rolling_max_expr)
+            .with_column(n_period_high_expr)
+            .collect()
+            .unwrap();
+
+        dbg!(df);
+    }
+
+    #[test]
+    fn test_apply_shift() {
+        let df = create_df();
+
+        let shift_expr = apply_shift("close", 5, "shift_5");
+
+        let df = df.lazy().with_column(shift_expr).collect().unwrap();
+
+        dbg!(df);
+    }
+
+    #[test]
+    fn test_apply_pct_change() {
+        let df = create_df();
+
+        let pct_change_expr = apply_pct_change("close", 5, -1, "pct_change_5");
+
+        let df = df.lazy().with_column(pct_change_expr).collect().unwrap();
+
+        dbg!(df);
+    }
+
+    #[test]
+    fn test_gt_eq_expr() {
+        let df = create_df();
+
+        let pct_change_expr = apply_pct_change("close", 5, -1, "pct_change_shifted");
+        let gt_eq_expr = col("pct_change_shifted").gt_eq(lit(0)).alias("target");
+
+        let df = df
+            .lazy()
+            .with_column(pct_change_expr)
+            .with_column(gt_eq_expr)
+            .collect()
+            .unwrap();
 
         dbg!(df);
     }

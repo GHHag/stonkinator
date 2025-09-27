@@ -10,6 +10,10 @@ class TradingSystemsPersisterBase(metaclass=ABCMeta):
         ...
 
     @abstractmethod
+    def get_trading_system_metrics(self):
+        ...
+
+    @abstractmethod
     def update_trading_system_metrics(self):
         ...
 

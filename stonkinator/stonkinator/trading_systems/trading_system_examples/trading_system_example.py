@@ -11,8 +11,9 @@ from trading.position.order import Order, LimitOrder, MarketOrder
 from trading.position.position import Position
 from trading.trading_system.trading_system import TradingSystem
 
-from persistance.persistance_services.securities_service_pb2 import Instrument
+from data_frame.data_frame_service import DataFrameService
 from persistance.persistance_services.securities_dal import price_data_get
+from persistance.persistance_services.securities_service_pb2 import Instrument, Price as PriceProto
 from persistance.persistance_meta_classes.securities_service import SecuritiesServiceBase
 from persistance.persistance_services.securities_grpc_service import SecuritiesGRPCService
 from persistance.persistance_services.trading_systems_grpc_service import TradingSystemsGRPCService
@@ -28,18 +29,21 @@ class TradingSystemExample(TradingSystemBase):
     @classproperty
     def name(cls) -> str:
         return 'trading_system_example'
+        
+    @classproperty
+    def minimum_rows(cls) -> int:
+        return 5
 
     @classproperty
     def entry_args(cls) -> dict:
         return {
-            TradingSystemAttributes.REQ_PERIOD_ITERS: 5, 
-            TradingSystemAttributes.ENTRY_PERIOD_LOOKBACK: 5
+            TradingSystemAttributes.REQ_PERIOD_ITERS: cls.minimum_rows, 
         }
         
     @classproperty
     def exit_args(cls) -> dict:
         return {
-            TradingSystemAttributes.EXIT_PERIOD_LOOKBACK: 5
+            TradingSystemAttributes.EXIT_PERIOD_LOOKBACK: cls.minimum_rows
         }
 
     @staticmethod
@@ -64,12 +68,8 @@ class TradingSystemExample(TradingSystemBase):
             condition is met, otherwise None.
         """
 
-        entry_period_param = TradingSystemAttributes.ENTRY_PERIOD_LOOKBACK
         order = None
-        entry_condition = (
-            df[Price.CLOSE].iloc[-1] >= max(df[Price.CLOSE].iloc[-entry_args[entry_period_param]:])
-        )
-        if entry_condition == True:
+        if df['5_period_high_close'].iloc[-1] == True:
             order = LimitOrder(
                 MarketState.ENTRY, df.index[-1], df[Price.CLOSE].iloc[-1], 5,
                 direction=TradingSystemAttributes.LONG
@@ -111,20 +111,15 @@ class TradingSystemExample(TradingSystemBase):
 
     @staticmethod
     def preprocess_data(
+        data_frame_service: DataFrameService,
         securities_service: SecuritiesServiceBase,
         instruments_list: list[Instrument], 
         benchmark_instrument: Instrument,
         get_data_function: Callable[[str, dt.datetime, dt.datetime], pd.DataFrame | None],
-        entry_args: dict, exit_args: dict,
         start_dt: dt.datetime, end_dt: dt.datetime,
         ts_processor: TradingSystemProcessor | None=None
     ) -> tuple[dict[tuple[str, str], pd.DataFrame], None]:
         data_dict: dict[tuple[str, str], pd.DataFrame] = {}
-        for instrument in instruments_list:
-            df = get_data_function(securities_service, instrument.id, start_dt, end_dt)
-            if df is None:
-                continue
-            data_dict[(instrument.id, instrument.symbol)] = df
 
         benchmark_col_suffix = '_benchmark'
         df_benchmark = get_data_function(securities_service, benchmark_instrument.id, start_dt, end_dt)
@@ -140,32 +135,69 @@ class TradingSystemExample(TradingSystemBase):
                     TradingSystemAttributes.SYMBOL: f'{TradingSystemAttributes.SYMBOL}{benchmark_col_suffix}'
                 }
             )
+            df_benchmark[Price.DT] = pd.to_datetime(df_benchmark[Price.DT])
             if ts_processor != None:
-                ts_processor.penult_dt = pd.to_datetime(df_benchmark[Price.DT].iloc[-2])
-                ts_processor.current_dt = pd.to_datetime(df_benchmark[Price.DT].iloc[-1])
+                ts_processor.penult_dt = df_benchmark[Price.DT].iloc[-2]
+                ts_processor.current_dt = df_benchmark[Price.DT].iloc[-1]
 
-        instruments_to_remove = []
-        for instrument, data in data_dict.items():
-            if data.empty or len(data) < entry_args.get(TradingSystemAttributes.REQ_PERIOD_ITERS):
-                instruments_to_remove.append(instrument)
-            else:
-                df_benchmark[Price.DT] = pd.to_datetime(df_benchmark[Price.DT])
-                data[Price.DT] = pd.to_datetime(data[Price.DT])
-                
-                data = pd.merge_ordered(data, df_benchmark, on=Price.DT, how='inner')
-                data = data.ffill()
-                data = data.set_index(Price.DT)
+        for instrument in instruments_list:
+            price_data: list[PriceProto] = securities_service.get_price_data(
+                instrument.id, start_dt, end_dt
+            )
+            push_price_stream_res = data_frame_service.push_price_stream(price_data)
+            df = data_frame_service.do_get_df(TradingSystemExample.name, instrument.id)
+            if df is None or df.empty:
+                continue
 
-                # apply indicators/features to dataframe
-                data['SMA'] = data[Price.CLOSE].rolling(20).mean()
+            df[Price.DT] = pd.to_datetime(df['timestamp'], unit='s')
+            df = pd.merge_ordered(df, df_benchmark, on=Price.DT, how='inner')
+            df = df.ffill()
+            df = df.set_index(Price.DT)
+            data_dict[(instrument.id, instrument.symbol)] = df
 
-                data_dict[instrument] = data.dropna()
-        for instrument in instruments_to_remove:
-            data_dict.pop(instrument)
+        return data_dict, None
+
+    @staticmethod
+    def reprocess_data(
+        data_frame_service: DataFrameService,
+        _: SecuritiesServiceBase,
+        instruments_list: list[Instrument], 
+        ts_processor: TradingSystemProcessor
+    ) -> tuple[dict[tuple[str, str], pd.DataFrame], None]:
+        data_dict: dict[tuple[str, str], pd.DataFrame] = {}
+
+        dt_set = False
+        for instrument in instruments_list:
+            df = data_frame_service.do_get_df(TradingSystemExample.name, instrument.id)
+            if df is None or df.empty:
+                continue
+
+            df[Price.DT] = pd.to_datetime(df['timestamp'], unit='s')
+
+            if dt_set == False:
+                ts_processor.penult_dt = df[Price.DT].iloc[-2]
+                ts_processor.current_dt = df[Price.DT].iloc[-1]
+                dt_set = True
+            elif (
+                df[Price.DT].iloc[-2] != ts_processor.penult_dt or
+                df[Price.DT].iloc[-1] != ts_processor.current_dt
+            ):
+                raise ValueError(
+                    'datetime mismatch:\n'
+                    f'penultimate datetime: {ts_processor.penult_dt}\n'
+                    f'evaluated penultimate datetime: {df[Price.DT].iloc[-2]}\n'
+                    f'current datetime: {ts_processor.current_dt}\n'
+                    f'evaluated current datetime: {df[Price.DT].iloc[-1]}'
+                )
+
+            df = df.ffill()
+            df = df.set_index(Price.DT)
+            data_dict[(instrument.id, instrument.symbol)] = df
+
         return data_dict, None
 
     @classmethod
-    def get_properties(cls, securities_service: SecuritiesServiceBase):
+    def get_properties(cls, securities_service: SecuritiesServiceBase) -> TradingSystemProperties:
         required_runs = 2
 
         omxs_large_caps_instruments_list = securities_service.get_market_list_instruments(
@@ -192,10 +224,7 @@ class TradingSystemExample(TradingSystemBase):
         exit_args = cls.exit_args
         return TradingSystemProperties(
             required_runs, instruments_list,
-            (
-                benchmark_instrument, price_data_get,
-                entry_args, exit_args
-            ),
+            (benchmark_instrument, price_data_get),
             entry_args, exit_args,
             {
                 'plot_fig': False

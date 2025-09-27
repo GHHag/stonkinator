@@ -7,11 +7,17 @@ import pandas as pd
 from pyarrow.flight import FlightCallOptions, FlightClient, Ticket
 
 from data_frame.data_frame_service_pb2_grpc import DataFrameServiceStub
-from persistance.persistance_services.securities_grpc_service import grpc_error_handler
+from data_frame.data_frame_service_pb2 import (
+    MinimumRows,
+    Presence,
+)
 from persistance.persistance_services.general_messages_pb2 import (
     CUD,
+    GetBy,
     OperateOn,
 )
+from persistance.persistance_services.securities_grpc_service import grpc_error_handler
+from persistance.persistance_services.securities_service_pb2 import Price
 
 
 LOG_DIR_PATH = os.environ.get("LOG_DIR_PATH")
@@ -30,7 +36,6 @@ def flight_error_handler(logger: logging.Logger, default_return=None):
         def wrapper(*args, **kwargs):
             try:
                 return func(*args, **kwargs)
-            # except grpc.RpcError as e:
             except Exception as e:
                 logger.error(f"error in {func.__name__}\n{e}")
                 return default_return        
@@ -46,39 +51,78 @@ class DataFrameService:
     INSTRUMENT_KEY = "instrument"
 
     def __init__(self, address: str):
-        # df_service_host = os.environ.get("STONKINATOR_DF_SERVICE")
-        # df_service_port = os.environ.get("DF_SERVICE_PORT")
-
         channel = grpc.insecure_channel(address)
-        # self.__df_service_client = DataFrameServiceStub(f"{df_service_host}:{df_service_port}")
-        # self.__flight_client = FlightClient(f"grpc+tcp://{df_service_host}:{df_service_port}")
         self.__df_service_client = DataFrameServiceStub(channel)
         self.__flight_client = FlightClient(f"grpc+tcp://{address}")
 
     @grpc_error_handler(logger, default_return=None)
-    def add_trading_system(
+    def map_trading_system_instrument(
         self, trading_system_id: str, instrument_id: str
     ) -> CUD:
         req = OperateOn(
             str_identifier=trading_system_id, alt_str_identifier=instrument_id
         )
-        res = self.__df_service_client.AddTradingSystem(req)
+        res = self.__df_service_client.MapTradingSystemInstrument(req)
+        return res
+
+    @grpc_error_handler(logger, default_return=None)
+    def push_price(self, price: Price) -> CUD:
+        res = self.__df_service_client.PushPrice(price)
+        return res
+
+    @grpc_error_handler(logger, default_return=None)
+    def push_price_stream(self, price_data: list[Price]) -> CUD:
+        res = self.__df_service_client.PushPriceStream(price for price in price_data)
+        return res
+
+    @grpc_error_handler(logger, default_return=None)
+    def set_minimum_rows(self, trading_system_id: str, num_rows: int) -> CUD:
+        req = MinimumRows(
+            operate_on=OperateOn(str_identifier=trading_system_id),
+            num_rows=num_rows
+        )
+        res = self.__df_service_client.SetMinimumRows(req)
+        return res
+
+    @grpc_error_handler(logger, default_return=None)
+    def check_presence(self, trading_system_id: str, instrument_id: str | None = None) -> Presence:
+        req = GetBy(
+            str_identifier=trading_system_id,
+            alt_str_identifier=instrument_id
+        )
+        res = self.__df_service_client.CheckPresence(req)
+        return res
+
+    @grpc_error_handler(logger, default_return=None)
+    def evict(
+        self, 
+        trading_system_id: str | None = None, 
+        instrument_id: str | None = None
+    ) -> CUD:
+        req = OperateOn(
+            str_identifier=trading_system_id, alt_str_identifier=instrument_id
+        )
+        res = self.__df_service_client.Evict(req)
         return res
 
     @flight_error_handler(logger, default_return=None)
     def do_get_df(
         self, trading_system_id: str, instrument_id: str,
-        n_rows: int | None, exclude: str | None
+        n_rows: int | None = None, exclude: str | None = None
     ) -> pd.DataFrame:
         ticket = Ticket(
             f"{self.TRADING_SYSTEM_KEY}:{trading_system_id}"
             ":"
             f"{self.INSTRUMENT_KEY}:{instrument_id}"
+            .encode("utf-8")
         )
-        headers = [
-            (self.N_ROWS_KEY, str(n_rows).encode("utf-8")),
-            (self.EXCLUDE_KEY, exclude.encode("utf-8")),
-        ]
+
+        headers = []
+        if n_rows:
+            headers.append(self.N_ROWS_KEY, str(n_rows).encode("utf-8"))
+        if exclude:
+            headers.append(self.EXCLUDE_KEY, exclude.encode("utf-8"))
+
         call_options = FlightCallOptions(headers=headers)
         reader = self.__flight_client.do_get(ticket, options=call_options)
         table = reader.read_all()
@@ -89,9 +133,25 @@ class DataFrameService:
 if __name__ == '__main__':
     data_frame_service = DataFrameService("data_frame_service:50051")
 
-    # add_ts_res = data_frame_service.add_trading_system(
-    #     "def456", "00237200-fee8-45ce-81c3-cc7d9e4b5262"
-    # )
+    add_ts_res = data_frame_service.map_trading_system_instrument(
+        "trading_system_example", "66c366f6-d42d-46c9-b6b7-0ba08561ef3e"
+    )
+    print(add_ts_res)
+    add_ts_res = data_frame_service.map_trading_system_instrument(
+        "trading_system_example", "0faf6f36-ca72-46c3-a680-5982d44e8b9d"
+    )
+    print(add_ts_res)
+    add_ts_res = data_frame_service.map_trading_system_instrument(
+        "trading_system_example", "ab0fa4d8-6ed4-48e1-a693-470b999ba213"
+    )
+    print(add_ts_res)
+    add_ts_res = data_frame_service.map_trading_system_instrument(
+        "trading_system_example", "958070c7-8e18-4e13-9d40-13f7ba8dcaa0"
+    )
+    print(add_ts_res)
+    add_ts_res = data_frame_service.map_trading_system_instrument(
+        "trading_system_example", "00237200-fee8-45ce-81c3-cc7d9e4b5262"
+    )
     # print(add_ts_res)
 
     # ticket = Ticket(
@@ -108,6 +168,22 @@ if __name__ == '__main__':
     # df = table.to_pandas()
 
     df = data_frame_service.do_get_df(
-        "def456", "958070c7-8e18-4e13-9d40-13f7ba8dcaa0", 11, "instrument_id:volume"
+        "trading_system_example", "958070c7-8e18-4e13-9d40-13f7ba8dcaa0"
+    )
+    print(df)
+    df = data_frame_service.do_get_df(
+        "trading_system_example", "66c366f6-d42d-46c9-b6b7-0ba08561ef3e"
+    )
+    print(df)
+    df = data_frame_service.do_get_df(
+        "trading_system_example", "0faf6f36-ca72-46c3-a680-5982d44e8b9d"
+    )
+    print(df)
+    df = data_frame_service.do_get_df(
+        "trading_system_example", "ab0fa4d8-6ed4-48e1-a693-470b999ba213"
+    )
+    print(df)
+    df = data_frame_service.do_get_df(
+        "trading_system_example", "00237200-fee8-45ce-81c3-cc7d9e4b5262"
     )
     print(df)

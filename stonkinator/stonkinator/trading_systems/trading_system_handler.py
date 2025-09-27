@@ -2,6 +2,9 @@ import os
 import datetime as dt
 import json
 import argparse
+import logging
+from logging.handlers import TimedRotatingFileHandler
+import pathlib
 
 import pandas as pd
 
@@ -13,29 +16,67 @@ from trading_systems.trading_system_base import TradingSystemBase, MLTradingSyst
 from trading_systems.trading_system_properties import TradingSystemProperties, MLTradingSystemProperties
 from trading_systems.position_sizer.ext_position_sizer import ExtPositionSizer
 
+from data_frame.data_frame_service import DataFrameService
 from persistance.persistance_meta_classes.securities_service import SecuritiesServiceBase
 from persistance.persistance_meta_classes.trading_systems_persister import TradingSystemsPersisterBase
 from persistance.persistance_services.securities_grpc_service import SecuritiesGRPCService
+from persistance.persistance_services.securities_service_pb2 import Price
 from persistance.persistance_services.trading_systems_grpc_service import TradingSystemsGRPCService
+
+
+LOG_DIR_PATH = os.environ.get("LOG_DIR_PATH")
+if not os.path.exists(LOG_DIR_PATH):
+    os.makedirs(LOG_DIR_PATH)
+
+logger_name = pathlib.Path(__file__).stem
+logger = logging.getLogger(logger_name)
+logger.setLevel(logging.INFO)
+handler = TimedRotatingFileHandler(
+    filename=f"{LOG_DIR_PATH}{logger_name}.log",
+    when="midnight",
+    interval=1,
+    backupCount=14,
+    encoding="utf-8",
+    utc=True
+)
+handler.suffix = "%Y-%m-%d"
+logging_formatter = logging.Formatter(
+    fmt="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S"
+)
+handler.setFormatter(logging_formatter)
+logger.addHandler(handler)
 
 
 class TradingSystemProcessor:
 
     def __init__(
-        self, ts_class: TradingSystemBase, 
+        self,
+        ts_class: TradingSystemBase,
+        data_frame_service: DataFrameService,
         securities_service: SecuritiesServiceBase,
         trading_systems_persister: TradingSystemsPersisterBase,
         start_dt: dt.datetime, end_dt: dt.datetime,
-        full_run=False
+        full_run=False, step_through=False
     ):
         self.__system_name = ts_class.name
         self.__ts_properties: TradingSystemProperties = ts_class.get_properties(securities_service)
         self.__trading_systems_persister = trading_systems_persister
-        self.__data, features = ts_class.preprocess_data(
-            securities_service, self.__ts_properties.instruments_list,
-            *self.__ts_properties.preprocess_data_args, start_dt, end_dt,
-            ts_processor=self
+
+        logger.info(
+            "TradingSystemProcessor.__init__ - "
+            f"ts_class: {ts_class}, start_dt: {start_dt}, end_dt: {end_dt}, "
+            f"full_run: {full_run}, step_through: {step_through}"
         )
+
+        if full_run == True:
+            features = self._preprocess(ts_class, data_frame_service, securities_service)
+        elif step_through == True:
+            self._process_step(data_frame_service, securities_service, start_dt, end_dt)
+
+        if full_run == False:
+            features = self._reprocess(ts_class, data_frame_service, securities_service)
+
         trading_system_proto = self.__trading_systems_persister.get_or_insert_trading_system(
             self.__system_name, self.__current_dt
         )
@@ -49,21 +90,7 @@ class TradingSystemProcessor:
         )
 
         if issubclass(ts_class, MLTradingSystemBase) == True:
-            assert isinstance(self.__ts_properties, MLTradingSystemProperties) == True
-            if full_run == True:
-                self.__data = ts_class.operate_models(
-                    self.__trading_system_id, self.__trading_systems_persister, self.__data, features,
-                    self.__ts_properties.model_class, self.__ts_properties.params
-                )
-            else:
-                if isinstance(features, pd.DataFrame):
-                    end_dt = pd.to_datetime(self.__current_dt).normalize()
-                    features = features[features.index == end_dt] 
-
-                # TODO: Skip making predictions if there is an active position for the instrument.
-                self.__data = ts_class.make_predictions(
-                    self.__trading_system_id, self.__trading_systems_persister, self.__data, features
-                )
+            self.process_models(ts_class, features, full_run)
 
     @property
     def system_name(self):
@@ -85,9 +112,93 @@ class TradingSystemProcessor:
     def current_dt(self, value):
         self.__current_dt = value
 
-    def reprocess_data(self, end_dt: dt.datetime):
-        # TODO: Implement this method.
-        pass
+    def _preprocess(
+        self, ts_class: TradingSystemBase, 
+        data_frame_service: DataFrameService, securities_service: SecuritiesServiceBase,
+    ) -> pd.DataFrame | None:
+        for instrument in self.__ts_properties.instruments_list:
+            presence = data_frame_service.check_presence(
+                self.__system_name, instrument_id=instrument.id
+            )
+            if presence.is_present == False:
+                map_ts_result = data_frame_service.map_trading_system_instrument(self.__system_name, instrument.id)
+                logger.info(
+                    "data_frame_service.map_trading_system_instrument - "
+                    f"input: ({self.__system_name}, {instrument.id}) - "
+                    f"result: {map_ts_result}"
+                )
+
+        eviction_result = data_frame_service.evict(trading_system_id=self.__system_name)
+        logger.info(
+            "data_frame_service.evict - "
+            f"input: (trading_system_id={self.__system_name}) - "
+            f"result: {eviction_result}"
+        )
+
+        self.__data, features = ts_class.preprocess_data(
+            data_frame_service, securities_service, self.__ts_properties.instruments_list,
+            *self.__ts_properties.preprocess_data_args, start_dt, end_dt,
+            ts_processor=self
+        )
+        set_minimum_rows_result = data_frame_service.set_minimum_rows(
+            self.__system_name, ts_class.minimum_rows
+        )
+        logger.info(
+            "data_frame_service.set_minimum_rows - "
+            f"input: ({self.__system_name}, {ts_class.minimum_rows}) - "
+            f"result: {set_minimum_rows_result}"
+        )
+        return features
+
+    def _process_step(
+        self,
+        data_frame_service: DataFrameService,
+        securities_service: SecuritiesServiceBase,
+        start_dt: dt.datetime, end_dt: dt.datetime
+    ):
+        for instrument in self.__ts_properties.instruments_list:
+            price_data: list[Price] = securities_service.get_price_data(instrument.id, start_dt, end_dt)
+            if len(price_data) == 0:
+                logger.warning(
+                    "securities_service.get_price_data - no price data found"
+                    f"input: ({instrument.id}, {start_dt}, {end_dt})"
+                )
+            for price in price_data:
+                push_price_res = data_frame_service.push_price(price)
+                logger.info(
+                    "data_frame_service.push_price - "
+                    f"input: ({price}) - "
+                    f"result: {push_price_res}"
+                )
+
+    def _reprocess(
+        self,
+        ts_class: TradingSystemBase,
+        data_frame_service: DataFrameService,
+        securities_service: SecuritiesServiceBase
+    ) -> pd.DataFrame | None:
+        self.__data, features = ts_class.reprocess_data(
+            data_frame_service, securities_service, self.__ts_properties.instruments_list,
+            ts_processor=self
+        )
+        return features
+
+    def process_models(self, ts_class: MLTradingSystemBase, features: pd.DataFrame | None, full_run: bool):
+        assert isinstance(self.__ts_properties, MLTradingSystemProperties) == True
+        if full_run == True:
+            self.__data = ts_class.operate_models(
+                self.__trading_system_id, self.__trading_systems_persister, self.__data, features,
+                self.__ts_properties.model_class, self.__ts_properties.params
+            )
+        else:
+            if isinstance(features, pd.DataFrame):
+                end_dt = pd.to_datetime(self.__current_dt).normalize()
+                features = features[features.index == end_dt] 
+
+            # TODO: Skip making predictions if there is an active position for the instrument.
+            self.__data = ts_class.make_predictions(
+                self.__trading_system_id, self.__trading_systems_persister, self.__data, features
+            )
 
     def _run_trading_system(
         self, full_run, retain_history,
@@ -149,7 +260,7 @@ class TradingSystemProcessor:
         self, full_run: bool, retain_history: bool,
         insert_into_db=False, **kwargs
     ):
-        for i in range(self.__ts_properties.required_runs):
+        for _ in range(self.__ts_properties.required_runs):
             if full_run == True and insert_into_db == True:
                 self.__trading_systems_persister.remove_trading_system_relations(self.__trading_system_id)
 
@@ -238,11 +349,6 @@ class TradingSystemProcessor:
         self, end_dt: dt.datetime, full_run: bool, retain_history: bool,
         insert_into_db=False, **kwargs
     ):
-        # get new data here and append it to __data member
-
-        # call reprocess_data if new data is available
-        # self.reprocess_data(date)
-
         if full_run != True:
             self._check_end_datetime(end_dt)
 
@@ -258,17 +364,19 @@ class TradingSystemHandler:
 
     def __init__(
         self, trading_system_classes: list[TradingSystemBase],
+        data_frame_service: DataFrameService,
         securities_service: SecuritiesServiceBase,
         trading_systems_persister: TradingSystemsPersisterBase, 
         start_dt: dt.datetime, end_dt: dt.datetime, 
-        full_run=False
+        full_run=False, step_through=False
     ):
         self.__trading_systems: list[TradingSystemProcessor] = []
         for ts_class in trading_system_classes:
             self.__trading_systems.append(
                 TradingSystemProcessor(
-                    ts_class, securities_service, trading_systems_persister, start_dt, end_dt,
-                    full_run=full_run
+                    ts_class, data_frame_service, securities_service, 
+                    trading_systems_persister, start_dt, end_dt,
+                    full_run=full_run, step_through=step_through
                 )
             )
 
@@ -283,11 +391,17 @@ class TradingSystemHandler:
                     insert_into_db=True, print_data=print_data
                 )
             except ValueError as e:
-                print(f'ValueError - trading system "{trading_system_processor.system_name}"\n{e}')
+                logger.error(
+                    f"ValueError - trading_system_processor.system_name: {trading_system_processor.system_name}"
+                    f"error message: {e}"
+                )
                 continue
 
 
 if __name__ == '__main__':
+    DATA_FRAME_SERVICE = DataFrameService(
+        f"{os.environ.get('DF_SERVICE_HOST')}:{os.environ.get('DF_SERVICE_PORT')}"
+    )
     SECURITIES_GRPC_SERVICE = SecuritiesGRPCService(
         f"{os.environ.get('RPC_SERVICE_HOST')}:{os.environ.get('RPC_SERVICE_PORT')}"
     )
@@ -330,6 +444,7 @@ if __name__ == '__main__':
         # MetaLabelingExample,
         # StonkinatorFlagship,
     ]
+    logger.info(f"TRADING_SYSTEM_CLASSES: {TRADING_SYSTEM_CLASSES}")
 
     # start_dt = dt.datetime(1999, 1, 1)
     # end_dt = dt.datetime(2011, 1, 1)
@@ -337,18 +452,24 @@ if __name__ == '__main__':
     # end_dt = dt.datetime.now()
     end_dt = dt.datetime(2023, 3, 8)
 
-    if step_through:
+    if step_through == True:
         periods = (dt.datetime.now() - end_dt).days
         for _ in range(periods):
             ts_handler = TradingSystemHandler(
-                TRADING_SYSTEM_CLASSES, SECURITIES_GRPC_SERVICE, TRADING_SYSTEMS_GRPC_SERVICE,
-                start_dt, end_dt, full_run=full_run
+                TRADING_SYSTEM_CLASSES, DATA_FRAME_SERVICE,
+                SECURITIES_GRPC_SERVICE, TRADING_SYSTEMS_GRPC_SERVICE,
+                start_dt, end_dt,
+                full_run=full_run, step_through=step_through
             )
             ts_handler.run_trading_systems(end_dt, full_run, retain_history, print_data=print_data)
+            start_dt = end_dt
             end_dt += dt.timedelta(days=1)
+            full_run = False
     else:
         ts_handler = TradingSystemHandler(
-            TRADING_SYSTEM_CLASSES, SECURITIES_GRPC_SERVICE, TRADING_SYSTEMS_GRPC_SERVICE,
-            start_dt, end_dt, full_run=full_run
+            TRADING_SYSTEM_CLASSES, DATA_FRAME_SERVICE,
+            SECURITIES_GRPC_SERVICE, TRADING_SYSTEMS_GRPC_SERVICE,
+            start_dt, end_dt,
+            full_run=full_run
         )
         ts_handler.run_trading_systems(end_dt, full_run, retain_history, print_data=print_data)
