@@ -1,22 +1,20 @@
 import os
 import datetime as dt
-from typing import Callable
+import pathlib
 
 import pandas as pd
 import numpy as np
 from sklearn.tree import DecisionTreeClassifier
 
-from trading.data.metadata.trading_system_attributes import (
-    TradingSystemAttributes, classproperty
-)
+from trading.data.metadata.trading_system_attributes import TradingSystemAttributes, classproperty
 from trading.data.metadata.market_state_enum import MarketState
 from trading.data.metadata.price import Price
 from trading.position.order import Order, LimitOrder, MarketOrder
 from trading.position.position import Position
 from trading.trading_system.trading_system import TradingSystem
 
-from persistance.persistance_services.securities_service_pb2 import Instrument
-from persistance.persistance_services.securities_dal import price_data_get
+from data_frame.data_frame_service import DataFrameService
+from persistance.persistance_services.securities_service_pb2 import Instrument, Price as PriceProto
 from persistance.persistance_meta_classes.securities_service import SecuritiesServiceBase
 from persistance.persistance_services.securities_grpc_service import SecuritiesGRPCService
 from persistance.persistance_meta_classes.trading_systems_persister import (
@@ -24,6 +22,7 @@ from persistance.persistance_meta_classes.trading_systems_persister import (
 )
 from persistance.persistance_services.trading_systems_grpc_service import TradingSystemsGRPCService
 
+from trading_systems.logger import create_timed_rotating_logger
 from trading_systems.trading_system_base import MLTradingSystemBase
 from trading_systems.trading_system_properties import MLTradingSystemProperties
 from trading_systems.trading_system_handler import TradingSystemProcessor
@@ -33,6 +32,11 @@ from trading_systems.model_creation.model_creation import (
 )
 
 
+LOG_DIR_PATH = os.environ.get("LOG_DIR_PATH")
+logger_name = pathlib.Path(__file__).stem
+logger = create_timed_rotating_logger(LOG_DIR_PATH, logger_name, 1, 14)
+
+
 class MLTradingSystemExample(MLTradingSystemBase):
 
     @classproperty
@@ -40,11 +44,15 @@ class MLTradingSystemExample(MLTradingSystemBase):
         return 'ml_trading_system_example'
 
     @classproperty
+    def minimum_rows(cls) -> int:
+        return 7
+
+    @classproperty
     def target(cls) -> str:
         return 'target'
 
     @classproperty
-    def target_period(cls) -> 1:
+    def target_period(cls) -> int:
         return 1
 
     @classproperty
@@ -120,7 +128,7 @@ class MLTradingSystemExample(MLTradingSystemBase):
         cls, trading_system_id: str, trading_systems_persister: TradingSystemsPersisterBase, 
         data_dict: dict[tuple[str, str], pd.DataFrame], features: list[str],
         model_class: SKModel, params: dict
-    ) -> dict [tuple[str, str], pd.DataFrame]:
+    ) -> dict[tuple[str, str], pd.DataFrame]:
         target = cls.target
         models_data_dict = cls.create_backtest_models(data_dict, features, target, model_class, params)
         inference_models_dict = cls.create_inference_models(data_dict, features, target, model_class, params)
@@ -141,7 +149,11 @@ class MLTradingSystemExample(MLTradingSystemBase):
                 trading_system_id, instrument_id
             )
             if not model_pipeline:
-                raise ValueError('failed to get model pipeline')
+                logger.error(
+                    "MLTradingSystemExample.make_predictions - "
+                    "failed to get model pipeline - "
+                    f"input: ({trading_system_id}, {instrument_id})"
+                )
 
             pred_data = data[features].to_numpy()
             latest_data_point = data.iloc[-1].copy()
@@ -156,80 +168,103 @@ class MLTradingSystemExample(MLTradingSystemBase):
 
     @staticmethod
     def preprocess_data(
+        data_frame_service: DataFrameService,
         securities_service: SecuritiesServiceBase,
         instruments_list: list[Instrument],
-        benchmark_instrument: Instrument,
-        get_data_function: Callable[[str, dt.datetime, dt.datetime], pd.DataFrame | None],
-        entry_args: dict, exit_args: dict,
         start_dt: dt.datetime, end_dt: dt.datetime,
         ts_processor: TradingSystemProcessor | None=None
     ) -> tuple[dict[tuple[str, str], pd.DataFrame], list[str]]:
-        target = entry_args.get('target')
-        target_period = entry_args.get('target_period')
-
         data_dict: dict[tuple[str, str], pd.DataFrame] = {}
+
+        dt_set = False
         for instrument in instruments_list:
-            df = get_data_function(securities_service, instrument.id, start_dt, end_dt)
-            if df is None:
-                continue
-            data_dict[(instrument.id, instrument.symbol)] = df
-        
-        benchmark_col_suffix = '_benchmark'
-        df_benchmark = get_data_function(securities_service, benchmark_instrument.id, start_dt, end_dt)
-        if df_benchmark is not None:
-            df_benchmark = df_benchmark.drop(TradingSystemAttributes.INSTRUMENT_ID, axis=1)
-            df_benchmark = df_benchmark.rename(
-                columns={
-                    Price.OPEN: f'{Price.OPEN}{benchmark_col_suffix}', 
-                    Price.HIGH: f'{Price.HIGH}{benchmark_col_suffix}', 
-                    Price.LOW: f'{Price.LOW}{benchmark_col_suffix}', 
-                    Price.CLOSE: f'{Price.CLOSE}{benchmark_col_suffix}',
-                    Price.VOLUME: f'{Price.VOLUME}{benchmark_col_suffix}', 
-                    TradingSystemAttributes.SYMBOL: f'{TradingSystemAttributes.SYMBOL}{benchmark_col_suffix}'
-                }
+            price_data: list[PriceProto] = securities_service.get_price_data(instrument.id, start_dt, end_dt)
+            push_price_stream_res = data_frame_service.push_price_stream(price_data)
+            logger.info(
+                "securities_service.get_price_data - "
+                f"input: ({instrument.id}, {start_dt}, {end_dt}) - "
+                "data_frame_service.push_price_stream - "
+                f"length of price_data: {len(price_data)} - "
+                f"result: {push_price_stream_res}"
             )
-            if ts_processor != None:
-                ts_processor.penult_dt = pd.to_datetime(df_benchmark[Price.DT].iloc[-2])
-                ts_processor.current_dt = pd.to_datetime(df_benchmark[Price.DT].iloc[-1])
 
-        instruments_to_remove = []
-        for instrument, data in data_dict.items():
-            if data.empty or len(data) < entry_args.get(TradingSystemAttributes.REQ_PERIOD_ITERS):
-                instruments_to_remove.append(instrument)
-            else:
-                df_benchmark[Price.DT] = pd.to_datetime(df_benchmark[Price.DT])
-                data[Price.DT] = pd.to_datetime(data[Price.DT])
+            df = data_frame_service.do_get_df(MLTradingSystemExample.name, instrument.id)
+            if df is None or df.empty:
+                continue
 
-                data = pd.merge_ordered(data, df_benchmark, on=Price.DT, how='inner')
-                data = data.ffill()
-                data = data.set_index(Price.DT)
-
-                data[Price.VOLUME] = data[Price.VOLUME].astype(int)
-
-                # apply indicators/features to dataframe
-                data['Pct_chg'] = data[Price.CLOSE].pct_change().mul(100)
-                data['Lag1'] = data['Pct_chg'].shift(1)
-                data['Lag2'] = data['Pct_chg'].shift(2)
-                data['Lag5'] = data['Pct_chg'].shift(5)
-
-                data['return_shifted'] = (
-                    data[Price.CLOSE]
-                    .pct_change(periods=target_period)
-                    .shift(-target_period)
-                    .mul(100)
+            df[Price.DT] = pd.to_datetime(df[Price.TIMESTAMP], unit="s")
+            if ts_processor is not None and dt_set == False:
+                ts_processor.penult_dt = df[Price.DT].iloc[-2]
+                ts_processor.current_dt = df[Price.DT].iloc[-1]
+                dt_set = True
+            elif (
+                df[Price.DT].iloc[-2] != ts_processor.penult_dt or
+                df[Price.DT].iloc[-1] != ts_processor.current_dt
+            ):
+                raise ValueError(
+                    'datetime mismatch:\n'
+                    f'penultimate datetime: {ts_processor.penult_dt}\n'
+                    f'evaluated penultimate datetime: {df[Price.DT].iloc[-2]}\n'
+                    f'current datetime: {ts_processor.current_dt}\n'
+                    f'evaluated current datetime: {df[Price.DT].iloc[-1]}'
                 )
-                data[target] = data['return_shifted'] > 0
-                data = data.drop(['return_shifted'], axis=1)
-                data = data.dropna()
 
-                data_dict[instrument] = data.dropna()
-        for instrument in instruments_to_remove:
-            data_dict.pop(instrument)
-        pred_features = ['Lag1', 'Lag2', 'Lag5', Price.VOLUME]
+            df = df.ffill()
+            df = df.dropna()
+            df = df.set_index(Price.DT)
+            df[MLTradingSystemExample.target] = df[MLTradingSystemExample.target].astype(int)
+            data_dict[(instrument.id, instrument.symbol)] = df
+
+        pred_features = ['lag_1', 'lag_2', 'lag_5', Price.VOLUME]
+        return data_dict, pred_features
+
+    @staticmethod
+    def reprocess_data(
+        data_frame_service: DataFrameService,
+        _: SecuritiesServiceBase,
+        instruments_list: list[Instrument], 
+        ts_processor: TradingSystemProcessor
+    ) -> tuple[dict[tuple[str, str], pd.DataFrame], None]:
+        data_dict: dict[tuple[str, str], pd.DataFrame] = {}
+
+        dt_set = False
+        for instrument in instruments_list:
+            df = data_frame_service.do_get_df(MLTradingSystemExample.name, instrument.id)
+            if df is None or df.empty:
+                logger.warning(
+                    "reprocess_data - df is None or df.empty - "
+                    f"input: ({MLTradingSystemExample.name}, {instrument.id})"
+                )
+                continue
+
+            df[Price.DT] = pd.to_datetime(df[Price.TIMESTAMP], unit="s")
+            if dt_set == False:
+                ts_processor.penult_dt = df[Price.DT].iloc[-2]
+                ts_processor.current_dt = df[Price.DT].iloc[-1]
+                dt_set = True
+            elif (
+                df[Price.DT].iloc[-2] != ts_processor.penult_dt or
+                df[Price.DT].iloc[-1] != ts_processor.current_dt
+            ):
+                raise ValueError(
+                    "datetime mismatch:\n"
+                    f"penultimate datetime: {ts_processor.penult_dt}\n"
+                    f"evaluated penultimate datetime: {df[Price.DT].iloc[-2]}\n"
+                    f"current datetime: {ts_processor.current_dt}\n"
+                    f"evaluated current datetime: {df[Price.DT].iloc[-1]}"
+                )
+
+            df = df.ffill()
+            df = df.dropna()
+            df = df.set_index(Price.DT)
+            df[MLTradingSystemExample.target] = df[MLTradingSystemExample.target].astype(int)
+            data_dict[(instrument.id, instrument.symbol)] = df
+
+        pred_features = ['lag_1', 'lag_2', 'lag_5', Price.VOLUME]
         return data_dict, pred_features
 
     @classmethod
-    def get_properties(cls, securities_service: SecuritiesServiceBase):
+    def get_properties(cls, securities_service: SecuritiesServiceBase) -> MLTradingSystemProperties:
         required_runs = 1
 
         omxs_large_caps_instruments_list = securities_service.get_market_list_instruments(
@@ -240,8 +275,6 @@ class MLTradingSystemExample(MLTradingSystemBase):
             if omxs_large_caps_instruments_list
             else None
         )
-
-        benchmark_instrument = securities_service.get_instrument("^OMX")
 
         model_class, params = (
             DecisionTreeClassifier, 
@@ -254,10 +287,7 @@ class MLTradingSystemExample(MLTradingSystemBase):
         exit_args = cls.exit_args
         return MLTradingSystemProperties( 
             required_runs, omxs_large_caps_instruments_list,
-            (
-                benchmark_instrument, price_data_get,
-                entry_args, exit_args
-            ),
+            (),
             entry_args, exit_args,
             {
                 'plot_fig': False
@@ -272,6 +302,9 @@ class MLTradingSystemExample(MLTradingSystemBase):
 
 
 if __name__ == '__main__':
+    data_frame_service = DataFrameService(
+        f"{os.environ.get('DF_SERVICE_HOST')}:{os.environ.get('DF_SERVICE_PORT')}"
+    )
     securities_grpc_service = SecuritiesGRPCService(
         f"{os.environ.get('RPC_SERVICE_HOST')}:{os.environ.get('RPC_SERVICE_PORT')}"
     )
@@ -288,11 +321,22 @@ if __name__ == '__main__':
         securities_grpc_service
     )
 
+    eviction_result = data_frame_service.evict(trading_system_id=MLTradingSystemExample.name)
+    for instrument in system_props.instruments_list:
+        presence = data_frame_service.check_presence(
+            MLTradingSystemExample.name, instrument_id=instrument.id
+        )
+        if presence.is_present == False:
+            map_ts_result = data_frame_service.map_trading_system_instrument(MLTradingSystemExample.name, instrument.id)
+
     tsp = lambda: None
     data_dict, features = MLTradingSystemExample.preprocess_data(
-        securities_grpc_service, system_props.instruments_list,
+        data_frame_service, securities_grpc_service, system_props.instruments_list,
         *system_props.preprocess_data_args, start_dt, end_dt,
         ts_processor=tsp
+    )
+    set_minimum_rows_result = data_frame_service.set_minimum_rows(
+        MLTradingSystemExample.name, MLTradingSystemExample.minimum_rows
     )
 
     models_data_dict = MLTradingSystemExample.create_backtest_models(

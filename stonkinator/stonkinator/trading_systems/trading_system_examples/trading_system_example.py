@@ -1,6 +1,7 @@
 import os
 import datetime as dt
 from typing import Callable
+import pathlib
 
 import pandas as pd
 
@@ -18,10 +19,16 @@ from persistance.persistance_meta_classes.securities_service import SecuritiesSe
 from persistance.persistance_services.securities_grpc_service import SecuritiesGRPCService
 from persistance.persistance_services.trading_systems_grpc_service import TradingSystemsGRPCService
 
+from trading_systems.logger import create_timed_rotating_logger
 from trading_systems.trading_system_base import TradingSystemBase
 from trading_systems.trading_system_properties import TradingSystemProperties
 from trading_systems.trading_system_handler import TradingSystemProcessor
 from trading_systems.position_sizer.safe_f_position_sizer import SafeFPositionSizer
+
+
+LOG_DIR_PATH = os.environ.get("LOG_DIR_PATH")
+logger_name = pathlib.Path(__file__).stem
+logger = create_timed_rotating_logger(LOG_DIR_PATH, logger_name, 1, 14)
 
 
 class TradingSystemExample(TradingSystemBase):
@@ -141,15 +148,21 @@ class TradingSystemExample(TradingSystemBase):
                 ts_processor.current_dt = df_benchmark[Price.DT].iloc[-1]
 
         for instrument in instruments_list:
-            price_data: list[PriceProto] = securities_service.get_price_data(
-                instrument.id, start_dt, end_dt
-            )
+            price_data: list[PriceProto] = securities_service.get_price_data(instrument.id, start_dt, end_dt)
             push_price_stream_res = data_frame_service.push_price_stream(price_data)
+            logger.info(
+                "securities_service.get_price_data - "
+                f"input: ({instrument.id}, {start_dt}, {end_dt}) - "
+                "data_frame_service.push_price_stream - "
+                f"length of price_data: {len(price_data)} - "
+                f"result: {push_price_stream_res}"
+            )
+
             df = data_frame_service.do_get_df(TradingSystemExample.name, instrument.id)
             if df is None or df.empty:
                 continue
 
-            df[Price.DT] = pd.to_datetime(df['timestamp'], unit='s')
+            df[Price.DT] = pd.to_datetime(df[Price.TIMESTAMP], unit='s')
             df = pd.merge_ordered(df, df_benchmark, on=Price.DT, how='inner')
             df = df.ffill()
             df = df.set_index(Price.DT)
@@ -170,10 +183,13 @@ class TradingSystemExample(TradingSystemBase):
         for instrument in instruments_list:
             df = data_frame_service.do_get_df(TradingSystemExample.name, instrument.id)
             if df is None or df.empty:
+                logger.warning(
+                    "reprocess_data - df is None or df.empty - "
+                    f"input: ({TradingSystemExample.name}, {instrument.id})"
+                )
                 continue
 
-            df[Price.DT] = pd.to_datetime(df['timestamp'], unit='s')
-
+            df[Price.DT] = pd.to_datetime(df[Price.TIMESTAMP], unit='s')
             if dt_set == False:
                 ts_processor.penult_dt = df[Price.DT].iloc[-2]
                 ts_processor.current_dt = df[Price.DT].iloc[-1]

@@ -301,11 +301,12 @@ class TradingSystem:
         if print_data == True:
             print('\nSystem performance summary: \n', metrics_df.to_string())
 
-        composite_system_metrics_summary_plot(
-            metrics_df,
-            plot_fig=plot_performance_summary,
-            save_fig_to_path=composite_summary_plot_to_path
-        )
+        if metrics_df.empty == False:
+            composite_system_metrics_summary_plot(
+                metrics_df,
+                plot_fig=plot_performance_summary,
+                save_fig_to_path=composite_summary_plot_to_path
+            )
 
         if run_monte_carlo_sims:
             print(
@@ -352,10 +353,11 @@ class TradingSystem:
                 }
             )
 
-        returns_distribution_plot(
-            full_market_to_market_returns_list, full_mae_list, full_mfe_list,
-            plot_fig=plot_returns_distribution, save_fig_to_path=save_returns_distribution_plot_to_path
-        )
+        if len(full_market_to_market_returns_list) > 0:
+            returns_distribution_plot(
+                full_market_to_market_returns_list, full_mae_list, full_mfe_list,
+                plot_fig=plot_returns_distribution, save_fig_to_path=save_returns_distribution_plot_to_path
+            )
 
     def run_trading_system(
         self, data_dict: dict[tuple[str, str], pd.DataFrame], *args, 

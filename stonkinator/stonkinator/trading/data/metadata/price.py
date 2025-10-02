@@ -9,6 +9,7 @@ class Price:
     __CLOSE = 'close'
     __VOLUME = 'volume'
     __DT = 'date'
+    __TIMESTAMP = 'timestamp'
 
     @classproperty
     def OPEN(cls):
@@ -33,3 +34,7 @@ class Price:
     @classproperty
     def DT(cls):
         return cls.__DT
+
+    @classproperty
+    def TIMESTAMP(cls):
+        return cls.__TIMESTAMP

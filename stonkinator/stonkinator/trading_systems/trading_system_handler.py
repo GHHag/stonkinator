@@ -2,8 +2,6 @@ import os
 import datetime as dt
 import json
 import argparse
-import logging
-from logging.handlers import TimedRotatingFileHandler
 import pathlib
 
 import pandas as pd
@@ -12,6 +10,7 @@ from trading.data.metadata.trading_system_attributes import TradingSystemAttribu
 from trading.data.metadata.market_state_enum import MarketState
 from trading.trading_system.trading_system import TradingSystem
 
+from trading_systems.logger import create_timed_rotating_logger
 from trading_systems.trading_system_base import TradingSystemBase, MLTradingSystemBase
 from trading_systems.trading_system_properties import TradingSystemProperties, MLTradingSystemProperties
 from trading_systems.position_sizer.ext_position_sizer import ExtPositionSizer
@@ -25,27 +24,8 @@ from persistance.persistance_services.trading_systems_grpc_service import Tradin
 
 
 LOG_DIR_PATH = os.environ.get("LOG_DIR_PATH")
-if not os.path.exists(LOG_DIR_PATH):
-    os.makedirs(LOG_DIR_PATH)
-
 logger_name = pathlib.Path(__file__).stem
-logger = logging.getLogger(logger_name)
-logger.setLevel(logging.INFO)
-handler = TimedRotatingFileHandler(
-    filename=f"{LOG_DIR_PATH}{logger_name}.log",
-    when="midnight",
-    interval=1,
-    backupCount=14,
-    encoding="utf-8",
-    utc=True
-)
-handler.suffix = "%Y-%m-%d"
-logging_formatter = logging.Formatter(
-    fmt="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-    datefmt="%Y-%m-%d %H:%M:%S"
-)
-handler.setFormatter(logging_formatter)
-logger.addHandler(handler)
+logger = create_timed_rotating_logger(LOG_DIR_PATH, logger_name, 1, 14)
 
 
 class TradingSystemProcessor:
@@ -116,6 +96,13 @@ class TradingSystemProcessor:
         self, ts_class: TradingSystemBase, 
         data_frame_service: DataFrameService, securities_service: SecuritiesServiceBase,
     ) -> pd.DataFrame | None:
+        eviction_result = data_frame_service.evict(trading_system_id=self.__system_name)
+        logger.info(
+            "data_frame_service.evict - "
+            f"input: (trading_system_id={self.__system_name}) - "
+            f"result: {eviction_result}"
+        )
+
         for instrument in self.__ts_properties.instruments_list:
             presence = data_frame_service.check_presence(
                 self.__system_name, instrument_id=instrument.id
@@ -127,13 +114,6 @@ class TradingSystemProcessor:
                     f"input: ({self.__system_name}, {instrument.id}) - "
                     f"result: {map_ts_result}"
                 )
-
-        eviction_result = data_frame_service.evict(trading_system_id=self.__system_name)
-        logger.info(
-            "data_frame_service.evict - "
-            f"input: (trading_system_id={self.__system_name}) - "
-            f"result: {eviction_result}"
-        )
 
         self.__data, features = ts_class.preprocess_data(
             data_frame_service, securities_service, self.__ts_properties.instruments_list,
@@ -177,11 +157,15 @@ class TradingSystemProcessor:
         data_frame_service: DataFrameService,
         securities_service: SecuritiesServiceBase
     ) -> pd.DataFrame | None:
-        self.__data, features = ts_class.reprocess_data(
-            data_frame_service, securities_service, self.__ts_properties.instruments_list,
-            ts_processor=self
-        )
-        return features
+        try:
+            self.__data, features = ts_class.reprocess_data(
+                data_frame_service, securities_service, self.__ts_properties.instruments_list,
+                ts_processor=self
+            )
+            return features
+        except ValueError as e:
+            logger.error(f"ts_class.reprocess_data {ts_class} - {e}")
+            return []
 
     def process_models(self, ts_class: MLTradingSystemBase, features: pd.DataFrame | None, full_run: bool):
         assert isinstance(self.__ts_properties, MLTradingSystemProperties) == True
@@ -392,8 +376,9 @@ class TradingSystemHandler:
                 )
             except ValueError as e:
                 logger.error(
-                    f"ValueError - trading_system_processor.system_name: {trading_system_processor.system_name}"
-                    f"error message: {e}"
+                    "TradingSystemHandler.run_trading_systems - "
+                    f"trading_system_processor.system_name: {trading_system_processor.system_name} - "
+                    f"{e}"
                 )
                 continue
 

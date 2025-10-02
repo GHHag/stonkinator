@@ -352,7 +352,7 @@ class BacktestTradingSession:
         if generate_signals:
             if market_state_null_default:
                 self.__signal_handler.handle_entry_signal(
-                    self.__symbol, {
+                    self.__instrument_id, self.__symbol, {
                         TradingSystemAttributes.SIGNAL_DT: self.__dataframe.index[-1],
                         TradingSystemAttributes.MARKET_STATE: MarketState.NULL.value
                     }

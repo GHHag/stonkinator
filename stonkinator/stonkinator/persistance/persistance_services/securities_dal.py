@@ -111,7 +111,9 @@ def insert_daily_data(
         for i, _ in enumerate(df.itertuples()):
             try:
                 unix_timestamp_seconds = int(
-                    dt.datetime.combine(df[Price_consts.DT].iloc[i], dt.datetime.min.time()).timestamp()
+                    df[Price_consts.DT].iloc[i]
+                        .replace(hour=0, minute=0, second=0, microsecond=0)
+                        .timestamp()
                 )
             except Exception as e:
                 critical_logger.error(
