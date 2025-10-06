@@ -93,7 +93,7 @@ class MLTradingSystemBase(TradingSystemBase):
         trading_system_id: str,
         trading_systems_persister: TradingSystemsPersisterBase, 
         data_dict: dict[tuple[str, str], pd.DataFrame],
-        features: list[str],
+        features: list[str] | pd.DataFrame,
         model_class: SKModel,
         params: dict
     ) -> dict[tuple[str, str], pd.DataFrame] | pd.DataFrame:
@@ -106,7 +106,7 @@ class MLTradingSystemBase(TradingSystemBase):
         trading_system_id: str,
         trading_systems_persister: TradingSystemsPersisterBase,
         data_dict: dict[tuple [str, str], pd.DataFrame],
-        features: list[str]
+        features: list[str] | pd.DataFrame
     ) -> dict[tuple[str, str], pd.DataFrame]:
         ...
 
@@ -117,5 +117,5 @@ class MLTradingSystemBase(TradingSystemBase):
 
     @staticmethod
     @abstractmethod
-    def reprocess_data() -> tuple[dict[tuple[str, str], pd.DataFrame], None]:
+    def reprocess_data() -> tuple[dict[tuple[str, str], pd.DataFrame], list[str] | pd.DataFrame]:
         ...

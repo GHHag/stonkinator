@@ -12,7 +12,7 @@ from trading.position.order import Order, LimitOrder, MarketOrder
 from trading.position.position import Position
 from trading.trading_system.trading_system import TradingSystem
 
-from data_frame.data_frame_service import DataFrameService
+from data_frame.data_frame_service_client import DataFrameServiceClient
 from persistance.persistance_services.securities_dal import price_data_get
 from persistance.persistance_services.securities_service_pb2 import Instrument, Price as PriceProto
 from persistance.persistance_meta_classes.securities_service import SecuritiesServiceBase
@@ -25,6 +25,8 @@ from trading_systems.trading_system_properties import TradingSystemProperties
 from trading_systems.trading_system_handler import TradingSystemProcessor
 from trading_systems.position_sizer.safe_f_position_sizer import SafeFPositionSizer
 
+from data_frame_service import trading_system_example
+
 
 LOG_DIR_PATH = os.environ.get("LOG_DIR_PATH")
 logger_name = pathlib.Path(__file__).stem
@@ -35,7 +37,7 @@ class TradingSystemExample(TradingSystemBase):
     
     @classproperty
     def name(cls) -> str:
-        return 'trading_system_example'
+        return trading_system_example.TRADING_SYSTEM_NAME
         
     @classproperty
     def minimum_rows(cls) -> int:
@@ -76,7 +78,7 @@ class TradingSystemExample(TradingSystemBase):
         """
 
         order = None
-        if df['5_period_high_close'].iloc[-1] == True:
+        if df[trading_system_example.ENTRY_CONDITION_COL].iloc[-1] == True:
             order = LimitOrder(
                 MarketState.ENTRY, df.index[-1], df[Price.CLOSE].iloc[-1], 5,
                 direction=TradingSystemAttributes.LONG
@@ -118,7 +120,7 @@ class TradingSystemExample(TradingSystemBase):
 
     @staticmethod
     def preprocess_data(
-        data_frame_service: DataFrameService,
+        data_frame_service: DataFrameServiceClient,
         securities_service: SecuritiesServiceBase,
         instruments_list: list[Instrument], 
         benchmark_instrument: Instrument,
@@ -172,7 +174,7 @@ class TradingSystemExample(TradingSystemBase):
 
     @staticmethod
     def reprocess_data(
-        data_frame_service: DataFrameService,
+        data_frame_service: DataFrameServiceClient,
         _: SecuritiesServiceBase,
         instruments_list: list[Instrument], 
         ts_processor: TradingSystemProcessor

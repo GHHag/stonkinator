@@ -43,7 +43,7 @@ def flight_error_handler(logger: logging.Logger, default_return=None):
     return decorator
 
 
-class DataFrameService:
+class DataFrameServiceClient:
 
     N_ROWS_KEY = b"n-rows"
     EXCLUDE_KEY = b"exclude"
@@ -105,6 +105,18 @@ class DataFrameService:
         res = self.__df_service_client.Evict(req)
         return res
 
+    @grpc_error_handler(logger, default_return=None)
+    def drop_data_frame_collection_entry(
+        self, 
+        trading_system_id: str | None = None, 
+        instrument_id: str | None = None
+    ) -> CUD:
+        req = OperateOn(
+            str_identifier=trading_system_id, alt_str_identifier=instrument_id
+        )
+        res = self.__df_service_client.DropDataFrameCollectionEntry(req)
+        return res
+
     @flight_error_handler(logger, default_return=None)
     def do_get_df(
         self, trading_system_id: str, instrument_id: str,
@@ -131,7 +143,7 @@ class DataFrameService:
 
 
 if __name__ == '__main__':
-    data_frame_service = DataFrameService("data_frame_service:50051")
+    data_frame_service = DataFrameServiceClient("data_frame_service:50051")
 
     add_ts_res = data_frame_service.map_trading_system_instrument(
         "trading_system_example", "66c366f6-d42d-46c9-b6b7-0ba08561ef3e"

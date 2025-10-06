@@ -13,7 +13,7 @@ from trading.position.order import Order, LimitOrder, MarketOrder
 from trading.position.position import Position
 from trading.trading_system.trading_system import TradingSystem
 
-from data_frame.data_frame_service import DataFrameService
+from data_frame.data_frame_service_client import DataFrameServiceClient
 from persistance.persistance_services.securities_service_pb2 import Instrument, Price as PriceProto
 from persistance.persistance_meta_classes.securities_service import SecuritiesServiceBase
 from persistance.persistance_services.securities_grpc_service import SecuritiesGRPCService
@@ -31,6 +31,8 @@ from trading_systems.model_creation.model_creation import (
     SKModel, create_backtest_models, create_inference_model
 )
 
+from data_frame_service import ml_trading_system_example
+
 
 LOG_DIR_PATH = os.environ.get("LOG_DIR_PATH")
 logger_name = pathlib.Path(__file__).stem
@@ -41,7 +43,7 @@ class MLTradingSystemExample(MLTradingSystemBase):
 
     @classproperty
     def name(cls) -> str:
-        return 'ml_trading_system_example'
+        return ml_trading_system_example.TRADING_SYSTEM_NAME
 
     @classproperty
     def minimum_rows(cls) -> int:
@@ -49,7 +51,7 @@ class MLTradingSystemExample(MLTradingSystemBase):
 
     @classproperty
     def target(cls) -> str:
-        return 'target'
+        return ml_trading_system_example.ENTRY_CONDITION_COL
 
     @classproperty
     def target_period(cls) -> int:
@@ -61,7 +63,7 @@ class MLTradingSystemExample(MLTradingSystemBase):
         return {
             TradingSystemAttributes.REQ_PERIOD_ITERS: target_period, 
             TradingSystemAttributes.ENTRY_PERIOD_LOOKBACK: target_period,
-            'target': cls.target,
+            ml_trading_system_example.ENTRY_CONDITION_COL: cls.target,
             'target_period': target_period
         }
 
@@ -168,7 +170,7 @@ class MLTradingSystemExample(MLTradingSystemBase):
 
     @staticmethod
     def preprocess_data(
-        data_frame_service: DataFrameService,
+        data_frame_service: DataFrameServiceClient,
         securities_service: SecuritiesServiceBase,
         instruments_list: list[Instrument],
         start_dt: dt.datetime, end_dt: dt.datetime,
@@ -212,19 +214,17 @@ class MLTradingSystemExample(MLTradingSystemBase):
             df = df.ffill()
             df = df.dropna()
             df = df.set_index(Price.DT)
-            df[MLTradingSystemExample.target] = df[MLTradingSystemExample.target].astype(int)
             data_dict[(instrument.id, instrument.symbol)] = df
 
-        pred_features = ['lag_1', 'lag_2', 'lag_5', Price.VOLUME]
-        return data_dict, pred_features
+        return data_dict, ml_trading_system_example.FEATURES
 
     @staticmethod
     def reprocess_data(
-        data_frame_service: DataFrameService,
+        data_frame_service: DataFrameServiceClient,
         _: SecuritiesServiceBase,
         instruments_list: list[Instrument], 
         ts_processor: TradingSystemProcessor
-    ) -> tuple[dict[tuple[str, str], pd.DataFrame], None]:
+    ) -> tuple[dict[tuple[str, str], pd.DataFrame], list[str]]:
         data_dict: dict[tuple[str, str], pd.DataFrame] = {}
 
         dt_set = False
@@ -257,11 +257,9 @@ class MLTradingSystemExample(MLTradingSystemBase):
             df = df.ffill()
             df = df.dropna()
             df = df.set_index(Price.DT)
-            df[MLTradingSystemExample.target] = df[MLTradingSystemExample.target].astype(int)
             data_dict[(instrument.id, instrument.symbol)] = df
 
-        pred_features = ['lag_1', 'lag_2', 'lag_5', Price.VOLUME]
-        return data_dict, pred_features
+        return data_dict, ml_trading_system_example.FEATURES
 
     @classmethod
     def get_properties(cls, securities_service: SecuritiesServiceBase) -> MLTradingSystemProperties:
@@ -302,7 +300,7 @@ class MLTradingSystemExample(MLTradingSystemBase):
 
 
 if __name__ == '__main__':
-    data_frame_service = DataFrameService(
+    data_frame_service = DataFrameServiceClient(
         f"{os.environ.get('DF_SERVICE_HOST')}:{os.environ.get('DF_SERVICE_PORT')}"
     )
     securities_grpc_service = SecuritiesGRPCService(

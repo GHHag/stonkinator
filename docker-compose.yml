@@ -82,6 +82,9 @@ services:
       TS_HANDLER_DIR_TARGET: ${TS_HANDLER_DIR_TARGET}
     build:
       dockerfile: Dockerfile.stonkinator
+      args:
+        PROTOBUF_DIR: ${PROTOBUF_DIR}
+        PROTOBUF_PACKAGE: ${PROTOBUF_PACKAGE}
     # volumes:
     #   - ./stonkinator/stonkinator:/app
 

@@ -10,7 +10,7 @@ mod feature_expression;
 mod flight_service;
 mod grpc_service;
 
-use blueprint::get_trading_system_blueprints;
+use blueprint::create_trading_system_blueprints;
 use flight_service::FlightServiceImpl;
 use grpc_service::DataFrameServiceImpl;
 use grpc_service::proto::data_frame_service_server::DataFrameServiceServer;
@@ -31,7 +31,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut df_schematics: HashMap<String, DataFrameSchematic> = HashMap::new();
 
-    for blueprint in get_trading_system_blueprints() {
+    for blueprint in create_trading_system_blueprints() {
         df_schematics
             .entry(String::from(blueprint.id))
             .or_insert(blueprint.df_schematic);

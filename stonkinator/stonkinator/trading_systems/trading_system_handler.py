@@ -15,7 +15,7 @@ from trading_systems.trading_system_base import TradingSystemBase, MLTradingSyst
 from trading_systems.trading_system_properties import TradingSystemProperties, MLTradingSystemProperties
 from trading_systems.position_sizer.ext_position_sizer import ExtPositionSizer
 
-from data_frame.data_frame_service import DataFrameService
+from data_frame.data_frame_service_client import DataFrameServiceClient
 from persistance.persistance_meta_classes.securities_service import SecuritiesServiceBase
 from persistance.persistance_meta_classes.trading_systems_persister import TradingSystemsPersisterBase
 from persistance.persistance_services.securities_grpc_service import SecuritiesGRPCService
@@ -33,7 +33,7 @@ class TradingSystemProcessor:
     def __init__(
         self,
         ts_class: TradingSystemBase,
-        data_frame_service: DataFrameService,
+        data_frame_service: DataFrameServiceClient,
         securities_service: SecuritiesServiceBase,
         trading_systems_persister: TradingSystemsPersisterBase,
         start_dt: dt.datetime, end_dt: dt.datetime,
@@ -93,8 +93,10 @@ class TradingSystemProcessor:
         self.__current_dt = value
 
     def _preprocess(
-        self, ts_class: TradingSystemBase, 
-        data_frame_service: DataFrameService, securities_service: SecuritiesServiceBase,
+        self,
+        ts_class: TradingSystemBase,
+        data_frame_service: DataFrameServiceClient,
+        securities_service: SecuritiesServiceBase
     ) -> pd.DataFrame | None:
         eviction_result = data_frame_service.evict(trading_system_id=self.__system_name)
         logger.info(
@@ -132,7 +134,7 @@ class TradingSystemProcessor:
 
     def _process_step(
         self,
-        data_frame_service: DataFrameService,
+        data_frame_service: DataFrameServiceClient,
         securities_service: SecuritiesServiceBase,
         start_dt: dt.datetime, end_dt: dt.datetime
     ):
@@ -154,9 +156,9 @@ class TradingSystemProcessor:
     def _reprocess(
         self,
         ts_class: TradingSystemBase,
-        data_frame_service: DataFrameService,
+        data_frame_service: DataFrameServiceClient,
         securities_service: SecuritiesServiceBase
-    ) -> pd.DataFrame | None:
+    ) -> list[str] | pd.DataFrame | None:
         try:
             self.__data, features = ts_class.reprocess_data(
                 data_frame_service, securities_service, self.__ts_properties.instruments_list,
@@ -167,7 +169,12 @@ class TradingSystemProcessor:
             logger.error(f"ts_class.reprocess_data {ts_class} - {e}")
             return []
 
-    def process_models(self, ts_class: MLTradingSystemBase, features: pd.DataFrame | None, full_run: bool):
+    def process_models(
+        self,
+        ts_class: MLTradingSystemBase,
+        features: list[str] | pd.DataFrame | None,
+        full_run: bool
+    ):
         assert isinstance(self.__ts_properties, MLTradingSystemProperties) == True
         if full_run == True:
             self.__data = ts_class.operate_models(
@@ -197,48 +204,60 @@ class TradingSystemProcessor:
         **kwargs
     ):
         if full_run:
-            self.__trading_system.run_trading_system_backtest(
-                self.__data,
-                capital=capital,
-                capital_fraction=capital_fraction,
-                avg_yearly_periods=avg_yearly_periods,
-                market_state_null_default=retain_history == False,
-                plot_performance_summary=plot_fig,
-                save_summary_plot_to_path=save_summary_plot_to_path,
-                system_analysis_to_csv_path=system_analysis_to_csv_path, 
-                plot_returns_distribution=plot_returns_distribution,
-                save_returns_distribution_plot_to_path=None, 
-                run_monte_carlo_sims=run_monte_carlo_sims,
-                num_of_monte_carlo_sims=num_of_sims,
-                monte_carlo_data_amount=0.65,
-                plot_monte_carlo=plot_fig,
-                print_monte_carlo_df=print_dataframe,
-                monte_carlo_analysis_to_csv_path=None, 
-                print_data=print_data,
-                commission_pct_cost=0.0025,
-                entry_args=self.__ts_properties.entry_function_args,
-                exit_args=self.__ts_properties.exit_function_args,
-                fixed_position_size=True,
-                generate_signals=True,
-                plot_positions=plot_positions,
-                save_position_figs_path=None,
-                write_signals_to_file_path=write_to_file_path,
-                insert_data_to_db_bool=insert_into_db,
-                pos_list_slice_years_est=pos_list_slice_years_est
-            )
+            try:
+                self.__trading_system.run_trading_system_backtest(
+                    self.__data,
+                    capital=capital,
+                    capital_fraction=capital_fraction,
+                    avg_yearly_periods=avg_yearly_periods,
+                    market_state_null_default=retain_history == False,
+                    plot_performance_summary=plot_fig,
+                    save_summary_plot_to_path=save_summary_plot_to_path,
+                    system_analysis_to_csv_path=system_analysis_to_csv_path, 
+                    plot_returns_distribution=plot_returns_distribution,
+                    save_returns_distribution_plot_to_path=None, 
+                    run_monte_carlo_sims=run_monte_carlo_sims,
+                    num_of_monte_carlo_sims=num_of_sims,
+                    monte_carlo_data_amount=0.65,
+                    plot_monte_carlo=plot_fig,
+                    print_monte_carlo_df=print_dataframe,
+                    monte_carlo_analysis_to_csv_path=None, 
+                    print_data=print_data,
+                    commission_pct_cost=0.0025,
+                    entry_args=self.__ts_properties.entry_function_args,
+                    exit_args=self.__ts_properties.exit_function_args,
+                    fixed_position_size=True,
+                    generate_signals=True,
+                    plot_positions=plot_positions,
+                    save_position_figs_path=None,
+                    write_signals_to_file_path=write_to_file_path,
+                    insert_data_to_db_bool=insert_into_db,
+                    pos_list_slice_years_est=pos_list_slice_years_est
+                )
+            except Exception as e:
+                logger.error(
+                    "TradingSystemProcessor._run_trading_system - "
+                    f"trading_system_id: {self.__trading_system_id} - {e}"
+                )
         else:
-            self.__trading_system.run_trading_system(
-                self.__data,
-                capital=capital,
-                capital_fraction=capital_fraction,
-                commission_pct_cost=0.0025,
-                entry_args=self.__ts_properties.entry_function_args,
-                exit_args=self.__ts_properties.exit_function_args,
-                fixed_position_size=True,
-                print_data=print_data,
-                write_signals_to_file_path=write_to_file_path,
-                insert_data_to_db_bool=insert_into_db
-            )
+            try:
+                self.__trading_system.run_trading_system(
+                    self.__data,
+                    capital=capital,
+                    capital_fraction=capital_fraction,
+                    commission_pct_cost=0.0025,
+                    entry_args=self.__ts_properties.entry_function_args,
+                    exit_args=self.__ts_properties.exit_function_args,
+                    fixed_position_size=True,
+                    print_data=print_data,
+                    write_signals_to_file_path=write_to_file_path,
+                    insert_data_to_db_bool=insert_into_db
+                )
+            except Exception as e:
+                logger.error(
+                    "TradingSystemProcessor._run_trading_system - "
+                    f"trading_system_id: {self.__trading_system_id} - {e}"
+                )
 
     def _handle_trading_system(
         self, full_run: bool, retain_history: bool,
@@ -348,7 +367,7 @@ class TradingSystemHandler:
 
     def __init__(
         self, trading_system_classes: list[TradingSystemBase],
-        data_frame_service: DataFrameService,
+        data_frame_service: DataFrameServiceClient,
         securities_service: SecuritiesServiceBase,
         trading_systems_persister: TradingSystemsPersisterBase, 
         start_dt: dt.datetime, end_dt: dt.datetime, 
@@ -384,7 +403,7 @@ class TradingSystemHandler:
 
 
 if __name__ == '__main__':
-    DATA_FRAME_SERVICE = DataFrameService(
+    DATA_FRAME_SERVICE = DataFrameServiceClient(
         f"{os.environ.get('DF_SERVICE_HOST')}:{os.environ.get('DF_SERVICE_PORT')}"
     )
     SECURITIES_GRPC_SERVICE = SecuritiesGRPCService(

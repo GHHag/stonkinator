@@ -364,6 +364,21 @@ impl DataFrameServiceImpl {
 
         Ok(evicted_count)
     }
+
+    async fn remove_df_collection_entry(&self, identifiers: OperateOn) -> Result<bool, String> {
+        let ids = identifiers.parse()?;
+
+        match ids {
+            (Some(trading_system_id), Some(instrument_id)) => self
+                .df_collection
+                .remove_df_map_entry(&instrument_id, &trading_system_id).await.map_err(|e| {
+                    format!(
+                        "failed to remove df collection entry with trading_system_id: {trading_system_id}, instrument_id: {instrument_id}, error: {e}"
+                    )
+                }),
+            _ => return Err(String::from("invalid id input value")),
+        }
+    }
 }
 
 #[tonic::async_trait]
@@ -467,6 +482,26 @@ impl DataFrameService for DataFrameServiceImpl {
             Ok(n_evicted) => Cud {
                 num_affected: n_evicted,
             },
+            Err(err) => return Err(Status::internal(err)),
+        };
+
+        Ok(Response::new(cud))
+    }
+
+    async fn drop_data_frame_collection_entry(
+        &self,
+        request: Request<OperateOn>,
+    ) -> Result<Response<Cud>, Status> {
+        let input = request.into_inner();
+        let mut cud = Cud { num_affected: 0 };
+
+        let entry_removal_result = self.remove_df_collection_entry(input).await;
+        match entry_removal_result {
+            Ok(successful) => {
+                if successful == true {
+                    cud.num_affected = 1;
+                }
+            }
             Err(err) => return Err(Status::internal(err)),
         };
 
