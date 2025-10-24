@@ -38,10 +38,10 @@ class TradingSystemExample(TradingSystemBase):
     @classproperty
     def name(cls) -> str:
         return trading_system_example.TRADING_SYSTEM_NAME
-        
+
     @classproperty
     def minimum_rows(cls) -> int:
-        return 5
+        return trading_system_example.MINIMUM_ROWS
 
     @classproperty
     def entry_args(cls) -> dict:

@@ -14,8 +14,7 @@ use blueprint::create_trading_system_blueprints;
 use flight_service::FlightServiceImpl;
 use grpc_service::DataFrameServiceImpl;
 use grpc_service::proto::data_frame_service_server::DataFrameServiceServer;
-use sterunets::DataFrameCollection;
-use sterunets::DataFrameSchematic;
+use sterunets::{DataFrameCollection, DataFrameSchematic};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {

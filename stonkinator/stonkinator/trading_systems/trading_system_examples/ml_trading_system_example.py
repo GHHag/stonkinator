@@ -17,9 +17,7 @@ from data_frame.data_frame_service_client import DataFrameServiceClient
 from persistance.persistance_services.securities_service_pb2 import Instrument, Price as PriceProto
 from persistance.persistance_meta_classes.securities_service import SecuritiesServiceBase
 from persistance.persistance_services.securities_grpc_service import SecuritiesGRPCService
-from persistance.persistance_meta_classes.trading_systems_persister import (
-    TradingSystemsPersisterBase
-)
+from persistance.persistance_meta_classes.trading_systems_persister import TradingSystemsPersisterBase
 from persistance.persistance_services.trading_systems_grpc_service import TradingSystemsGRPCService
 
 from trading_systems.logger import create_timed_rotating_logger
@@ -47,7 +45,7 @@ class MLTradingSystemExample(MLTradingSystemBase):
 
     @classproperty
     def minimum_rows(cls) -> int:
-        return 7
+        return ml_trading_system_example.MINIMUM_ROWS + 2
 
     @classproperty
     def target(cls) -> str:
@@ -55,7 +53,7 @@ class MLTradingSystemExample(MLTradingSystemBase):
 
     @classproperty
     def target_period(cls) -> int:
-        return 1
+        return ml_trading_system_example.TARGET_PERIOD
 
     @classproperty
     def entry_args(cls) -> dict:
@@ -63,8 +61,6 @@ class MLTradingSystemExample(MLTradingSystemBase):
         return {
             TradingSystemAttributes.REQ_PERIOD_ITERS: target_period, 
             TradingSystemAttributes.ENTRY_PERIOD_LOOKBACK: target_period,
-            ml_trading_system_example.ENTRY_CONDITION_COL: cls.target,
-            'target_period': target_period
         }
 
     @classproperty

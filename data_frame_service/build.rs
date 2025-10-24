@@ -32,7 +32,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     tonic_build::configure()
         .build_server(true)
-        .build_client(false)
+        .build_client(cfg!(debug_assertions))
         .bytes([proto_package])
         .compile_protos_with_config(Config::new(), &proto_files, &[proto_dir])?;
 

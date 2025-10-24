@@ -7,10 +7,9 @@ name = "data_frame_service"
 requires-python = ">=3.12"
 classifiers = [
     "Programming Language :: Rust",
-    "Programming Language :: Python :: Implementation :: CPython",
-    "Programming Language :: Python :: Implementation :: PyPy",
+    "Programming Language :: Python :: 3",
 ]
 dynamic = ["version"]
 
 [tool.maturin]
-features = ["pyo3/extension-module"]
+features = ["python-exp"]

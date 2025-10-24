@@ -5,13 +5,12 @@ COPY --from=python:3.12-slim-bullseye /usr/local/lib/python3.12 /usr/local/lib/p
 COPY --from=python:3.12-slim-bullseye /usr/local/lib/libpython3.12.so* /usr/local/lib/
 
 RUN apt-get update && \
-    apt-get install -y protobuf-compiler \
-    python3-pip && \
+    apt-get install -y protobuf-compiler && \
     rm -rf /var/lib/apt/lists/*
 
 RUN ln -sf /usr/local/bin/python3.12 /usr/local/bin/python3
 
-RUN pip3 install maturin
+RUN python3 -m pip install maturin
 
 WORKDIR /build
 
@@ -34,14 +33,12 @@ RUN apt-get update && \
     sed
 
 COPY --from=builder /build/target/wheels/*.whl /tmp/
-RUN pip3 install /tmp/*.whl
-
-RUN pip3 install grpcio-tools
+RUN python -m pip install /tmp/*.whl grpcio-tools
 
 WORKDIR /app
 COPY protobufs/ /app/protobufs/
 COPY stonkinator/stonkinator /app
-RUN cd /app && pip install -e .
+RUN cd /app && python -m pip install -e .
 
 RUN python3 -m grpc_tools.protoc \
     --proto_path=/app/protobufs \

@@ -438,7 +438,7 @@ class TradingSystem:
             if position and insert_data_to_db_bool:
                 self.__trading_systems_persister.upsert_position(
                     instrument_id, self.__system_id, position.current_dt, position.as_dict, position, 
-                    id=None if position.active == False else position_id
+                    id=None if position.entry_dt == position.current_dt else position_id
                 )
 
         if print_data == True: 

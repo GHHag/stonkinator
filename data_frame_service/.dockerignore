@@ -1,0 +1,13 @@
+# git
+.git
+.gitignore
+.gitattributes
+
+# Ignore Docker-related files
+docker-compose.yml
+.docker
+Dockerfile
+.dockerignore
+
+**/target
+**/examples

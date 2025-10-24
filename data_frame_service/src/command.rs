@@ -3,8 +3,8 @@ use std::sync::Arc;
 
 use sterunets::DataFrameCollection;
 
-const INSTRUMENT: &str = "instrument";
-const TRADING_SYSTEM: &str = "trading_system";
+pub const INSTRUMENT: &str = "instrument";
+pub const TRADING_SYSTEM: &str = "trading_system";
 pub const DELIMITER: &str = ":";
 
 impl InfoCommand {

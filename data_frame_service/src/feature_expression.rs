@@ -16,8 +16,16 @@ pub fn apply_rolling_mean(options: RollingOptionsFixedWindow, apply_to: &str, na
     col(apply_to).rolling_mean(options).alias(name)
 }
 
-pub fn apply_rolling_max(apply_to: &str, options: RollingOptionsFixedWindow, name: &str) -> Expr {
+pub fn apply_rolling_max(options: RollingOptionsFixedWindow, apply_to: &str, name: &str) -> Expr {
     col(apply_to).rolling_max(options).alias(name)
+}
+
+pub fn apply_rolling_min(options: RollingOptionsFixedWindow, apply_to: &str, name: &str) -> Expr {
+    col(apply_to).rolling_min(options).alias(name)
+}
+
+pub fn apply_rolling_std(options: RollingOptionsFixedWindow, apply_to: &str, name: &str) -> Expr {
+    col(apply_to).rolling_std(options).alias(name)
 }
 
 pub fn apply_ewm_mean(options: EWMOptions, apply_to: &str, name: &str) -> Expr {
@@ -28,7 +36,7 @@ pub fn apply_n_period_high(compare: &str, compare_to: &str, name: &str) -> Expr 
     col(compare).gt_eq(col(compare_to)).alias(name)
 }
 
-pub fn apply_shift(apply_to: &str, periods: u32, name: &str) -> Expr {
+pub fn apply_shift(apply_to: &str, periods: i32, name: &str) -> Expr {
     col(apply_to).shift(lit(periods)).alias(name)
 }
 
@@ -357,7 +365,7 @@ mod tests {
             ..Default::default()
         };
 
-        let rolling_max_expr = apply_rolling_max("close", options, "rolling_max_5_close");
+        let rolling_max_expr = apply_rolling_max(options, "close", "rolling_max_5_close");
 
         let df = df.lazy().with_column(rolling_max_expr).collect().unwrap();
 
@@ -374,7 +382,7 @@ mod tests {
             ..Default::default()
         };
 
-        let rolling_max_expr = apply_rolling_max("close", options, "rolling_max_5_close");
+        let rolling_max_expr = apply_rolling_max(options, "close", "rolling_max_5_close");
 
         let n_period_high_expr =
             apply_n_period_high("close", "rolling_max_5_close", "5_period_high_close");
