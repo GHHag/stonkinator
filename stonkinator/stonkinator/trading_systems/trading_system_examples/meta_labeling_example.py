@@ -1,31 +1,30 @@
 import os
 import datetime as dt
 from typing import Callable
+import pathlib
 
 import pandas as pd
+pd.set_option('future.no_silent_downcasting', True)
 import numpy as np
 from sklearn.svm import SVC
 from sklearn.metrics import f1_score
 from sklearn.preprocessing import StandardScaler
 
-from trading.data.metadata.trading_system_attributes import (
-    TradingSystemAttributes, classproperty
-)
+from trading.data.metadata.trading_system_attributes import TradingSystemAttributes, classproperty
 from trading.data.metadata.market_state_enum import MarketState
 from trading.data.metadata.price import Price
 from trading.position.order import Order, LimitOrder, MarketOrder
 from trading.position.position import Position
 from trading.trading_system.trading_system import TradingSystem
 
-from persistance.persistance_services.securities_service_pb2 import Instrument
-from persistance.persistance_services.securities_dal import price_data_get
+from data_frame.data_frame_service_client import DataFrameServiceClient
+from persistance.persistance_services.securities_service_pb2 import Instrument, Price as PriceProto
 from persistance.persistance_meta_classes.securities_service import SecuritiesServiceBase
 from persistance.persistance_services.securities_grpc_service import SecuritiesGRPCService
-from persistance.persistance_meta_classes.trading_systems_persister import (
-    TradingSystemsPersisterBase
-)
+from persistance.persistance_meta_classes.trading_systems_persister import TradingSystemsPersisterBase
 from persistance.persistance_services.trading_systems_grpc_service import TradingSystemsGRPCService
 
+from trading_systems.logger import create_timed_rotating_logger
 from trading_systems.trading_system_base import MLTradingSystemBase
 from trading_systems.trading_system_properties import MLTradingSystemProperties
 from trading_systems.trading_system_handler import TradingSystemProcessor
@@ -33,27 +32,32 @@ from trading_systems.position_sizer.safe_f_position_sizer import SafeFPositionSi
 from trading_systems.model_creation.model_creation import (
     SKModel, create_backtest_models, create_inference_model
 )
-from trading_systems.data_utils.indicator_feature_workshop.technical_features.standard_indicators import (
-    apply_sma, apply_atr, apply_adr, apply_rsi
-)
-from trading_systems.data_utils.indicator_feature_workshop.technical_features.misc_features import (
-    apply_percent_rank
-)
+
+from data_frame_service import meta_labeling_example
+
+
+LOG_DIR_PATH = os.environ.get("LOG_DIR_PATH")
+logger_name = pathlib.Path(__file__).stem
+logger = create_timed_rotating_logger(LOG_DIR_PATH, logger_name, 1, 14)
 
 
 class MetaLabelingExample(MLTradingSystemBase):
 
     @classproperty
     def name(cls) -> str:
-        return 'meta_labeling_example'
+        return meta_labeling_example.TRADING_SYSTEM_NAME
+
+    @classproperty
+    def minimum_rows(cls) -> int:
+        return meta_labeling_example.MINIMUM_ROWS + 2
 
     @classproperty
     def target(cls) -> str:
-        return 'exit_label'
+        return meta_labeling_example.EXIT_LABEL
 
     @classproperty
     def target_period(cls) -> int:
-        return 40
+        return meta_labeling_example.TARGET_PERIOD
 
     @classproperty
     def entry_args(cls) -> dict:
@@ -61,9 +65,6 @@ class MetaLabelingExample(MLTradingSystemBase):
         return {
             TradingSystemAttributes.REQ_PERIOD_ITERS: target_period,
             TradingSystemAttributes.ENTRY_PERIOD_LOOKBACK: target_period,
-            'target_period': target_period,
-            'ma_value_1': 7,
-            'ma_value_2': 21,
         }
         
     @classproperty
@@ -93,9 +94,9 @@ class MetaLabelingExample(MLTradingSystemBase):
         exit_condition = (
             df[Price.CLOSE]
                 .pct_change(position.periods_in_position)
-                .mul(100).iloc[-1] >= df['ADR'].iloc[-position.periods_in_position] * 3.5 or
-            -(df['ADR'].iloc[-(position.periods_in_position + 1)] * 2.5) > position.unrealised_return or
-            position.periods_in_position >= 40
+                .mul(100).iloc[-1] >= df['adr'].iloc[-1] * 3.5 or
+            -(df['adr'].iloc[-1] * 2.5) > position.unrealised_return or
+            position.periods_in_position >= MetaLabelingExample.target_period
         )
 
         if exit_condition == True:
@@ -137,7 +138,7 @@ class MetaLabelingExample(MLTradingSystemBase):
         cls, trading_system_id: str, trading_systems_persister: TradingSystemsPersisterBase,
         _, data: pd.DataFrame, model_class: SKModel, params: dict
     ) -> pd.DataFrame:
-        features = cls.get_features(data)
+        features = meta_labeling_example.FEATURES
         target = cls.target
         model_data = cls.create_backtest_models(data, features, target, model_class, params)
         inference_model = cls.create_inference_models(data, features, target, model_class, params)
@@ -151,9 +152,13 @@ class MetaLabelingExample(MLTradingSystemBase):
         ) -> dict[tuple[str, str], pd.DataFrame]:
         model_pipeline: SKModel = trading_systems_persister.get_trading_system_model(trading_system_id)
         if not model_pipeline:
-            raise ValueError('failed to get model pipeline')
+            logger.error(
+                "MetaLabelingExample.make_predictions - "
+                "failed to get model pipeline - "
+                f"input: ({trading_system_id})"
+            )
 
-        features = cls.get_features(data)
+        features = meta_labeling_example.FEATURES
         entry_label_true_symbols = data[TradingSystemAttributes.SYMBOL].unique()
         for instrument in data_dict.keys():
             _, symbol = instrument
@@ -182,200 +187,127 @@ class MetaLabelingExample(MLTradingSystemBase):
 
     @staticmethod
     def preprocess_data(
+        data_frame_service: DataFrameServiceClient,
         securities_service: SecuritiesServiceBase,
         instruments_list: list[Instrument],
-        benchmark_instrument: Instrument,
-        get_data_function: Callable[[str, dt.datetime, dt.datetime], pd.DataFrame | None],
-        entry_args: dict, exit_args: dict,
         start_dt: dt.datetime, end_dt: dt.datetime,
         ts_processor: TradingSystemProcessor | None=None, drop_nan_rows=False
     ) -> tuple[dict[tuple[str, str], pd.DataFrame], pd.DataFrame]:
-        target_period = entry_args.get('target_period')
-        ma_value_1 = entry_args.get('ma_value_1')
-        ma_value_2 = entry_args.get('ma_value_2')
-
         data_dict: dict[tuple[str, str], pd.DataFrame] = {}
+        
+        dt_set = False
         for instrument in instruments_list:
-            df = get_data_function(securities_service, instrument.id, start_dt, end_dt)
-            if df is None:
+            price_data: list[PriceProto] = securities_service.get_price_data(instrument.id, start_dt, end_dt)
+            push_price_stream_res = data_frame_service.push_price_stream(price_data)
+            logger.info(
+                "securities_service.get_price_data - "
+                f"input: ({instrument.id}, {start_dt}, {end_dt}) - "
+                "data_frame_service.push_price_stream - "
+                f"length of price_data: {len(price_data)} - "
+                f"result: {push_price_stream_res}"
+            )
+
+            df = data_frame_service.do_get_df(MetaLabelingExample.name, instrument.id)
+            if df is None or df.empty:
                 continue
+
+            df[Price.DT] = pd.to_datetime(df[Price.TIMESTAMP], unit="s")
+            if ts_processor is not None and dt_set == False:
+                ts_processor.penult_dt = df[Price.DT].iloc[-2]
+                ts_processor.current_dt = df[Price.DT].iloc[-1]
+            elif (
+                df[Price.DT].iloc[-2] != ts_processor.penult_dt or
+                df[Price.DT].iloc[-1] != ts_processor.current_dt
+            ):
+                raise ValueError(
+                    'datetime mismatch:\n'
+                    f'penultimate datetime: {ts_processor.penult_dt}\n'
+                    f'evaluated penultimate datetime: {df[Price.DT].iloc[-2]}\n'
+                    f'current datetime: {ts_processor.current_dt}\n'
+                    f'evaluated current datetime: {df[Price.DT].iloc[-1]}'
+                )
+
+            df = df.ffill()
+            df = df.dropna()
+            if df.empty:
+                continue
+            df = df.set_index(Price.DT)
             df[TradingSystemAttributes.SYMBOL] = instrument.symbol
             data_dict[(instrument.id, instrument.symbol)] = df
 
-        benchmark_col_suffix = '_benchmark'
-        df_benchmark = get_data_function(securities_service, benchmark_instrument.id, start_dt, end_dt)
-        if df_benchmark is not None:
-            df_benchmark = df_benchmark.drop('instrument_id', axis=1)
-            df_benchmark = df_benchmark.rename(
-                columns={
-                    Price.OPEN: f'{Price.OPEN}{benchmark_col_suffix}',
-                    Price.HIGH: f'{Price.HIGH}{benchmark_col_suffix}',
-                    Price.LOW: f'{Price.LOW}{benchmark_col_suffix}',
-                    Price.CLOSE: f'{Price.CLOSE}{benchmark_col_suffix}',
-                    Price.VOLUME: f'{Price.VOLUME}{benchmark_col_suffix}',
-                    TradingSystemAttributes.SYMBOL: f'{TradingSystemAttributes.SYMBOL}{benchmark_col_suffix}'
-                }
+        composite_df = pd.DataFrame()
+        for instrument, data in data_dict.items():
+            # TODO: Impute inf values with some derived value from the column where they are found.
+            last_row = data.iloc[[-1]]
+            data = data.replace([np.inf, -np.inf], 0)
+            data = (
+                pd.concat([data.iloc[:-1].dropna(), last_row]) if drop_nan_rows == True 
+                else pd.concat([data.iloc[:-1], last_row])
             )
-            if ts_processor is not None:
-                ts_processor.penult_dt = pd.to_datetime(df_benchmark[Price.DT].iloc[-2])
-                ts_processor.current_dt = pd.to_datetime(df_benchmark[Price.DT].iloc[-1])
+            data_dict[instrument] = data
+
+            composite_df = pd.concat([composite_df, data[data[meta_labeling_example.ENTRY_CONDITION_COL] == 1]])
+            composite_df = composite_df.sort_index()
+
+        return data_dict, composite_df
+
+    @staticmethod
+    def reprocess_data(
+        data_frame_service: DataFrameServiceClient,
+        _: SecuritiesServiceBase,
+        instruments_list: list[Instrument], 
+        ts_processor: TradingSystemProcessor
+    ) -> tuple[dict[tuple[str, str], pd.DataFrame], pd.DataFrame]:
+        data_dict: dict[tuple[str, str], pd.DataFrame] = {}
+
+        dt_set = False
+        for instrument in instruments_list:
+            df = data_frame_service.do_get_df(MetaLabelingExample.name, instrument.id)
+            if df is None or MetaLabelingExample.minimum_rows > len(df):
+                logger.warning(
+                    "reprocess_data - df is None or df.empty - "
+                    f"input: ({MetaLabelingExample.name}, {instrument.id})"
+                )
+                continue
+
+            df[Price.DT] = pd.to_datetime(df[Price.TIMESTAMP], unit="s")
+            if dt_set == False:
+                ts_processor.penult_dt = df[Price.DT].iloc[-2]
+                ts_processor.current_dt = df[Price.DT].iloc[-1]
+                dt_set = True
+            elif (
+                df[Price.DT].iloc[-2] != ts_processor.penult_dt or
+                df[Price.DT].iloc[-1] != ts_processor.current_dt
+            ):
+                raise ValueError(
+                    "datetime mismatch:\n"
+                    f"penultimate datetime: {ts_processor.penult_dt}\n"
+                    f"evaluated penultimate datetime: {df[Price.DT].iloc[-2]}\n"
+                    f"current datetime: {ts_processor.current_dt}\n"
+                    f"evaluated current datetime: {df[Price.DT].iloc[-1]}"
+                )
+
+            df = df.ffill()
+            df = df.dropna()
+            df = df.set_index(Price.DT)
+            df[TradingSystemAttributes.SYMBOL] = instrument.symbol
+            data_dict[(instrument.id, instrument.symbol)] = df
 
         composite_df = pd.DataFrame()
-        instruments_to_remove = []
         for instrument, data in data_dict.items():
-            if data.empty or len(data) < entry_args.get(TradingSystemAttributes.REQ_PERIOD_ITERS):
-                instruments_to_remove.append(instrument)
-            else:
-                df_benchmark[Price.DT] = pd.to_datetime(df_benchmark[Price.DT])
-                data[Price.DT] = pd.to_datetime(data[Price.DT])
+            # TODO: Impute inf values with some derived value from the column where they are found.
+            last_row = data.iloc[[-1]]
+            data = data.replace([np.inf, -np.inf], 0)
+            data = pd.concat([data.iloc[:-1], last_row])
+            data_dict[instrument] = data
 
-                data = pd.merge_ordered(data, df_benchmark, on=Price.DT, how='inner')
-                data = data.ffill()
-                data = data.set_index(Price.DT)
+            composite_df = pd.concat([composite_df, data[data[meta_labeling_example.ENTRY_CONDITION_COL] == 1]])
+            composite_df = composite_df.sort_index()
 
-                data[Price.VOLUME] = data[Price.VOLUME].astype(int)
-
-                apply_atr(data, 14)
-                apply_adr(data, 14)
-
-                data['pct_chg'] = data[Price.CLOSE].pct_change().mul(100)
-                data['lag_1'] = data['pct_chg'].shift(1)
-                data['lag_2'] = data['pct_chg'].shift(2)
-                data['lag_4'] = data['pct_chg'].shift(4)
-                data['lag_8'] = data['pct_chg'].shift(8)
-                data['lag_16'] = data['pct_chg'].shift(16)
-                data[f'lag_8_rolling_{ma_value_1}_std'] = data['lag_8'].rolling(ma_value_1).std()
-                data[f'lag_8_rolling_{ma_value_2}_std'] = data['lag_8'].rolling(ma_value_2).std()
-                data[f'lag_16_rolling_{ma_value_1}_std'] = data['lag_16'].rolling(ma_value_1).std()
-                data[f'lag_16_rolling_{ma_value_2}_std'] = data['lag_16'].rolling(ma_value_2).std()
-                data[f'lag_8_rolling_{ma_value_1}_std_adr_div'] = data[f'lag_8_rolling_{ma_value_1}_std'] / data['ADR']  
-                data[f'lag_8_rolling_{ma_value_2}_std_adr_div'] = data[f'lag_8_rolling_{ma_value_2}_std'] / data['ADR']
-                data[f'lag_16_rolling_{ma_value_1}_std_adr_div'] = data[f'lag_16_rolling_{ma_value_1}_std'] / data['ADR']
-                data[f'lag_16_rolling_{ma_value_2}_std_adr_div'] = data[f'lag_16_rolling_{ma_value_2}_std'] / data['ADR']
-
-                apply_percent_rank(data, 63, suffix='_63')
-                apply_percent_rank(data, 126)
-                data['%_rank_diff'] = data['%_rank'] - data['%_rank_63']
-                data['%_rank_lag_1'] = data['%_rank'].shift(1)
-                data['%_rank_lag_2'] = data['%_rank'].shift(2)
-                data['%_rank_lag_4'] = data['%_rank'].shift(4)
-                data['%_rank_lag_8'] = data['%_rank'].shift(8)
-                data['%_rank_lag_16'] = data['%_rank'].shift(16)
-                data['%_rank_63_lag_1'] = data['%_rank_63'].shift(1)
-                data['%_rank_63_lag_2'] = data['%_rank_63'].shift(2)
-                data['%_rank_63_lag_4'] = data['%_rank_63'].shift(4)
-                data['%_rank_63_lag_8'] = data['%_rank_63'].shift(8)
-                data['%_rank_63_lag_16'] = data['%_rank_63'].shift(16)
-
-                apply_rsi(data, period_param=7)
-                apply_rsi(data, period_param=9)
-                apply_rsi(data, period_param=14)
-                data['rsi_diff_14_9'] = data['RSI_14'] - data['RSI_9']
-                data['rsi_diff_14_7'] = data['RSI_14'] - data['RSI_7']
-                data['rsi_diff_9_7'] = data['RSI_9'] - data['RSI_7']
-                data[f'rsi_7_rolling_{ma_value_1}_mean'] = data['RSI_7'].rolling(ma_value_1).mean()
-                data[f'rsi_7_rolling_{ma_value_2}_mean'] = data['RSI_7'].rolling(ma_value_2).mean()
-                data[f'rsi_9_rolling_{ma_value_1}_mean'] = data['RSI_9'].rolling(ma_value_1).mean()
-                data[f'rsi_9_rolling_{ma_value_2}_mean'] = data['RSI_9'].rolling(ma_value_2).mean()
-                data[f'rsi_rolling_diff_1'] = data[f'rsi_9_rolling_{ma_value_1}_mean'] - data[f'rsi_7_rolling_{ma_value_1}_mean']
-                data[f'rsi_rolling_diff_2'] = data[f'rsi_9_rolling_{ma_value_2}_mean'] - data[f'rsi_7_rolling_{ma_value_2}_mean']
-                data['rsi_7_lag_1'] = data['RSI_7'].shift(1)
-                data['rsi_7_lag_2'] = data['RSI_7'].shift(2)
-                data['rsi_7_lag_4'] = data['RSI_7'].shift(4)
-                data['rsi_7_lag_8'] = data['RSI_7'].shift(8)
-                data['rsi_7_lag_16'] = data['RSI_7'].shift(16)
-                data['rsi_9_lag_1'] = data['RSI_9'].shift(1)
-                data['rsi_9_lag_2'] = data['RSI_9'].shift(2)
-                data['rsi_9_lag_4'] = data['RSI_9'].shift(4)
-                data['rsi_9_lag_8'] = data['RSI_9'].shift(8)
-                data['rsi_9_lag_16'] = data['RSI_9'].shift(16)
-                data['rsi_14_lag_1'] = data['RSI_14'].shift(1)
-                data['rsi_14_lag_2'] = data['RSI_14'].shift(2)
-                data['rsi_14_lag_4'] = data['RSI_14'].shift(4)
-                data['rsi_14_lag_8'] = data['RSI_14'].shift(8)
-                data['rsi_14_lag_16'] = data['RSI_14'].shift(16)
-
-                apply_sma(data, ma_value_1)
-                apply_sma(data, ma_value_2)
-                data[f'sma_{ma_value_1}_std_rolling'] = data[f'SMA_{ma_value_1}'].rolling(ma_value_1).std()
-                data[f'sma_{ma_value_2}_std_rolling'] = data[f'SMA_{ma_value_2}'].rolling(ma_value_2).std()
-                data[f'sma_{ma_value_1}_std_rolling_lower'] = (data[f'SMA_{ma_value_1}'] - data[f'sma_{ma_value_1}_std_rolling'])
-                data[f'sma_{ma_value_1}_std_rolling_upper'] = (data[f'SMA_{ma_value_1}'] + data[f'sma_{ma_value_1}_std_rolling'])
-                data[f'sma_{ma_value_2}_std_rolling_lower'] = (data[f'SMA_{ma_value_2}'] - data[f'sma_{ma_value_2}_std_rolling'])
-                data[f'sma_{ma_value_2}_std_rolling_upper'] = (data[f'SMA_{ma_value_2}'] + data[f'sma_{ma_value_2}_std_rolling'])
-                data[f'sma_{ma_value_1}_std_rolling_lower_atr_rel'] = (data[f'SMA_{ma_value_1}'] - data[f'sma_{ma_value_1}_std_rolling_lower']) / data['ATR']
-                data[f'sma_{ma_value_1}_std_rolling_upper_atr_rel'] = (data[f'sma_{ma_value_1}_std_rolling_upper'] - data[f'SMA_{ma_value_1}']) / data['ATR']
-                data[f'sma_{ma_value_2}_std_rolling_lower_atr_rel'] = (data[f'SMA_{ma_value_2}'] - data[f'sma_{ma_value_2}_std_rolling_lower']) / data['ATR']
-                data[f'sma_{ma_value_2}_std_rolling_upper_atr_rel'] = (data[f'sma_{ma_value_2}_std_rolling_upper'] - data[f'SMA_{ma_value_2}']) / data['ATR']
-                data['sma_diff_1'] = data[f'SMA_{ma_value_2}'] - data[f'SMA_{ma_value_1}']
-                data['sma_diff_1_atr_rel'] = data['sma_diff_1'] / data['ATR']
-                data['sma_diff_1_std_rolling'] = data['sma_diff_1'].rolling(ma_value_1).std()
-                data['sma_diff_1_rolling_std_atr_rel'] = data[f'sma_diff_1_std_rolling'] / data['ATR']
-                data['sma_diff_1_lag_1'] = data['sma_diff_1'].shift(1)
-                data['sma_diff_1_lag_2'] = data['sma_diff_1'].shift(2)
-                data['sma_diff_1_lag_4'] = data['sma_diff_1'].shift(4)
-                data['sma_diff_1_lag_8'] = data['sma_diff_1'].shift(8)
-                data['sma_diff_1_lag_16'] = data['sma_diff_1'].shift(16)
-
-                # entry label
-                data['entry_condition'] = data[f'SMA_{ma_value_1}'] > data[f'SMA_{ma_value_2}']
-                data['entry_condition_shifted'] = data['entry_condition'].shift(1)
-                data['entry_label'] = (
-                    (data['entry_condition'] == True) &
-                    (data['entry_condition_shifted'] == False) &
-                    (data['%_rank'] >= 0.5)
-                )
-
-                # exit label
-                data['price_shifted'] = data[Price.CLOSE].shift(-target_period)
-                data['max_price'] = data['price_shifted'].rolling(window=target_period).max()
-                data['min_price'] = data['price_shifted'].rolling(window=target_period).min()
-                data['max_pct_chg'] = (data['max_price'] / data[Price.CLOSE] - 1) * 100
-                data['min_pct_chg'] = (data['min_price'] / data[Price.CLOSE] - 1) * 100
-                data['exit_label'] = (
-                    (data['max_pct_chg'] > data['ADR'] * 3.5) & 
-                    (data['min_pct_chg'] > -(data['ADR'] * 2.5))
-                )
-
-                # TODO: Impute inf values with some derived value from the column where they are found.
-                last_row = data.iloc[[-1]]
-                data = data.replace([np.inf, -np.inf], 0)
-                if drop_nan_rows == True:
-                    data = pd.concat([data.iloc[:-1].dropna(), last_row])
-                else:
-                    data = pd.concat([data.iloc[:-1], last_row])
-                data_dict[instrument] = data
-
-                composite_df = pd.concat([composite_df, data[data['entry_label'] == True]])
-                composite_df = composite_df.sort_index()
-        for instrument in instruments_to_remove:
-            data_dict.pop(instrument)
         return data_dict, composite_df
 
     @classmethod
-    def get_features(cls, composite_df: pd.DataFrame):
-        entry_args: dict = cls.entry_args
-        ma_value_1 = entry_args.get('ma_value_1')
-        ma_value_2 = entry_args.get('ma_value_2')
-
-        columns_to_drop = [
-            Price.OPEN, Price.HIGH, Price.LOW, Price.CLOSE, 'pct_chg', 'ATR',
-            f'{Price.OPEN}_benchmark', f'{Price.HIGH}_benchmark',
-            f'{Price.LOW}_benchmark', f'{Price.CLOSE}_benchmark',
-            f'{Price.VOLUME}_benchmark',
-            'instrument_id', TradingSystemAttributes.SYMBOL,
-            'entry_condition', 'entry_condition_shifted', 'entry_label',
-            'price_shifted', 'max_price', 'min_price',
-            'max_pct_chg', 'min_pct_chg', 'exit_label',
-            f'SMA_{ma_value_1}', f'SMA_{ma_value_2}',
-            f'sma_{ma_value_1}_std_rolling', f'sma_{ma_value_2}_std_rolling', 
-            f'sma_{ma_value_1}_std_rolling_lower', f'sma_{ma_value_1}_std_rolling_upper', 
-            f'sma_{ma_value_2}_std_rolling_lower', f'sma_{ma_value_2}_std_rolling_upper',
-        ]
-        return list(set(composite_df.columns.to_list()) ^ set(columns_to_drop))
-
-    @classmethod
-    def get_properties(cls, securities_service: SecuritiesServiceBase):
+    def get_properties(cls, securities_service: SecuritiesServiceBase) -> MLTradingSystemProperties:
         required_runs = 1
 
         omxs_large_caps_instruments_list = securities_service.get_market_list_instruments(
@@ -396,15 +328,12 @@ class MetaLabelingExample(MLTradingSystemBase):
         )
         instruments_list = omxs_large_caps_instruments_list + omxs_mid_caps_instruments_list
 
-        benchmark_instrument = securities_service.get_instrument("^OMX")
-
         model_class, params, pipeline_args = (
             SVC,
             {
                 'C': np.array([0.01, 0.1, 1.0, 10]),
                 'kernel': np.array(['rbf', 'sigmoid', 'poly']),
                 'gamma': np.array(['scale', 'auto']),
-                'random_state': np.array([1]),
             },
             (('scaler', StandardScaler()),)
         )
@@ -413,10 +342,7 @@ class MetaLabelingExample(MLTradingSystemBase):
         exit_args = cls.exit_args
         return MLTradingSystemProperties(
             required_runs, instruments_list,
-            (
-                benchmark_instrument, price_data_get,
-                entry_args, exit_args
-            ),
+            (),
             entry_args, exit_args,
             {
                 'plot_fig': False
@@ -431,6 +357,9 @@ class MetaLabelingExample(MLTradingSystemBase):
 
 
 if __name__ == '__main__':
+    data_frame_service = DataFrameServiceClient(
+        f"{os.environ.get('DF_SERVICE_HOST')}:{os.environ.get('DF_SERVICE_PORT')}"
+    )
     securities_grpc_service = SecuritiesGRPCService(
         f"{os.environ.get('RPC_SERVICE_HOST')}:{os.environ.get('RPC_SERVICE_PORT')}"
     )
@@ -448,14 +377,25 @@ if __name__ == '__main__':
         securities_grpc_service
     )
 
+    eviction_result = data_frame_service.evict(trading_system_id=MetaLabelingExample.name)
+    for instrument in system_props.instruments_list:
+        presence = data_frame_service.check_presence(
+            MetaLabelingExample.name, instrument_id=instrument.id
+        )
+        if presence.is_present == False:
+            map_ts_result = data_frame_service.map_trading_system_instrument(MetaLabelingExample.name, instrument.id)
+
     tsp = lambda: None
     data_dict, composite_data = MetaLabelingExample.preprocess_data(
-        securities_grpc_service, system_props.instruments_list,
+        data_frame_service, securities_grpc_service, system_props.instruments_list,
         *system_props.preprocess_data_args, start_dt, end_dt,
         ts_processor=tsp, drop_nan_rows=True
     )
+    set_minimum_rows_result = data_frame_service.set_minimum_rows(
+        MetaLabelingExample.name, MetaLabelingExample.minimum_rows
+    )
 
-    features = MetaLabelingExample.get_features(composite_data)
+    features = meta_labeling_example.FEATURES
     model_data = MetaLabelingExample.create_backtest_models(
         composite_data, features, target, system_props.model_class, system_props.params,
         pipeline_args=system_props.pipeline_args, optimization_metric_func=f1_score, verbose=True
