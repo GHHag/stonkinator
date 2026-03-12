@@ -339,7 +339,8 @@ impl DataFrameServiceImpl {
             (Some(trading_system_id), Some(instrument_id)) => {
                 let successful = self.df_collection.evict_df(&instrument_id, &trading_system_id).await.map_err(|e| {
                     format!(
-                        "failed to evict data frame with trading_system_id: {trading_system_id}, instrument_id: {instrument_id}, error: {e}"
+                        "failed to evict data frame with trading_system_id: {trading_system_id}, \
+                        instrument_id: {instrument_id}, error: {e}"
                     )
                 })?;
                 if successful == true {
@@ -348,7 +349,10 @@ impl DataFrameServiceImpl {
             }
             (Some(trading_system_id), None) => {
                 evicted_count += self.df_collection.evict_inner(&trading_system_id).await.map_err(|e| {
-                    format!("failed to evict data frames with trading_system_id: {trading_system_id}, error: {e}")
+                    format!(
+                        "failed to evict data frames with trading_system_id: {trading_system_id}, \
+                        error: {e}"
+                    )
                 })?;
             }
             (None, Some(instrument_id)) => {
@@ -373,7 +377,8 @@ impl DataFrameServiceImpl {
                 .df_collection
                 .remove_df_map_entry(&instrument_id, &trading_system_id).await.map_err(|e| {
                     format!(
-                        "failed to remove df collection entry with trading_system_id: {trading_system_id}, instrument_id: {instrument_id}, error: {e}"
+                        "failed to remove df collection entry with trading_system_id: {trading_system_id}, \
+                        instrument_id: {instrument_id}, error: {e}"
                     )
                 }),
             _ => return Err(String::from("invalid id input value")),

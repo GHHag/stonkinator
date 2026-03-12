@@ -184,7 +184,7 @@ class TradingSystemExample(TradingSystemBase):
         dt_set = False
         for instrument in instruments_list:
             df = data_frame_service.do_get_df(TradingSystemExample.name, instrument.id)
-            if df is None or df.empty:
+            if df is None or TradingSystemExample.minimum_rows > len(df):
                 logger.warning(
                     "reprocess_data - df is None or df.empty - "
                     f"input: ({TradingSystemExample.name}, {instrument.id})"

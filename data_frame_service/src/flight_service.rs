@@ -203,7 +203,7 @@ impl FlightService for FlightServiceImpl {
                 match self.create_flight_info(info_command).await {
                     Ok(flight_info) => Ok(Response::new(flight_info)),
                     Err(err) => Err(Status::not_found(format!(
-                        "failed to created flight info for the descriptor {descriptor}, error: {err}",
+                        "failed to created flight info for the descriptor {descriptor}, error: {err}"
                     ))),
                 }
             }

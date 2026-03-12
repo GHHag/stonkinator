@@ -1,6 +1,8 @@
 import os
 import logging
 import pathlib
+from functools import wraps
+from typing import Callable
 
 import grpc
 import pandas as pd
@@ -32,7 +34,8 @@ logger.addHandler(handler)
 
 
 def flight_error_handler(logger: logging.Logger, default_return=None):
-    def decorator(func):
+    def decorator(func: Callable):
+        @wraps(func)
         def wrapper(*args, **kwargs):
             try:
                 return func(*args, **kwargs)

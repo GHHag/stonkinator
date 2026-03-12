@@ -2,6 +2,8 @@ import os
 import datetime as dt
 import logging
 import pathlib
+from functools import wraps
+from typing import Callable
 
 import grpc
 
@@ -39,7 +41,8 @@ logger.addHandler(handler)
 
 
 def grpc_error_handler(logger: logging.Logger, default_return=None):
-    def decorator(func):
+    def decorator(func: Callable):
+        @wraps(func)
         def wrapper(*args, **kwargs):
             try:
                 return func(*args, **kwargs)

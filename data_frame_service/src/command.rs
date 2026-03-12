@@ -7,6 +7,14 @@ pub const INSTRUMENT: &str = "instrument";
 pub const TRADING_SYSTEM: &str = "trading_system";
 pub const DELIMITER: &str = ":";
 
+#[derive(Debug, PartialEq)]
+pub enum InfoCommand {
+    TradingSystems,
+    TradingSystem(String),
+    Instrument(String),
+    Unknown,
+}
+
 impl InfoCommand {
     pub fn parse(input: &str) -> InfoCommand {
         let split_input: Vec<&str> = input.split(DELIMITER).collect();
@@ -42,7 +50,8 @@ impl InfoCommand {
                 if let Ok(outer_keys) = df_collection.outer_keys_of_inner(trading_system_id).await {
                     for instrument_id in outer_keys {
                         tickets.push(format!(
-                            "{TRADING_SYSTEM}{DELIMITER}{trading_system_id}{DELIMITER}{INSTRUMENT}{DELIMITER}{instrument_id}",
+                            "{TRADING_SYSTEM}{DELIMITER}{trading_system_id}{DELIMITER}\
+                            {INSTRUMENT}{DELIMITER}{instrument_id}",
                         ));
                     }
                 }
@@ -67,7 +76,7 @@ impl InfoCommand {
     }
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Debug, PartialEq)]
 pub enum TicketCommand {
     TradingSystemInstrument {
         trading_system_id: String,

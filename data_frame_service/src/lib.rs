@@ -3,9 +3,8 @@ use pyo3::prelude::*;
 
 pub mod blueprint;
 pub mod command;
-pub mod feature_expression;
-pub mod flight_service;
-pub mod grpc_service;
+mod feature_expression;
+mod grpc_service;
 
 use blueprint::ml::{MLTradingSystemExample, MetaLabelingExample};
 use blueprint::momentum::TradingSystemExample;
