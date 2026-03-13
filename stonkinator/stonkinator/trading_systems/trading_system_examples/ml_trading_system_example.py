@@ -174,6 +174,7 @@ class MLTradingSystemExample(MLTradingSystemBase):
     ) -> tuple[dict[tuple[str, str], pd.DataFrame], list[str]]:
         data_dict: dict[tuple[str, str], pd.DataFrame] = {}
 
+        # TODO: Can/should the functionality in this for loop be moved into a separate function?
         dt_set = False
         for instrument in instruments_list:
             price_data: list[PriceProto] = securities_service.get_price_data(instrument.id, start_dt, end_dt)
@@ -226,7 +227,7 @@ class MLTradingSystemExample(MLTradingSystemBase):
         dt_set = False
         for instrument in instruments_list:
             df = data_frame_service.do_get_df(MLTradingSystemExample.name, instrument.id)
-            if df is None or df.empty:
+            if df is None or MLTradingSystemExample.minimum_rows > len(df):
                 logger.warning(
                     "reprocess_data - df is None or df.empty - "
                     f"input: ({MLTradingSystemExample.name}, {instrument.id})"

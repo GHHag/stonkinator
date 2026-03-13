@@ -50,3 +50,5 @@ serde_json = "1.0.140"
 
 [lints.clippy]
 redundant_field_names = "allow"
+needless_return = "allow"
+bool_comparison = "allow"

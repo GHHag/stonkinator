@@ -73,4 +73,5 @@ RUN crontab /etc/cron.d/crontab
 COPY .certs/stonkinator.key /etc/ssl/private
 COPY .certs/stonkinator.pem .certs/ca.pem /etc/ssl/
 
-CMD ["cron", "-f"]
+# CMD ["cron", "-f"]
+CMD ["sleep", "infinity"]

@@ -1,12 +1,16 @@
 package main
 
 import (
+	"flag"
 	"log"
 	"os"
 	"stonkinator/entities"
 )
 
 func main() {
+	insecure := flag.Bool("insecure", false, "run without TLS")
+	flag.Parse()
+
 	pgPool, err := initPgPool()
 	if err != nil {
 		panic(err)
@@ -24,7 +28,14 @@ func main() {
 		entities: entities.Entities{},
 	}
 	app.create(apiUrl)
-	if err = app.run(port, certFile, keyFile); err != nil {
+
+	if *insecure {
+		err = app.runInsecure(port)
+	} else {
+		err = app.run(port, certFile, keyFile)
+	}
+
+	if err != nil {
 		panic(err)
 	}
 }

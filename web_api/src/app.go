@@ -63,6 +63,22 @@ func (app *app) run(port string, certFile string, keyFile string) error {
 	return err
 }
 
+func (app *app) runInsecure(port string) error {
+	tcpListener, err := net.Listen("tcp", fmt.Sprintf(":%s", port))
+	if err != nil {
+		return err
+	}
+
+	listener := tcpKeepAliveListener{
+		TCPListener:     tcpListener.(*net.TCPListener),
+		keepAlivePeriod: 1 * time.Minute,
+	}
+
+	err = app.server.Serve(listener)
+
+	return err
+}
+
 func (app *app) register(apiUrl string, serveMux *http.ServeMux, pgPool *pgxpool.Pool) {
 	serveMux.HandleFunc(fmt.Sprintf("GET %s/health-check", apiUrl), healthCheck)
 

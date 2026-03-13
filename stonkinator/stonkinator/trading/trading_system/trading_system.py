@@ -421,6 +421,7 @@ class TradingSystem:
                 data, order, position, *args,
                 print_data=print_data, **kwargs
             )
+            # TODO: Handle new orders and orders in better way with overwriting variables with None and such
             order = current_order if current_order else order
 
             if order and insert_data_to_db_bool:
@@ -441,6 +442,8 @@ class TradingSystem:
                     id=None if position.entry_dt == position.current_dt else position_id
                 )
 
+        # TODO: Persist the signal_handler data for individual periods to see what signals
+        # the trading system had produced at that point.
         if print_data == True: 
             print(f'\nTrading System Signals\n{self.__system_name}')
             print(signal_handler)

@@ -1,6 +1,6 @@
 #![allow(dead_code)]
 
-use polars::lazy::dsl::{Expr, functions::col, rolling_corr};
+use polars::lazy::dsl::{Expr, functions::col};
 use polars::prelude::RollingOptionsFixedWindow;
 use polars::prelude::*;
 
@@ -8,7 +8,10 @@ use polars::prelude::*;
 // use polars::prelude::max_horizontal;
 fn max_horizontal<E: AsRef<[Expr]>>(exprs: E) -> PolarsResult<Expr> {
     let exprs = exprs.as_ref().to_vec();
-    polars_ensure!(!exprs.is_empty(), ComputeError: "cannot return empty fold because the number of output rows is unknown");
+    polars_ensure!(
+        !exprs.is_empty(),
+        ComputeError: "cannot return empty fold because the number of output rows is unknown"
+    );
     Ok(Expr::n_ary(FunctionExpr::MaxHorizontal, exprs))
 }
 
@@ -174,6 +177,13 @@ pub fn apply_value_balance(
 //
 // }
 
+// TODO: Create new Expr that computes at what percentile inside the range, high price - low price,
+// the close price is at for each day. Derived Exprs can be created that for example checks if that
+// percentile is consecutively higher for a certain number of periods, if the percentile beats a
+// benchmark over a certain number of periods, mean of the percentile, etc
+
+// TODO: Need better error handling, check for valid periods param input value
+// TODO: Make the periods dynamic instead of hard coded length of 3.
 pub fn apply_composite_pct_change(periods: &[u32], apply_to: &str, name: &str) -> Expr {
     (((col(apply_to) - col(apply_to).shift(lit(periods[0])))
         / col(apply_to).shift(lit(periods[0]))
@@ -185,6 +195,10 @@ pub fn apply_composite_pct_change(periods: &[u32], apply_to: &str, name: &str) -
     .alias(name)
 }
 
+// TODO: Consider splitting the rolling_map functionality into multiple Expr
+// Check out these docs:
+// https://docs.pola.rs/user-guide/transformations/time-series/rolling/#annual-average-example
+// https://docs.pola.rs/user-guide/transformations/time-series/rolling/#using-expressions-in-group_by_dynamic
 pub fn apply_percent_rank(periods: u64, apply_to: &str, name: &str) -> Expr {
     (col(apply_to).rolling_map(
         Arc::new(|s: &Series| -> Series {
@@ -196,6 +210,9 @@ pub fn apply_percent_rank(periods: u64, apply_to: &str, name: &str) -> Expr {
                 None,
             );
 
+            // TODO: Consider alternatives here.
+            // "Get a single value by index. Don't use this operation for loops as a runtime cast is
+            // needed for every iteration."
             let last_rank = ranked.get(ranked.len() - 1);
 
             let last_rank = match last_rank {
@@ -236,7 +253,7 @@ pub fn apply_rolling_correlation(
     col_y: &str,
     name: &str,
 ) -> Expr {
-    rolling_corr(col(col_x), col(col_y), options).alias(name)
+    polars::lazy::dsl::rolling_corr(col(col_x), col(col_y), options).alias(name)
 }
 
 pub fn apply_diff_score(
@@ -653,5 +670,25 @@ mod tests {
         let df = df.lazy().with_column(diff_score_expr).collect().unwrap();
 
         dbg!(&df);
+    }
+
+    #[test]
+    fn test_bool_to_int() {
+        let df = create_df();
+
+        let pct_change_expr = apply_pct_change("close", 5, -1, "pct_change_shifted");
+        let gt_eq_expr = col("pct_change_shifted")
+            .gt_eq(lit(0))
+            .cast(DataType::Int8)
+            .alias("target");
+
+        let df = df
+            .lazy()
+            .with_column(pct_change_expr)
+            .with_column(gt_eq_expr)
+            .collect()
+            .unwrap();
+
+        dbg!(df);
     }
 }
