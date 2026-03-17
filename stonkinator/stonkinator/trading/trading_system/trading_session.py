@@ -314,8 +314,10 @@ class BacktestTradingSession:
                             position_figs_path = save_position_figs_path
                         if not os.path.exists(save_position_figs_path):
                             os.makedirs(save_position_figs_path)
+                        start_slice_idx = idx - position.periods_in_position - 20
+                        start_slice_idx = 0 if start_slice_idx < 0 else start_slice_idx
                         candlestick_plot(
-                            self.__dataframe.iloc[(idx-position.periods_in_position-20):(idx+15)],
+                            self.__dataframe.iloc[start_slice_idx:(idx+15)],
                             position.entry_dt, position.entry_price, 
                             self.__dataframe.index[idx], 
                             position.exit_price,
