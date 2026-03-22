@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"errors"
 	"io"
 	pb "stonkinator_rpc_service/stonkinator_rpc_service"
 	"strings"
@@ -30,7 +29,7 @@ func (s *server) InsertExchange(ctx context.Context, req *pb.Exchange) (*pb.CUD,
 	}
 
 	res := &pb.CUD{
-		NumAffected: int32(result.RowsAffected()),
+		NumAffected: uint32(result.RowsAffected()),
 	}
 
 	return res, nil
@@ -116,7 +115,7 @@ func (s *server) InsertInstrument(ctx context.Context, req *pb.Instrument) (*pb.
 	}
 
 	res := &pb.CUD{
-		NumAffected: int32(result.RowsAffected()),
+		NumAffected: uint32(result.RowsAffected()),
 	}
 
 	return res, nil
@@ -260,16 +259,15 @@ func (s *server) InsertPrice(ctx context.Context, req *pb.Price) (*pb.CUD, error
 	}
 
 	res := &pb.CUD{
-		NumAffected: int32(result.RowsAffected()),
+		NumAffected: uint32(result.RowsAffected()),
 	}
 	if result.RowsAffected() > 0 {
 		pushPriceRes, err := s.dfServiceClient.PushPrice(context.Background(), req)
 		if err != nil {
 			s.errorLog.Println(err)
-			return res, nil
+			return nil, err
 		} else if res.NumAffected != pushPriceRes.NumAffected {
-			err = errors.New("values of CUD.NumAffected does not match - securities_rpc.go (InsertPrice)")
-			s.errorLog.Println(err)
+			s.infoLog.Println("values of CUD.NumAffected does not match - securities_rpc.go (InsertPrice)")
 			return res, nil
 		} else {
 			return pushPriceRes, nil
@@ -284,6 +282,7 @@ func (s *server) InsertPriceData(stream pb.SecuritiesService_InsertPriceDataServ
 	defer cancel()
 
 	batch := &pgx.Batch{}
+	insertedPrices := make([]*pb.Price, 0)
 	var count int
 	for {
 		price, err := stream.Recv()
@@ -296,12 +295,21 @@ func (s *server) InsertPriceData(stream pb.SecuritiesService_InsertPriceDataServ
 				commandTag, err := batchQueryResult.Exec()
 				if err != nil {
 					s.errorLog.Printf("%s, instrument id: %s", err, price.InstrumentId)
-				} else {
-					numAffected += commandTag.RowsAffected()
+					continue
+				} else if commandTag.RowsAffected() > 0 {
+					// TODO: Use PushPriceStream here instead of PushPrice?
+					pushPriceRes, err := s.dfServiceClient.PushPrice(context.Background(), insertedPrices[i])
+					if err != nil {
+						s.errorLog.Println(err)
+					} else if pushPriceRes.NumAffected == 0 {
+						s.infoLog.Println("value of CUD.NumAffected == 0 - securities_rpc.go (InsertPriceData)")
+					}
 				}
+
+				numAffected += commandTag.RowsAffected()
 			}
 
-			return stream.SendAndClose(&pb.CUD{NumAffected: int32(numAffected)})
+			return stream.SendAndClose(&pb.CUD{NumAffected: uint32(numAffected)})
 		}
 		if err != nil {
 			s.errorLog.Printf("%s, instrument id: %s", err, price.InstrumentId)
@@ -322,6 +330,7 @@ func (s *server) InsertPriceData(stream pb.SecuritiesService_InsertPriceDataServ
 			price.Volume, dateTime,
 		)
 
+		insertedPrices = append(insertedPrices, price)
 		count++
 	}
 }
